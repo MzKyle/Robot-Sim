@@ -1,10 +1,60 @@
 # 焊接数据采集工作空间
 
+<p align="center">
+  <img alt="ROS 2 Humble" src="https://img.shields.io/badge/ROS%202-Humble-00A6A6?style=for-the-badge" />
+  <img alt="Ubuntu 22.04" src="https://img.shields.io/badge/Ubuntu-22.04-E95420?style=for-the-badge" />
+  <img alt="colcon workspace" src="https://img.shields.io/badge/Build-colcon-2E7D32?style=for-the-badge" />
+  <img alt="Status active development" src="https://img.shields.io/badge/Status-Active%20Development-2D6CDF?style=for-the-badge" />
+</p>
+
+<p align="center">
+  <img src="docs/assets/cover.svg" alt="Weld Data Collect Workspace cover" width="100%" />
+</p>
+
 这是一个独立的 ROS 2 Humble 工作空间，用于焊接现场的数据采集、状态记录与桌面可视化管理。项目从 `autocover_G36` 中拆分而来，只保留采集相关能力；运行本工作空间不需要原始工作空间，也不会修改原始工作空间内容。
 
 ## 简介
 
 本仓库面向焊接产线的数据采集场景，提供 2D 相机、3D 相机、Fanuc 机器人状态、采集控制和桌面操作台的一体化能力。README 按常见开源项目的写法组织，便于快速了解项目、安装、配置和参与开发。
+
+## 系统架构
+
+下图展示了现场设备、采集后端和桌面操作台之间的主要数据流。
+
+```mermaid
+flowchart LR
+    subgraph Devices[现场设备]
+        C2D[2D Camera\ncamera_pool_driver]
+        C3D[3D Camera\ncamera_3d_driver]
+        FANUC[Fanuc Robot\nfanuc_robot]
+    end
+
+    subgraph Runtime[采集后端]
+        LAUNCH[data_collect_bringup]
+        CFG[(src/config/nodemanage.yaml)]
+        COLLECT[data_collect]
+        STORAGE[(Data Directory)]
+    end
+
+    subgraph Client[桌面操作台]
+        UI[data_collect_ui]
+    end
+
+    LAUNCH --> CFG
+    CFG --> C2D
+    CFG --> C3D
+    CFG --> FANUC
+    CFG --> COLLECT
+
+    C2D -->|/image_topic| COLLECT
+    C3D -->|point cloud| COLLECT
+    FANUC -->|status / target register| COLLECT
+
+    UI <--> |status topic + services| COLLECT
+    UI <--> |task & parameter control| FANUC
+
+    COLLECT -->|manifest.json + media| STORAGE
+```
 
 ## 主要特性
 
