@@ -1,0 +1,9 @@
+string task_id
+string workpiece_id
+string weld_seam_id
+string operator_name
+string shift
+string notes
+---
+bool success
+string message

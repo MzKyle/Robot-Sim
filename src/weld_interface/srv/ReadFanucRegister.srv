@@ -1,0 +1,5 @@
+int32 register_index
+---
+bool success
+int32 value
+string message

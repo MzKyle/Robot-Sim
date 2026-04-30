@@ -1,0 +1,8 @@
+int32 number_measurements
+int32 teaching_index
+---
+float64 current_bottom_x
+float64 current_height
+float64 average_bottom_x
+float64 average_height
+geometry_msgs/Vector3 x_axis

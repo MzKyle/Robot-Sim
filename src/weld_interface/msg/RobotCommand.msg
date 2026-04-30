@@ -1,0 +1,11 @@
+float64 x 
+float64 y 
+float64 z
+float64 rx 
+float64 ry 
+float64 rz
+float64 e1
+float64 e2
+float64 e3
+int32 time
+float64 quit_distance
