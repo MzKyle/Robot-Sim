@@ -1,8 +1,12 @@
 # 焊接数据采集工作空间
 
-这是一个独立的 ROS 2 Humble 工作空间，用于焊接现场的数据采集。它从 `autocover_G36` 中拆分出来，只保留采集相关能力；运行本工作空间不需要原始工作空间，也不会修改原始工作空间内容。
+这是一个独立的 ROS 2 Humble 工作空间，用于焊接现场的数据采集、状态记录与桌面可视化管理。项目从 `autocover_G36` 中拆分而来，只保留采集相关能力；运行本工作空间不需要原始工作空间，也不会修改原始工作空间内容。
 
-## 功能概览
+## 简介
+
+本仓库面向焊接产线的数据采集场景，提供 2D 相机、3D 相机、Fanuc 机器人状态、采集控制和桌面操作台的一体化能力。README 按常见开源项目的写法组织，便于快速了解项目、安装、配置和参与开发。
+
+## 主要特性
 
 本工作空间当前支持：
 
@@ -17,16 +21,18 @@
 - 通过 `/data_collect_status` 发布采集状态，供桌面界面和监控工具使用。
 - 提供桌面操作台 `data_collect_ui`，用于采集控制、任务录入、图像预览、历史数据检索和导出。
 
-## 软件包说明
+## 仓库结构
 
+- `camera_pool_driver`：2D 相机发布节点。
+- `camera_3d_driver`：3D 相机固定扫描节点。
+- `fanuc_robot`：Fanuc 机器人状态发布和机器人服务节点。
 - `data_collect`：核心采集节点，负责保存图像、点云、机器人位姿、Fanuc 状态和采集元数据。
 - `data_collect_ui`：桌面操作界面，用于查看采集状态、Fanuc 状态，并控制采集启停。
 - `data_collect_bringup`：独立 launch 和默认配置入口。
 - `weld_interface`：本工作空间使用的 ROS 2 消息和服务定义。
 - `file_reader`：YAML/JSON 配置读取工具。
-- `camera_pool_driver`：2D 相机发布节点。
-- `camera_3d_driver`：3D 相机固定扫描节点。
-- `fanuc_robot`：Fanuc 机器人状态发布和机器人服务节点。
+- `config`：工作空间默认配置文件与运行参数样例。
+- `packaging`：deb 打包脚本和安装包相关资源。
 
 ## 环境要求
 
@@ -116,7 +122,7 @@ weld-data-collect-ui
 默认配置文件位于：
 
 ```text
-src/data_collect_bringup/config/nodemanage.yaml
+src/config/nodemanage.yaml
 ```
 
 启动时 `data_collect.launch.py` 会把这个 YAML 传给 2D 相机、3D 相机和 Fanuc 节点；`data_collect_node` 也会通过 `AUTOCOVER_NODEMANAGE_YAML` 读取同一个文件。界面中的 `参数设置` 页会直接修改这个 YAML。
@@ -459,7 +465,7 @@ ros2 topic hz /tcp_cloud_raw
 - 当前主机是否能访问机器人控制器。
 - Fanuc 共享库依赖是否完整。
 
-## 当前开发阶段
+## 路线图
 
 第一阶段已经完成采集状态话题和标准元数据文件。
 
@@ -472,3 +478,15 @@ ros2 topic hz /tcp_cloud_raw
 - 启动前设备自检。
 - 采集包完整性检查。
 - 按任务号、工件号、焊道号和日期筛选历史数据。
+
+## 贡献
+
+欢迎通过 issue 或 pull request 改进这个项目。提交变更前建议先确认：
+
+- 相关节点可以正常编译。
+- README 与实际配置路径保持一致。
+- 新增参数或服务有对应说明。
+
+## 许可证
+
+当前仓库未附带 LICENSE 文件。若要作为开源项目对外发布，建议补充明确的许可证，例如 MIT 或 Apache-2.0。
