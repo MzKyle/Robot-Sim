@@ -4,12 +4,14 @@
 
 #include <RVC/RVC.h>
 #include <rclcpp/rclcpp.hpp>
+#include <rcl_interfaces/msg/set_parameters_result.hpp>
 #include <iostream>
 #include <opencv2/opencv.hpp>
 //#include <image_transport/image_transport.hpp>
 #include <cv_bridge/cv_bridge.h>
 #include <sensor_msgs/msg/image.hpp>
 #include <std_srvs/srv/empty.hpp>
+#include <std_srvs/srv/trigger.hpp>
 #include <thread>
 #include <mutex>
 #include <pcl/point_cloud.h>
@@ -119,6 +121,55 @@ double y_min, y_max;
 double z_min, z_max, default_z_min, default_z_max;
 int number_points_threshold, no_detection_count_threshold;
 double percentile_low, percentile_high;
+CameraConfig current_camera_config;
+std::string current_camera_config_path;
+static const char* DEFAULT_CAMERA_TCP_CONFIG =
+        "/home/kyle/sany/weld_data_collect_ws/src/camera_3d_driver/config/cameratcp.yaml";
+
+static void apply_camera_config(const CameraConfig& config, Transform& tcp_camera)
+{
+    current_camera_config = config;
+    tcp_camera.setOrigin(Vector3(config.camera.x, config.camera.y, config.camera.z));
+
+    Quaternion quat;
+    quat.setRPY(config.camera.rx, config.camera.ry, config.camera.rz);
+    tcp_camera.setRotation(quat);
+
+    y_min = config.y_min;
+    y_max = config.y_max;
+    default_z_min = config.z_min;
+    z_min = default_z_min;
+    default_z_max = config.z_max;
+    z_max = default_z_max;
+    no_detection_count_threshold = config.no_detection_count_threshold;
+    percentile_low = config.percentile_low;
+    percentile_high = config.percentile_high;
+    number_points_threshold = config.number_points_threshold;
+
+    RCLCPP_INFO(rclcpp::get_logger("camera_driver_3d"), "load camera_3d config: y_min=%f y_max=%f,  z_min=%f z_max=%f", y_min, y_max, z_min, z_max);
+    RCLCPP_INFO(rclcpp::get_logger("camera_driver_3d"), "load camera_3d config: number_points_threshold=%d no_detection_count_threshold=%d",
+                number_points_threshold, no_detection_count_threshold);
+    RCLCPP_INFO(rclcpp::get_logger("camera_driver_3d"), "load camera_3d config: percentile_low=%f percentile_high=%f", percentile_low, percentile_high);
+}
+
+static bool load_config_file(const std::string& cfg_file, Transform& tcp_camera)
+{
+    if (cfg_file.empty()) {
+        RCLCPP_ERROR(rclcpp::get_logger("camera_driver_3d"), "Camera config path is empty.");
+        return false;
+    }
+
+    RCLCPP_INFO(rclcpp::get_logger("camera_driver_3d"), "use config file : %s", cfg_file.c_str());
+    try {
+        CameraConfig config = readCameraConfigFromYaml(cfg_file);
+        current_camera_config_path = cfg_file;
+        apply_camera_config(config, tcp_camera);
+    } catch (const std::exception& e) {
+        RCLCPP_ERROR(rclcpp::get_logger("camera_driver_3d"), "Failed to read camera config: %s", e.what());
+        return false;
+    }
+    return true;
+}
 
 // ROS2服务回调函数（替换ROS1的srv格式）
 bool _start_fix_scan(const std::shared_ptr<std_srvs::srv::Empty::Request> req,
@@ -147,7 +198,7 @@ bool load_config(Transform& tcp_camera)
             ? env_nodemanage_path
             : "/etc/WR/Project/nodemanage.yaml";
 
-    std::string cfg_file;
+    std::string cfg_file = DEFAULT_CAMERA_TCP_CONFIG;
 
     try {
         ROS2YamlReader reader(nodemanage_path);
@@ -158,39 +209,7 @@ bool load_config(Transform& tcp_camera)
         RCLCPP_WARN(rclcpp::get_logger("camera_driver_3d"), "Failed to read from nodemanage.yaml: %s, using default: %s", e.what(), cfg_file.c_str());
     }
 
-    RCLCPP_INFO(rclcpp::get_logger("camera_driver_3d"), "use config file : %s", cfg_file.c_str());
-
-    CameraConfig config;
-    try {
-        config = readCameraConfigFromYaml(cfg_file);
-    } catch (const std::exception& e) {
-        RCLCPP_ERROR(rclcpp::get_logger("camera_driver_3d"), "Failed to read camera config: %s", e.what());
-        return false;
-    }
-
-    tcp_camera.setOrigin(Vector3(config.camera.x, config.camera.y, config.camera.z));
-
-    Quaternion quat;
-    quat.setRPY(config.camera.rx, config.camera.ry, config.camera.rz);
-    tcp_camera.setRotation(quat);
-
-    y_min = config.y_min;
-    y_max = config.y_max;
-    default_z_min = config.z_min;
-    z_min = default_z_min;
-    default_z_max = config.z_max;
-    z_max = default_z_max;
-    no_detection_count_threshold = config.no_detection_count_threshold;
-    percentile_low = config.percentile_low;
-    percentile_high = config.percentile_high;
-    number_points_threshold = config.number_points_threshold;
-
-    RCLCPP_INFO(rclcpp::get_logger("camera_driver_3d"), "load camera_3d config: y_min=%f y_max=%f,  z_min=%f z_max=%f", y_min, y_max, z_min, z_max);
-    RCLCPP_INFO(rclcpp::get_logger("camera_driver_3d"), "load camera_3d config: number_points_threshold=%d no_detection_count_threshold=%d",
-                number_points_threshold, no_detection_count_threshold);
-    RCLCPP_INFO(rclcpp::get_logger("camera_driver_3d"), "load camera_3d config: percentile_low=%f percentile_high=%f", percentile_low, percentile_high);
-
-    return true;
+    return load_config_file(cfg_file, tcp_camera);
 }
 
 weld_interface::msg::TcpPos _scan_pose;
@@ -387,6 +406,152 @@ bool updateCroppingZRangeCallback(const std::shared_ptr<weld_interface::srv::Upd
     return true;
 }
 
+bool reloadCamera3DConfigCallback(const std::shared_ptr<std_srvs::srv::Trigger::Request> req,
+                                  std::shared_ptr<std_srvs::srv::Trigger::Response> res,
+                                  Transform* tcp_camera)
+{
+    (void)req;
+    if (tcp_camera == nullptr) {
+        res->success = false;
+        res->message = "tcp_camera is null";
+        return true;
+    }
+
+    const bool ok = current_camera_config_path.empty()
+            ? load_config(*tcp_camera)
+            : load_config_file(current_camera_config_path, *tcp_camera);
+    if (!ok) {
+        res->success = false;
+        res->message = "failed to reload cameratcp.yaml";
+        return true;
+    }
+
+    res->success = true;
+    res->message = "camera 3d config reloaded";
+    RCLCPP_INFO(rclcpp::get_logger("camera_driver_3d"), "Reloaded camera 3d config from yaml.");
+    return true;
+}
+
+static void declare_camera_config_parameters(const rclcpp::Node::SharedPtr& node, const CameraConfig& config)
+{
+    node->declare_parameter<double>("camera.x", config.camera.x);
+    node->declare_parameter<double>("camera.y", config.camera.y);
+    node->declare_parameter<double>("camera.z", config.camera.z);
+    node->declare_parameter<double>("camera.rx", config.camera.rx);
+    node->declare_parameter<double>("camera.ry", config.camera.ry);
+    node->declare_parameter<double>("camera.rz", config.camera.rz);
+    node->declare_parameter<double>("tool.x", config.tool.x);
+    node->declare_parameter<double>("tool.y", config.tool.y);
+    node->declare_parameter<double>("tool.z", config.tool.z);
+    node->declare_parameter<double>("tool.rx", config.tool.rx);
+    node->declare_parameter<double>("tool.ry", config.tool.ry);
+    node->declare_parameter<double>("tool.rz", config.tool.rz);
+    node->declare_parameter<double>("y_min", config.y_min);
+    node->declare_parameter<double>("y_max", config.y_max);
+    node->declare_parameter<double>("z_min", config.z_min);
+    node->declare_parameter<double>("z_max", config.z_max);
+    node->declare_parameter<double>("y_min_f", config.y_min_f);
+    node->declare_parameter<double>("y_max_f", config.y_max_f);
+    node->declare_parameter<double>("percentile_low", config.percentile_low);
+    node->declare_parameter<double>("percentile_high", config.percentile_high);
+    node->declare_parameter<int>("number_points_threshold", config.number_points_threshold);
+    node->declare_parameter<int>("no_detection_count_threshold", config.no_detection_count_threshold);
+}
+
+static rcl_interfaces::msg::SetParametersResult update_camera_runtime_parameters(
+        const std::vector<rclcpp::Parameter>& parameters,
+        Transform* tcp_camera,
+        bool* publish_tf)
+{
+    rcl_interfaces::msg::SetParametersResult result;
+    result.successful = true;
+    if (tcp_camera == nullptr || publish_tf == nullptr) {
+        result.successful = false;
+        result.reason = "camera runtime pointer is null";
+        return result;
+    }
+
+    CameraConfig next_config = current_camera_config;
+    for (const auto& parameter : parameters) {
+        const std::string& name = parameter.get_name();
+        if (name == "cfg") {
+            if (!load_config_file(parameter.as_string(), *tcp_camera)) {
+                result.successful = false;
+                result.reason = "failed to load cfg";
+                return result;
+            }
+            next_config = current_camera_config;
+        } else if (name == "publish_tf") {
+            *publish_tf = parameter.as_bool();
+        } else if (name == "camera.x") {
+            next_config.camera.x = parameter.as_double();
+        } else if (name == "camera.y") {
+            next_config.camera.y = parameter.as_double();
+        } else if (name == "camera.z") {
+            next_config.camera.z = parameter.as_double();
+        } else if (name == "camera.rx") {
+            next_config.camera.rx = parameter.as_double();
+        } else if (name == "camera.ry") {
+            next_config.camera.ry = parameter.as_double();
+        } else if (name == "camera.rz") {
+            next_config.camera.rz = parameter.as_double();
+        } else if (name == "tool.x") {
+            next_config.tool.x = parameter.as_double();
+        } else if (name == "tool.y") {
+            next_config.tool.y = parameter.as_double();
+        } else if (name == "tool.z") {
+            next_config.tool.z = parameter.as_double();
+        } else if (name == "tool.rx") {
+            next_config.tool.rx = parameter.as_double();
+        } else if (name == "tool.ry") {
+            next_config.tool.ry = parameter.as_double();
+        } else if (name == "tool.rz") {
+            next_config.tool.rz = parameter.as_double();
+        } else if (name == "y_min") {
+            next_config.y_min = parameter.as_double();
+        } else if (name == "y_max") {
+            next_config.y_max = parameter.as_double();
+        } else if (name == "z_min") {
+            next_config.z_min = parameter.as_double();
+        } else if (name == "z_max") {
+            next_config.z_max = parameter.as_double();
+        } else if (name == "y_min_f") {
+            next_config.y_min_f = parameter.as_double();
+        } else if (name == "y_max_f") {
+            next_config.y_max_f = parameter.as_double();
+        } else if (name == "percentile_low") {
+            next_config.percentile_low = parameter.as_double();
+        } else if (name == "percentile_high") {
+            next_config.percentile_high = parameter.as_double();
+        } else if (name == "number_points_threshold") {
+            next_config.number_points_threshold = static_cast<int>(parameter.as_int());
+        } else if (name == "no_detection_count_threshold") {
+            next_config.no_detection_count_threshold = static_cast<int>(parameter.as_int());
+        }
+    }
+
+    if (next_config.y_min >= next_config.y_max) {
+        result.successful = false;
+        result.reason = "y_min must be less than y_max";
+        return result;
+    }
+    if (next_config.z_min >= next_config.z_max) {
+        result.successful = false;
+        result.reason = "z_min must be less than z_max";
+        return result;
+    }
+    if (next_config.percentile_low < 0.0 || next_config.percentile_high > 1.0 ||
+        next_config.percentile_low >= next_config.percentile_high) {
+        result.successful = false;
+        result.reason = "percentile range must satisfy 0 <= low < high <= 1";
+        return result;
+    }
+
+    apply_camera_config(next_config, *tcp_camera);
+    RCLCPP_INFO(rclcpp::get_logger("camera_driver_3d"), "Runtime camera 3d parameters updated.");
+    return result;
+}
+
 int main(int argc, char* argv[])
 {
     // ROS2节点初始化
@@ -488,19 +653,32 @@ int main(int argc, char* argv[])
             SCAN_3D_SRV_NAME, std::bind(&call_scan, std::placeholders::_1, std::placeholders::_2));
     auto update_target_height_srv = node->create_service<weld_interface::srv::UpdateHeight>(
             UPDATE_CAMERA_3D_NODE_TARGET_HEIGHT_SRV_NAME, std::bind(&updateTargetHeightCallback, std::placeholders::_1, std::placeholders::_2));
+    Transform tcp_camera;
+    if (!load_config(tcp_camera)) {
+        RCLCPP_ERROR(node->get_logger(), "Failed to load initial camera 3d config.");
+        x2.Close();
+        RVC::X2::Destroy(x2);
+        RVC::SystemShutdown();
+        rclcpp::shutdown();
+        return 1;
+    }
+    node->declare_parameter<std::string>("cfg", current_camera_config_path);
+    declare_camera_config_parameters(node, current_camera_config);
+
     auto update_cropping_z_range_srv = node->create_service<weld_interface::srv::UpdateRange>(
             UPDATE_CAMERA_3D_NODE_CROPPING_Z_RANGE_SRV_NAME, std::bind(&updateCroppingZRangeCallback, std::placeholders::_1, std::placeholders::_2));
+    auto reload_config_srv = node->create_service<std_srvs::srv::Trigger>(
+            RELOAD_CAMERA_3D_CONFIG_SRV_NAME,
+            std::bind(&reloadCamera3DConfigCallback, std::placeholders::_1, std::placeholders::_2, &tcp_camera));
 
     // ROS2 TF广播器
     tf2_ros::TransformBroadcaster tf_broadcaster(node);
 
     // 参数获取（ROS2）
-    bool publish_tf = true;
-    node->declare_parameter<bool>("publish_tf", true);
-    node->get_parameter("publish_tf", publish_tf);
-
-    Transform tcp_camera;
-    load_config(tcp_camera);
+    bool publish_tf = node->declare_parameter<bool>("publish_tf", true);
+    auto parameter_callback_handle = node->add_on_set_parameters_callback(
+            std::bind(&update_camera_runtime_parameters, std::placeholders::_1, &tcp_camera, &publish_tf));
+    (void)parameter_callback_handle;
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr base_pointcloud(new pcl::PointCloud<pcl::PointXYZ>);
     cv_bridge::CvImage cv_bridge_image;

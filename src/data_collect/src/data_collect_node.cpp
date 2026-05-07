@@ -2,6 +2,7 @@
 // Created by huang on 2026/2/28.
 //
 #include <rclcpp/rclcpp.hpp>
+#include <rcl_interfaces/msg/set_parameters_result.hpp>
 #include <std_msgs/msg/int32.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
@@ -25,6 +26,7 @@
 #include <atomic>
 #include <thread>
 #include <exception>
+#include <ament_index_cpp/get_package_share_directory.hpp>
 
 // 自定义消息（替换为你的实际消息路径）
 //#include "weld_interface/msg/joint_pos.hpp"
@@ -51,7 +53,11 @@ std::string resolve_nodemanage_yaml_path() {
     if (yaml_path != nullptr && yaml_path[0] != '\0') {
         return yaml_path;
     }
-    return "/etc/WR/Project/nodemanage.yaml";
+    try {
+        return ament_index_cpp::get_package_share_directory("data_collect_bringup") + "/config/nodemanage.yaml";
+    } catch (const std::exception&) {
+        return "config/nodemanage.yaml";
+    }
 }
 
 std::string build_register_value_group_name(bool has_register_value, int register_value) {
@@ -153,6 +159,16 @@ public:
         timer_thread_stop_.store(false);
         RCLCPP_INFO(this->get_logger(), "[DataCollect] Auto save data flag : %d.", params.auto_save_flag);
         RCLCPP_INFO(this->get_logger(), "[DataCollect] Target register index : %d.", target_register_index_);
+
+        save_dir_root_ = this->declare_parameter<std::string>("save_dir_root", save_dir_root_);
+        image_save_interval_ = this->declare_parameter<int>("image_save_interval", image_save_interval_);
+        image_log_save_interval_ = this->declare_parameter<int>("image_log_save_interval", image_log_save_interval_);
+        height_log_save_interval_ = this->declare_parameter<int>("height_log_save_interval", height_log_save_interval_);
+        fix_scan_interval_ = this->declare_parameter<int>("fix_scan_interval", fix_scan_interval_);
+        auto_save_flag_ = this->declare_parameter<int>("auto_save_flag", auto_save_flag_ ? 1 : 0) != 0;
+        target_register_index_ = this->declare_parameter<int>("target_register_index", target_register_index_);
+        normalize_runtime_settings();
+
         // 计数器初始化
         reset_counters();
 
@@ -204,6 +220,9 @@ public:
         srv_set_task_ = this->create_service<weld_interface::srv::SetCollectionTask>(
                 DATA_COLLECT_SET_TASK_SRV_NAME, std::bind(&DataCollectNode::set_collection_task,
                                                      this, std::placeholders::_1, std::placeholders::_2));
+
+        parameter_callback_handle_ = this->add_on_set_parameters_callback(
+                std::bind(&DataCollectNode::update_runtime_parameters, this, std::placeholders::_1));
 
         // timers
         timer_thread_ = std::thread(&DataCollectNode::timerThreadLoop, this);
@@ -274,6 +293,65 @@ public:
         run_mode_.store(true);
         arc_lost_ticks_.store(0);
         RCLCPP_INFO(this->get_logger(), "[DataCollect] Data collection activated. Saving to %s.", root_dir.c_str());
+    }
+
+    void normalize_runtime_settings() {
+        if (image_save_interval_ <= 0) image_save_interval_ = 1;
+        if (image_log_save_interval_ <= 0) image_log_save_interval_ = 1;
+        if (height_log_save_interval_ <= 0) height_log_save_interval_ = 1;
+        if (fix_scan_interval_ <= 0) fix_scan_interval_ = 1;
+        ensure_dir(save_dir_root_);
+    }
+
+    rcl_interfaces::msg::SetParametersResult update_runtime_parameters(
+            const std::vector<rclcpp::Parameter>& parameters) {
+        rcl_interfaces::msg::SetParametersResult result;
+        result.successful = true;
+
+        std::lock_guard<std::mutex> lock(run_mutex_);
+        for (const auto& parameter : parameters) {
+            const std::string& name = parameter.get_name();
+            if (name == "save_dir_root") {
+                save_dir_root_ = parameter.as_string();
+            } else if (name == "image_save_interval") {
+                if (parameter.as_int() <= 0) {
+                    result.successful = false;
+                    result.reason = "image_save_interval must be greater than 0";
+                    return result;
+                }
+                image_save_interval_ = static_cast<int>(parameter.as_int());
+            } else if (name == "image_log_save_interval") {
+                if (parameter.as_int() <= 0) {
+                    result.successful = false;
+                    result.reason = "image_log_save_interval must be greater than 0";
+                    return result;
+                }
+                image_log_save_interval_ = static_cast<int>(parameter.as_int());
+            } else if (name == "height_log_save_interval") {
+                if (parameter.as_int() <= 0) {
+                    result.successful = false;
+                    result.reason = "height_log_save_interval must be greater than 0";
+                    return result;
+                }
+                height_log_save_interval_ = static_cast<int>(parameter.as_int());
+            } else if (name == "fix_scan_interval") {
+                if (parameter.as_int() <= 0) {
+                    result.successful = false;
+                    result.reason = "fix_scan_interval must be greater than 0";
+                    return result;
+                }
+                fix_scan_interval_ = static_cast<int>(parameter.as_int());
+            } else if (name == "auto_save_flag") {
+                auto_save_flag_ = parameter.as_int() != 0;
+            } else if (name == "target_register_index") {
+                target_register_index_ = static_cast<int>(parameter.as_int());
+                has_target_register_value_ = false;
+            }
+        }
+
+        normalize_runtime_settings();
+        RCLCPP_INFO(this->get_logger(), "[DataCollect] Runtime parameters updated.");
+        return result;
     }
 
     // 激活数据采集
@@ -749,6 +827,7 @@ private:
     rclcpp::Service<std_srvs::srv::Empty>::SharedPtr srv_mode_activate_;
     rclcpp::Service<std_srvs::srv::Empty>::SharedPtr srv_mode_deactivate_;
     rclcpp::Service<weld_interface::srv::SetCollectionTask>::SharedPtr srv_set_task_;
+    rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr parameter_callback_handle_;
     std::thread timer_thread_;
     std::atomic_bool timer_thread_stop_;
     std::mutex run_mutex_;

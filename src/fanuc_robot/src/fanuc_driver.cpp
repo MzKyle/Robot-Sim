@@ -4,6 +4,7 @@
 #include <cmath>  // 替换math.h（C++标准头文件）
 #include <unistd.h>
 #include "rclcpp/rclcpp.hpp"
+#include "rcl_interfaces/msg/set_parameters_result.hpp"
 #include "std_msgs/msg/int32.hpp"
 #include <mutex>
 #include <unordered_set>
@@ -556,6 +557,8 @@ public:
             rclcpp::shutdown();
             return;
         }
+        parameter_callback_handle_ = this->add_on_set_parameters_callback(
+                std::bind(&FanucRobotDriver::update_runtime_parameters, this, std::placeholders::_1));
         // 创建回调组（Reentrant模式支持并行处理）
         service_callback_group_ = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
 
@@ -756,6 +759,7 @@ private:
     rclcpp::Service<weld_interface::srv::ReadFanucRegister>::SharedPtr fanuc_register_read_service_;
     rclcpp::Service<weld_interface::srv::SpecialSpeedl>::SharedPtr mov_any_jog_loop_position_service_;
     rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr mov_any_jog_loop_sign_service_;
+    rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr parameter_callback_handle_;
 
     // 定时器（用于循环发布数据）
     rclcpp::TimerBase::SharedPtr publish_timer_;
@@ -821,6 +825,31 @@ private:
             msg.data = register_value;
             target_register_value_pub_->publish(msg);
         }
+    }
+
+    rcl_interfaces::msg::SetParametersResult update_runtime_parameters(
+            const std::vector<rclcpp::Parameter>& parameters)
+    {
+        rcl_interfaces::msg::SetParametersResult result;
+        result.successful = true;
+
+        for (const auto& parameter : parameters)
+        {
+            const std::string& name = parameter.get_name();
+            if (name == "target_register_index")
+            {
+                target_register_index_ = static_cast<int>(parameter.as_int());
+                RCLCPP_INFO(this->get_logger(), "target register index updated: %d", target_register_index_);
+            }
+            else if (name == "so_file_path" || name == "robot_ip" || name == "robot_port")
+            {
+                result.successful = false;
+                result.reason = "Fanuc connection parameters require restarting robot_driver_fanuc";
+                return result;
+            }
+        }
+
+        return result;
     }
 
     // -------------------------- 服务回调函数（适配ROS2格式） --------------------------

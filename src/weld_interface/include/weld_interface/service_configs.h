@@ -32,6 +32,7 @@
 #define SCAN_3D_SRV_NAME "scan_3d" //3D扫描服务（单次触发） weld_interface::srv::Scan3d
 #define UPDATE_CAMERA_3D_NODE_TARGET_HEIGHT_SRV_NAME "/update_camera_3d_node_target_height" //更新3D相机目标高度服务 weld_interface::srv::UpdateHeight
 #define UPDATE_CAMERA_3D_NODE_CROPPING_Z_RANGE_SRV_NAME "/update_camera_3d_node_cropping_z_range" //更新Z轴裁剪范围服务 weld_interface::srv::UpdateRange
+#define RELOAD_CAMERA_3D_CONFIG_SRV_NAME "/reload_camera_3d_config" //重新加载3D相机配置服务 std_srvs::srv::Trigger
 
 //data_collect节点
 #define DATA_COLLECT_ACTIVATE_SRV_NAME "/data_collect_activate" //数据采集激活服务 std_srvs::srv::Empty
@@ -73,6 +74,7 @@
 #define STOP_FIX_SCAN_CLIENT_NAME "/stop_fix_scan" //停止固定扫描客户端 std_srvs::srv::Empty
 #define UPDATE_CAMERA_3D_NODE_TARGET_HEIGHT_CLIENT_NAME "/update_camera_3d_node_target_height" //更新3D相机目标高度客户端 weld_interface::srv::UpdateHeight
 #define UPDATE_CAMERA_3D_NODE_CROPPING_Z_RANGE_CLIENT_NAME "/update_camera_3d_node_cropping_z_range" //更新3D相机裁剪Z轴范围客户端 weld_interface::srv::UpdateRange
+#define RELOAD_CAMERA_3D_CONFIG_CLIENT_NAME "/reload_camera_3d_config" //重新加载3D相机配置客户端 std_srvs::srv::Trigger
 #define DATA_COLLECT_ACTIVATE_CLIENT_NAME "/data_collect_activate" //数据采集激活客户端 std_srvs::srv::Empty
 #define DATA_COLLECT_DEACTIVATE_CLIENT_NAME "/data_collect_deactivate" //数据采集停用客户端 std_srvs::srv::Empty
 #define DATA_COLLECT_SET_TASK_CLIENT_NAME "/data_collect_set_task" //设置当前采集任务信息客户端 weld_interface::srv::SetCollectionTask

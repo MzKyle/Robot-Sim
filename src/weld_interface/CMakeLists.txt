@@ -12,6 +12,12 @@ find_package(std_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 
+add_library(${PROJECT_NAME}_headers INTERFACE)
+target_include_directories(${PROJECT_NAME}_headers INTERFACE
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+  )
+
 
 rosidl_generate_interfaces(${PROJECT_NAME}
         "msg/FanucRobotInfo.msg"
@@ -51,6 +57,16 @@ rosidl_generate_interfaces(${PROJECT_NAME}
         DEPENDENCIES std_msgs sensor_msgs
         )
 
+      install(DIRECTORY include/
+        DESTINATION include
+        )
+
+      install(TARGETS ${PROJECT_NAME}_headers
+        EXPORT export_${PROJECT_NAME}
+        )
+
+      ament_export_targets(export_${PROJECT_NAME})
+      ament_export_include_directories(include)
 ament_export_dependencies(rosidl_default_runtime)
 
 ament_package()
