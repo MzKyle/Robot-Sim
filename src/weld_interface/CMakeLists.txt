@@ -51,6 +51,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
         "srv/IntData.srv"
         "srv/ReadFanucRegister.srv"
         "srv/SetCollectionTask.srv"
+        "msg/WeldRegisterInfo.msg"
         "msg/ModbusData.msg"
         "msg/ModbusDataArray.msg"
         "srv/WriteDataPoint.srv"

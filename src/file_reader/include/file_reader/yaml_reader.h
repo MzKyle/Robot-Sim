@@ -26,6 +26,7 @@
 #include <yaml-cpp/yaml.h>
 #include <string>
 #include <vector>
+#include <map>
 #include <stdexcept>
 #include <rclcpp/rclcpp.hpp>
 #include <cmath>
@@ -65,6 +66,7 @@ struct DataCollectNodeParams {
     int fix_scan_interval{6};
     int auto_save_flag{0};
     int target_register_index{100};
+    std::map<int, std::string> weld_type_mapping;  // 焊接类型映射: int -> string
 };
 
 /**

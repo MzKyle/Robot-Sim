@@ -25,6 +25,7 @@
 //fanuc_robot topics
 #define FANUC_ROBOT_INFO_TOPIC_NAME "/fanuc_robot_info" //机器人信息 FanucRobotInfo.msg
 #define FANUC_TARGET_REGISTER_VALUE_TOPIC_NAME "/fanuc_target_register_value" //目标寄存器当前值 std_msgs::msg::Int32
+#define FANUC_WELD_REGISTER_INFO_TOPIC_NAME "/fanuc_weld_register_info" //焊接寄存器信息 weld_interface::msg::WeldRegisterInfo
 #define DATA_COLLECT_STATUS_TOPIC_NAME "/data_collect_status" //数据采集状态 weld_interface::msg::DataCollectStatus
 
 //ros_bridge topics

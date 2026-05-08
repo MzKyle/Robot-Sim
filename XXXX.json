@@ -1,0 +1,53 @@
+{
+    "schema_version": "1.0.0",  // 标注字段的版本
+    "description": "实例分割标注示例",  // 暂留，可为空
+    "image_id": "2026_04_21/1774320855812",  // 数据集名/图片编号(一般用unix时间戳，毫秒)
+    "image_resolution": {  // 图片分辨率
+        "width": 1280,
+        "height": 1024
+    },
+    "instances": [  // 物体列表
+        {
+            "instance_id": 0,  // 物体ID
+            "category_id": 3,  // 类别ID
+        },
+        {
+            "instance_id": 1,
+            "category_id": 1,
+        },
+        {
+            "instance_id": 2,
+            "category_id": 2,
+        }
+    ],
+    "state_info": {  // 状态信息
+        "capture_unix_ts": 1774320855812,  // 捕获时间戳，毫秒
+         "is_arc_on": true,     // 是否起弧
+        "weld_pass": 1,// 当前焊道（第几道焊，数字）
+        "weld_pass_type": "角接焊缝",  // 焊道类型（对接焊缝，角接焊缝，搭接焊缝）
+        "weld_layer": 1, //焊道层数
+        "actual_current": 220,  // 当前电流
+        "actual_voltage": 36,   // 当前电压
+        "actual_speed": 120,    // 当前速度
+        "robot_tcp_pose": {  // 机器人TCP位姿
+            "frame": "base",  // 机器人TCP坐标系
+            "position_mm": {  // 机器人TCP位置，毫米
+                "x": 1032.4,
+                "y": -215.8,
+                "z": 487.6
+            },
+            "orientation_quaternion": {  // 机器人TCP姿态，四元数
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+            }
+        }
+    },
+    "annotation_info": {  // 标注信息。如交给外包，可调整。
+        "annotate_unix_ts": 1774321361807,  // 标注时间戳，毫秒
+        "annotator": "zhangsan",  // 标注者
+        "annotation_tool_version": "1.2.3"  // 标注工具版本
+    }
+}
+

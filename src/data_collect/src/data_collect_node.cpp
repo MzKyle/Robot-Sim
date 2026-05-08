@@ -25,6 +25,8 @@
 #include <mutex>
 #include <atomic>
 #include <thread>
+#include <map>
+#include <cmath>
 #include <exception>
 #include <ament_index_cpp/get_package_share_directory.hpp>
 
@@ -35,10 +37,11 @@
 #include "weld_interface/msg/line_coeffs.hpp"
 #include "weld_interface/msg/fanuc_robot_info.hpp"
 #include "weld_interface/msg/data_collect_status.hpp"
+#include "weld_interface/msg/weld_register_info.hpp"
 #include "weld_interface/srv/set_collection_task.hpp"
 
-#include "../../weld_interface/include/weld_interface/topic_configs.h"
-#include "../../weld_interface/include/weld_interface/service_configs.h"
+#include "weld_interface/topic_configs.h"
+#include "weld_interface/service_configs.h"
 #include "file_reader/json.hpp"
 #include "file_reader/yaml_reader.h"
 
@@ -58,13 +61,6 @@ std::string resolve_nodemanage_yaml_path() {
     } catch (const std::exception&) {
         return "config/nodemanage.yaml";
     }
-}
-
-std::string build_register_value_group_name(bool has_register_value, int register_value) {
-    if (has_register_value) {
-        return std::to_string(register_value);
-    }
-    return "unknown";
 }
 
 }
@@ -151,6 +147,7 @@ public:
         if (fix_scan_interval_ <= 0) fix_scan_interval_ = 1;
         auto_save_flag_ = params.auto_save_flag == 0?false:true;
         target_register_index_ = params.target_register_index;
+        weld_type_mapping_ = params.weld_type_mapping;
         current_target_register_value_ = 0;
         has_target_register_value_ = false;
         detect_flag1_.store(0);
@@ -203,6 +200,9 @@ public:
         sub_target_register_value_ = this->create_subscription<std_msgs::msg::Int32>(
                 FANUC_TARGET_REGISTER_VALUE_TOPIC_NAME, 10, std::bind(&DataCollectNode::cb_target_register_value, this, std::placeholders::_1));
 
+        sub_weld_register_info_ = this->create_subscription<weld_interface::msg::WeldRegisterInfo>(
+                FANUC_WELD_REGISTER_INFO_TOPIC_NAME, 10, std::bind(&DataCollectNode::cb_weld_register_info, this, std::placeholders::_1));
+
         status_pub_ = this->create_publisher<weld_interface::msg::DataCollectStatus>(
                 DATA_COLLECT_STATUS_TOPIC_NAME, rclcpp::QoS(1).transient_local());
         status_timer_ = this->create_wall_timer(
@@ -244,20 +244,20 @@ public:
             return;
         }
 
-        // 创建存储目录
+        // 创建存储目录: save_dir_root/{日期}/{焊接编号}/{焊缝道数}/{时间}
         save_date_ = get_current_date();
         std::string timestamp = get_current_daytime_str();
-        std::string register_group_dir = save_dir_root_ + "/" + build_register_value_group_name(
-                has_target_register_value_, current_target_register_value_);
-        std::string root_dir = register_group_dir + "/" + save_date_ + "/" + timestamp;
+        std::string weld_id_dir = has_weld_register_info_ ? std::to_string(weld_id_) : "unknown";
+        std::string weld_layer_dir = has_weld_register_info_ ? std::to_string(weld_layer_) : "unknown";
+        std::string root_dir = save_dir_root_ + "/" + save_date_ + "/" + weld_id_dir
+                               + "/" + weld_layer_dir + "/" + timestamp;
         current_save_dir_ = root_dir;
         collection_started_at_ = get_current_datetime_str();
         collection_ended_at_.clear();
         last_error_.clear();
-        if (!has_target_register_value_) {
+        if (!has_weld_register_info_) {
             RCLCPP_WARN(this->get_logger(),
-                        "[DataCollect] No target register value received yet for R[%d], using fallback directory 'unknown'.",
-                        target_register_index_);
+                        "[DataCollect] No weld register info received yet, using fallback directory 'unknown'.");
         }
         RCLCPP_INFO(this->get_logger(), "[DataCollect] current save dir %s.", root_dir.c_str());
 
@@ -288,6 +288,7 @@ public:
         // 重置计数器
         reset_counters();
         save_collection_metadata(root_dir);
+        save_dataset_meta_json(root_dir);
         write_collection_manifest("running");
 
         run_mode_.store(true);
@@ -371,6 +372,7 @@ public:
         run_mode_.store(false);
         arc_lost_ticks_.store(0);
         collection_ended_at_ = get_current_datetime_str();
+        update_dataset_meta_json_num_images();
         write_collection_manifest("completed");
         RCLCPP_INFO(this->get_logger(), "[DataCollect] Data collection deactivated.");
     }
@@ -483,6 +485,115 @@ public:
         f.close();
     }
 
+    void save_dataset_meta_json(const std::string& root_dir) {
+        nlohmann::json meta;
+        meta["schema_version"] = "1.0.0";
+        meta["description"] = "";
+        meta["num_images"] = 0;
+        meta["category_mapping"]["0"] = "背景";
+        meta["category_mapping"]["1"] = "焊缝";
+        meta["mask_format"] = "png";
+        meta["welding_info"]["workstation_location"] = "邵阳商车";
+        meta["welding_info"]["workstation_id"] = "G26";
+        meta["welding_info"]["workpiece_type"] = "商车";
+        meta["welding_info"]["workpiece_id"] = workpiece_id_;
+        meta["welding_info"]["set_current"] = 220;
+        meta["welding_info"]["set_voltage"] = 36;
+        meta["welding_info"]["set_speed"] = 120;
+        meta["camera_info"]["camera_model"] = "HIKROBOT MV-CA050-11GM";
+        meta["camera_info"]["camera_sn"] = "";
+        meta["camera_info"]["intrinsic_matrix"] = {{2056.5, 0, 960.0}, {0, 2056.5, 540.0}, {0, 0, 1}};
+        meta["camera_info"]["distortion_coeffs"]["k1"] = 0.0;
+        meta["camera_info"]["distortion_coeffs"]["k2"] = 0.0;
+        meta["camera_info"]["distortion_coeffs"]["k3"] = 0.0;
+        meta["camera_info"]["distortion_coeffs"]["p1"] = 0.0;
+        meta["camera_info"]["distortion_coeffs"]["p2"] = 0.0;
+        meta["camera_info"]["handeye_matrix"] = {
+            {0.9998, -0.0175, 0.0087, 125.5},
+            {0.0175, 0.9998, -0.0015, -45.2},
+            {-0.0087, 0.0017, 0.9999, 85.0},
+            {0, 0, 0, 1}
+        };
+
+        std::string meta_path = root_dir + "/meta.json";
+        std::ofstream f(meta_path, std::ios::out | std::ios::trunc);
+        if (!f.is_open()) {
+            set_last_error("Failed to write meta.json: " + meta_path);
+            return;
+        }
+        f << meta.dump(4) << std::endl;
+        f.close();
+        RCLCPP_INFO(this->get_logger(), "[DataCollect] Wrote meta.json to %s", meta_path.c_str());
+    }
+
+    void update_dataset_meta_json_num_images() {
+        if (current_save_dir_.empty()) return;
+        std::string meta_path = current_save_dir_ + "/meta.json";
+        if (!fs::exists(meta_path)) return;
+
+        try {
+            std::ifstream fin(meta_path);
+            nlohmann::json meta = nlohmann::json::parse(fin, nullptr, true, true);
+            fin.close();
+            meta["num_images"] = image_save_counter_;
+            std::ofstream fout(meta_path, std::ios::out | std::ios::trunc);
+            fout << meta.dump(4) << std::endl;
+            fout.close();
+        } catch (const std::exception& e) {
+            set_last_error(std::string("Failed to update meta.json num_images: ") + e.what());
+        }
+    }
+
+    std::string get_weld_type_string(int weld_type) {
+        auto it = weld_type_mapping_.find(weld_type);
+        if (it != weld_type_mapping_.end()) {
+            return it->second;
+        }
+        return std::to_string(weld_type);
+    }
+
+    void save_per_image_json(int64_t timestamp, int width, int height) {
+        nlohmann::json img_json;
+        img_json["schema_version"] = "1.0.0";
+        img_json["description"] = "";
+        img_json["image_id"] = save_date_ + "/" + std::to_string(timestamp);
+        img_json["image_resolution"]["width"] = width;
+        img_json["image_resolution"]["height"] = height;
+        img_json["instances"] = nlohmann::json::array();
+
+        // state_info
+        img_json["state_info"]["capture_unix_ts"] = timestamp;
+        img_json["state_info"]["is_arc_on"] = (cached_weld_detect1_ != 0 || cached_weld_detect2_ != 0);
+        img_json["state_info"]["weld_pass"] = weld_id_;
+        img_json["state_info"]["weld_pass_type"] = get_weld_type_string(weld_type_);
+        img_json["state_info"]["weld_layer"] = weld_layer_;
+        img_json["state_info"]["actual_current"] = cached_current1_;
+        img_json["state_info"]["actual_voltage"] = cached_voltage1_;
+        img_json["state_info"]["actual_speed"] = cached_override_;
+        img_json["state_info"]["robot_tcp_pose"]["frame"] = "base";
+        img_json["state_info"]["robot_tcp_pose"]["position_mm"]["x"] = cached_tcp_x_ * 1000.0;
+        img_json["state_info"]["robot_tcp_pose"]["position_mm"]["y"] = cached_tcp_y_ * 1000.0;
+        img_json["state_info"]["robot_tcp_pose"]["position_mm"]["z"] = cached_tcp_z_ * 1000.0;
+        img_json["state_info"]["robot_tcp_pose"]["orientation_quaternion"]["x"] = 0.0;
+        img_json["state_info"]["robot_tcp_pose"]["orientation_quaternion"]["y"] = 0.0;
+        img_json["state_info"]["robot_tcp_pose"]["orientation_quaternion"]["z"] = 0.0;
+        img_json["state_info"]["robot_tcp_pose"]["orientation_quaternion"]["w"] = 1.0;
+
+        // annotation_info — empty defaults
+        img_json["annotation_info"]["annotate_unix_ts"] = 0;
+        img_json["annotation_info"]["annotator"] = "";
+        img_json["annotation_info"]["annotation_tool_version"] = "";
+
+        std::string json_path = save_dir_camera_ + "/" + std::to_string(timestamp) + ".json";
+        std::ofstream f(json_path, std::ios::out | std::ios::trunc);
+        if (!f.is_open()) {
+            set_last_error("Failed to write per-image JSON: " + json_path);
+            return;
+        }
+        f << img_json.dump(4) << std::endl;
+        f.close();
+    }
+
     void write_collection_manifest(const std::string& status) {
         if (current_save_dir_.empty()) {
             return;
@@ -589,6 +700,7 @@ public:
                 cv_bridge::CvImagePtr cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
                 std::string image_path = save_dir_camera_ + "/" + std::to_string(timestamp) + ".jpg";
                 if (cv::imwrite(image_path, cv_ptr->image)) {
+                    save_per_image_json(timestamp, cv_ptr->image.cols, cv_ptr->image.rows);
                     image_save_counter_++;
                 } else {
                     set_last_error("Failed to write image: " + image_path);
@@ -684,6 +796,14 @@ public:
 
     // 回调：保存工具位姿
     void cb_save_tool_pose(const weld_interface::msg::TcpPos::SharedPtr msg) {
+        // 缓存TCP位姿用于per-image JSON
+        cached_tcp_x_ = msg->x;
+        cached_tcp_y_ = msg->y;
+        cached_tcp_z_ = msg->z;
+        cached_tcp_rx_ = msg->rx;
+        cached_tcp_ry_ = msg->ry;
+        cached_tcp_rz_ = msg->rz;
+
         if (!run_mode_.load()) return;
 
         int64_t timestamp = get_current_timestamp_ms();
@@ -724,6 +844,12 @@ public:
         if(msg != nullptr){
             detect_flag1_.store(msg->weld_detect1);
             detect_flag2_.store(msg->weld_detect2);
+            // 缓存焊接参数用于per-image JSON
+            cached_voltage1_ = msg->voltage1;
+            cached_current1_ = msg->current1;
+            cached_override_ = msg->override;
+            cached_weld_detect1_ = msg->weld_detect1;
+            cached_weld_detect2_ = msg->weld_detect2;
         }
         if (!run_mode_.load()) return;
         int64_t timestamp = get_current_timestamp_ms();
@@ -751,6 +877,17 @@ public:
         std::lock_guard<std::mutex> lock(run_mutex_);
         current_target_register_value_ = msg->data;
         has_target_register_value_ = true;
+    }
+
+    void cb_weld_register_info(const weld_interface::msg::WeldRegisterInfo::SharedPtr msg) {
+        if (msg == nullptr) {
+            return;
+        }
+        std::lock_guard<std::mutex> lock(run_mutex_);
+        weld_id_ = msg->weld_id;
+        weld_type_ = msg->weld_type;
+        weld_layer_ = msg->weld_layer;
+        has_weld_register_info_ = true;
     }
 
 private:
@@ -792,6 +929,20 @@ private:
     int current_target_register_value_;
     bool has_target_register_value_;
 
+    // 焊接寄存器信息 (R[901/902/903])
+    int weld_id_{0};
+    int weld_type_{0};
+    int weld_layer_{0};
+    bool has_weld_register_info_{false};
+    std::map<int, std::string> weld_type_mapping_;
+
+    // 缓存的实时数据（用于per-image JSON）
+    double cached_tcp_x_{0.0}, cached_tcp_y_{0.0}, cached_tcp_z_{0.0};
+    double cached_tcp_rx_{0.0}, cached_tcp_ry_{0.0}, cached_tcp_rz_{0.0};
+    float cached_voltage1_{0.0f}, cached_current1_{0.0f};
+    int cached_override_{0};
+    int cached_weld_detect1_{0}, cached_weld_detect2_{0};
+
     // 计数器
     int image_total_counter_;
     int image_log_total_counter_;
@@ -820,6 +971,7 @@ private:
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr sub_height_log_;
     rclcpp::Subscription<weld_interface::msg::FanucRobotInfo>::SharedPtr sub_fanuc_robot_info_;
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr sub_target_register_value_;
+    rclcpp::Subscription<weld_interface::msg::WeldRegisterInfo>::SharedPtr sub_weld_register_info_;
     rclcpp::Publisher<weld_interface::msg::DataCollectStatus>::SharedPtr status_pub_;
     rclcpp::TimerBase::SharedPtr status_timer_;
 

@@ -38,8 +38,8 @@
 
 #include <ament_index_cpp/get_package_share_directory.hpp>
 
-#include "../../weld_interface/include/weld_interface/topic_configs.h"
-#include "../../weld_interface/include/weld_interface/service_configs.h"
+#include "weld_interface/topic_configs.h"
+#include "weld_interface/service_configs.h"
 #include "file_reader/yaml_reader.h"
 
 // 替换ROS1的tf为ROS2的tf2

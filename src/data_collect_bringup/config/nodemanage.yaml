@@ -26,3 +26,7 @@ data_collect_node:
     fix_scan_interval: 6
     auto_save_flag: 0
     target_register_index: 100
+    weld_type_mapping:
+      1: "对接焊缝"
+      2: "角接焊缝"
+      3: "搭接焊缝"

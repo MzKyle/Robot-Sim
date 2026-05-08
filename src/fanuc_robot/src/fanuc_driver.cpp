@@ -16,14 +16,15 @@
 #include "weld_interface/srv/move.hpp"
 #include "weld_interface/srv/fanuc_mov_rate.hpp"
 #include "weld_interface/srv/read_fanuc_register.hpp"
+#include "weld_interface/msg/weld_register_info.hpp"
 #include "std_srvs/srv/empty.hpp"
 #include "std_srvs/srv/set_bool.hpp"
 #include <thread>  // 必须包含，用于获取线程ID
 #include <exception>
 
 #include <ament_index_cpp/get_package_share_directory.hpp>
-#include "../../weld_interface/include/weld_interface/topic_configs.h"
-#include "../../weld_interface/include/weld_interface/service_configs.h"
+#include "weld_interface/topic_configs.h"
+#include "weld_interface/service_configs.h"
 
 // 全局互斥锁
 std::mutex mtx;
@@ -87,6 +88,10 @@ SetValue g_fnSetValue = NULL;
 #define E_STOP_R_INDEX 206
 #define WELD_MOV_RATE_R_INDEX 207
 #define ANY_MOV_RATE_R_INDEX 208
+
+#define WELD_ID_R_INDEX 901
+#define WELD_TYPE_R_INDEX 902
+#define WELD_LAYER_R_INDEX 903
 
 #define SAFE_START_PR_INDEX 301
 #define SAFE_END_PR_INDEX 302
@@ -587,6 +592,7 @@ public:
         pos_pub_ = this->create_publisher<weld_interface::msg::TcpPos>(TCP_PUBLISH_TOPIC_NAME, rclcpp::QoS(10));  // QoS默认10
         robot_info_pub_ = this->create_publisher<weld_interface::msg::FanucRobotInfo>(FANUC_ROBOT_INFO_TOPIC_NAME, rclcpp::QoS(10));
         target_register_value_pub_ = this->create_publisher<std_msgs::msg::Int32>(FANUC_TARGET_REGISTER_VALUE_TOPIC_NAME, rclcpp::QoS(10));
+        weld_register_info_pub_ = this->create_publisher<weld_interface::msg::WeldRegisterInfo>(FANUC_WELD_REGISTER_INFO_TOPIC_NAME, rclcpp::QoS(10));
 
         // 2. 创建服务端（ROS2服务回调函数格式：std::function）
         move_safe_start_jog_service_ = this->create_service<weld_interface::srv::Move>(
@@ -762,6 +768,7 @@ private:
     rclcpp::Publisher<weld_interface::msg::TcpPos>::SharedPtr pos_pub_;
     rclcpp::Publisher<weld_interface::msg::FanucRobotInfo>::SharedPtr robot_info_pub_;
     rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr target_register_value_pub_;
+    rclcpp::Publisher<weld_interface::msg::WeldRegisterInfo>::SharedPtr weld_register_info_pub_;
 
     // TF广播器（ROS2）
     tf2_ros::TransformBroadcaster tf_broadcaster_;
@@ -812,6 +819,7 @@ private:
         robot_info_pub_->publish(robot_info);
 
         publish_target_register_value();
+        publish_weld_register_info();
 
         // 3. 发布TF变换
         geometry_msgs::msg::TransformStamped transform_stamped;
@@ -847,6 +855,34 @@ private:
             msg.data = register_value;
             target_register_value_pub_->publish(msg);
         }
+    }
+
+    void publish_weld_register_info()
+    {
+        if (weld_register_info_pub_ == nullptr)
+        {
+            return;
+        }
+
+        weld_interface::msg::WeldRegisterInfo msg;
+        int value = 0;
+
+        if (::GetRegisterValue(WELD_ID_R_INDEX, &value))
+        {
+            msg.weld_id = value;
+        }
+
+        if (::GetRegisterValue(WELD_TYPE_R_INDEX, &value))
+        {
+            msg.weld_type = value;
+        }
+
+        if (::GetRegisterValue(WELD_LAYER_R_INDEX, &value))
+        {
+            msg.weld_layer = value;
+        }
+
+        weld_register_info_pub_->publish(msg);
     }
 
     rcl_interfaces::msg::SetParametersResult update_runtime_parameters(

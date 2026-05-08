@@ -7,6 +7,7 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
+find_package(weld_interface REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
@@ -45,6 +46,7 @@ ament_target_dependencies(
         rclcpp
         cv_bridge
         sensor_msgs
+        weld_interface
         OpenCV
 )
 # 链接库文件（保留原有相机SDK链接）

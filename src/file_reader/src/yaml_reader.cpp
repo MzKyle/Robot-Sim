@@ -150,6 +150,14 @@ DataCollectNodeParams ROS2YamlReader::readDataCollectNodeParams(const std::strin
     if (params_node["target_register_index"]) {
         params.target_register_index = params_node["target_register_index"].as<int>();
     }
+    if (params_node["weld_type_mapping"]) {
+        YAML::Node mapping_node = params_node["weld_type_mapping"];
+        for (auto it = mapping_node.begin(); it != mapping_node.end(); ++it) {
+            int key = it->first.as<int>();
+            std::string value = it->second.as<std::string>();
+            params.weld_type_mapping[key] = value;
+        }
+    }
     return params;
 }
 
