@@ -98,7 +98,16 @@ def generate_launch_description():
         DeclareLaunchArgument("robot_port", default_value=TextSubstitution(text="")),
         DeclareLaunchArgument("target_register_index", default_value=TextSubstitution(text="")),
         DeclareLaunchArgument("publish_tf", default_value=TextSubstitution(text="")),
-        DeclareLaunchArgument("rvc_lib_dir", default_value=TextSubstitution(text="/opt/RVC/lib")),
+        DeclareLaunchArgument(
+            "rvc_lib_dir",
+            default_value=EnvironmentVariable(
+                "RVC_LIB_DIR",
+                default_value=PathJoinSubstitution([
+                    EnvironmentVariable("RVC_ROOT", default_value=TextSubstitution(text="/opt/RVC")),
+                    "lib",
+                ]),
+            ),
+        ),
         DeclareLaunchArgument("enable_fanuc", default_value=TextSubstitution(text="true")),
         DeclareLaunchArgument("enable_camera_3d", default_value=TextSubstitution(text="true")),
         DeclareLaunchArgument("enable_camera_2d", default_value=TextSubstitution(text="true")),

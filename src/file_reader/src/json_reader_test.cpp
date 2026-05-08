@@ -1,5 +1,6 @@
 #include "file_reader/json_reader.h"
 #include <rclcpp/rclcpp.hpp>
+#include <cstdlib>
 
 int main(int argc, char** argv)
 {
@@ -7,8 +8,14 @@ int main(int argc, char** argv)
     rclcpp::init(argc, argv);
     auto node = rclcpp::Node::make_shared("json_reader_test");
 
-    // 示例：传入JSON文件路径（请替换为你的实际路径）
-    std::string config_path = "/home/huang/test_files/AddressManage.cfg";  // 建议使用绝对路径
+    const char* env_path = std::getenv("WELD_JSON_CONFIG_PATH");
+    if (env_path == nullptr || env_path[0] == '\0') {
+        RCLCPP_WARN(node->get_logger(), "WELD_JSON_CONFIG_PATH is not set, skipping json_reader_test.");
+        rclcpp::shutdown();
+        return 0;
+    }
+
+    std::string config_path = env_path;
 
     try {
         // 调用通用读取函数

@@ -14,6 +14,7 @@
 #include "cv_bridge/cv_bridge.h"
 
 #include "../../weld_interface/include/weld_interface/topic_configs.h"
+#include "../../weld_interface/include/weld_interface/service_configs.h"
 
 using namespace cv;
 

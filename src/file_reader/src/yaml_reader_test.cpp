@@ -1,5 +1,35 @@
 #include "file_reader/yaml_reader.h"
 #include "rclcpp/rclcpp.hpp"
+#include <cstdlib>
+#include <exception>
+
+#include <ament_index_cpp/get_package_share_directory.hpp>
+
+namespace {
+
+std::string package_share_path(const std::string& package_name, const std::string& relative_path)
+{
+    if (relative_path.empty() || relative_path.front() == '/') {
+        return relative_path;
+    }
+
+    try {
+        return ament_index_cpp::get_package_share_directory(package_name) + "/" + relative_path;
+    } catch (const std::exception&) {
+        return relative_path;
+    }
+}
+
+std::string env_or_default(const char* name, const std::string& default_value)
+{
+    const char* value = std::getenv(name);
+    if (value != nullptr && value[0] != '\0') {
+        return value;
+    }
+    return default_value;
+}
+
+}  // namespace
 
 // 辅助函数：打印6D位姿
 static void printPose6D(const rclcpp::Logger &logger, const std::string &name, const Pose6D &pose) {
@@ -15,8 +45,9 @@ int main(int argc, char *argv[]) {
 
     try {
         //////// nodemanage.yaml
-        // 传入YAML文件路径（请替换为你的实际文件路径）
-        std::string yaml_path = "/etc/WR/Project/nodemanage.yaml";
+        std::string yaml_path = env_or_default(
+            "WELD_YAML_NODEMANAGE_PATH",
+            package_share_path("data_collect_bringup", "config/nodemanage.yaml"));
         ROS2YamlReader reader(yaml_path);
         auto cover_pass_params = reader.readCoverPassNodeParams();
         RCLCPP_INFO(node->get_logger(), "cover_pass_node：%s:%s", "so_file_path", cover_pass_params.so_file_path.c_str());
@@ -41,30 +72,32 @@ int main(int argc, char *argv[]) {
         RCLCPP_INFO(node->get_logger(), " ");
 
         ////// weldingpara.yaml
-        yaml_path = "/etc/WR/Project/weldingpara.yaml";
-        // 调用通用读取函数
-        WeldingConfig config = readWeldingConfigFromYaml(yaml_path);
+        yaml_path = env_or_default("WELD_YAML_WELDING_PATH", "");
+        if (!yaml_path.empty()) {
+            WeldingConfig config = readWeldingConfigFromYaml(yaml_path);
 
-        // 打印读取结果（示例）
-        RCLCPP_INFO(node->get_logger(), "日志根目录: %s", config.logs_root.c_str());
-        RCLCPP_INFO(node->get_logger(), "SAM2模型路径: %s", config.seam_detection.sam2_onnx_path.c_str());
-        RCLCPP_INFO(node->get_logger(), "点云过滤y轴范围: [%.4f, %.4f]",
-                    config.height_detection.cloud_clip_y_min,
-                    config.height_detection.cloud_clip_y_max);
-        RCLCPP_INFO(node->get_logger(), "默认焊接方向: [%.1f, %.1f, %.1f]",
-                    config.welding_direction.default_welding_direction[0],
-                    config.welding_direction.default_welding_direction[1],
-                    config.welding_direction.default_welding_direction[2]);
+            RCLCPP_INFO(node->get_logger(), "日志根目录: %s", config.logs_root.c_str());
+            RCLCPP_INFO(node->get_logger(), "SAM2模型路径: %s", config.seam_detection.sam2_onnx_path.c_str());
+            RCLCPP_INFO(node->get_logger(), "点云过滤y轴范围: [%.4f, %.4f]",
+                        config.height_detection.cloud_clip_y_min,
+                        config.height_detection.cloud_clip_y_max);
+            RCLCPP_INFO(node->get_logger(), "默认焊接方向: [%.1f, %.1f, %.1f]",
+                        config.welding_direction.default_welding_direction[0],
+                        config.welding_direction.default_welding_direction[1],
+                        config.welding_direction.default_welding_direction[2]);
 
-        RCLCPP_INFO(node->get_logger(), "%s 配置读取成功！",yaml_path.c_str());
-        RCLCPP_INFO(node->get_logger(), "------------------------------------------------------------------");
-        RCLCPP_INFO(node->get_logger(), " ");
+            RCLCPP_INFO(node->get_logger(), "%s 配置读取成功！",yaml_path.c_str());
+            RCLCPP_INFO(node->get_logger(), "------------------------------------------------------------------");
+            RCLCPP_INFO(node->get_logger(), " ");
+        } else {
+            RCLCPP_WARN(node->get_logger(), "WELD_YAML_WELDING_PATH is not set, skipping weldingpara.yaml.");
+        }
 
         /////// cameratcp.yaml
-        // 传入YAML文件路径（请替换为你的实际文件路径）
-        yaml_path = "/etc/WR/Project/cameratcp.yaml";
+        yaml_path = env_or_default(
+                "WELD_YAML_CAMERA_PATH",
+                package_share_path("camera_3d_driver", "config/cameratcp.yaml"));
 
-        // 调用读取函数（核心：仅需传入文件路径）
         CameraConfig cameraConfig = readCameraConfigFromYaml(yaml_path);
 
         // 打印解析结果

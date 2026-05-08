@@ -5,8 +5,29 @@
 #include "fanuc_interface.h"
 // 动态库加载头文件
 #include <dlfcn.h>
+#include <exception>
+#include <ament_index_cpp/get_package_share_directory.hpp>
 #include "weld_interface/srv/special_speedl.hpp"
 #include "std_srvs/srv/empty.hpp"
+
+namespace {
+
+std::string resolve_share_path(const std::string& package_name, const std::string& relative_path)
+{
+    if (relative_path.empty() || relative_path.front() == '/') {
+        return relative_path;
+    }
+
+    try {
+        return ament_index_cpp::get_package_share_directory(package_name) + "/" + relative_path;
+    } catch (const std::exception&) {
+        return relative_path;
+    }
+}
+
+const std::string DEFAULT_FANUC_SO_PATH = resolve_share_path("fanuc_robot", "lib/libFanucRobot.so");
+
+}  // namespace
 
 using weld_interface::msg::TcpPos;
 
@@ -33,7 +54,7 @@ FanucInterface::~FanucInterface()
 
 bool FanucInterface::InitLibraryFunction(){
     bool result = false;
-    void* handle = dlopen("/home/rootlink/catkin_ws/src/robot_control/lib/libFanucRobot.so", RTLD_LAZY);
+    void* handle = dlopen(DEFAULT_FANUC_SO_PATH.c_str(), RTLD_LAZY);
     RCLCPP_INFO(rclcpp::get_logger("robot_driver_fanuc"), "InitFanucLibrary");  // ROS2日志
     if (handle){
         _fn_init_robot_obj = (InitRobotObj)dlsym(handle, "InitRobotObj");

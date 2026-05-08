@@ -19,7 +19,9 @@
 #include "std_srvs/srv/empty.hpp"
 #include "std_srvs/srv/set_bool.hpp"
 #include <thread>  // 必须包含，用于获取线程ID
+#include <exception>
 
+#include <ament_index_cpp/get_package_share_directory.hpp>
 #include "../../weld_interface/include/weld_interface/topic_configs.h"
 #include "../../weld_interface/include/weld_interface/service_configs.h"
 
@@ -29,6 +31,25 @@ std::unordered_set<int> g_dynamic_register_items;
 
 // 动态库加载头文件
 #include <dlfcn.h>
+
+namespace {
+
+std::string resolve_share_path(const std::string& package_name, const std::string& relative_path)
+{
+    if (relative_path.empty() || relative_path.front() == '/') {
+        return relative_path;
+    }
+
+    try {
+        return ament_index_cpp::get_package_share_directory(package_name) + "/" + relative_path;
+    } catch (const std::exception&) {
+        return relative_path;
+    }
+}
+
+const std::string DEFAULT_FANUC_SO_PATH = resolve_share_path("fanuc_robot", "lib/libFanucRobot.so");
+
+}  // namespace
 
 // TODO: parameterize quitting distance in MovWeldLoopJogCallback
 
@@ -691,8 +712,9 @@ public:
     {
         std::string so_path_;
         // 获取参数（ROS2方式）
-        this->declare_parameter<std::string>("so_file_path", "/home/rootlink/autocover_ros2/src/fanuc_robot/lib/libFanucRobot.so"); // 默认动态库路径
+        this->declare_parameter<std::string>("so_file_path", DEFAULT_FANUC_SO_PATH); // 默认动态库路径
         this->get_parameter("so_file_path", so_path_);
+        so_path_ = resolve_share_path("fanuc_robot", so_path_);
         RCLCPP_INFO(this->get_logger(), "So path is: %s", so_path_.c_str());
 
         std::string robot_ip_;

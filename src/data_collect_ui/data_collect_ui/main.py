@@ -7,6 +7,7 @@ import zipfile
 from pathlib import Path
 
 import yaml
+from ament_index_python.packages import get_package_share_directory
 
 try:
     from PySide6.QtCore import QThread, Qt, QTimer, Signal, QUrl, QSize
@@ -93,9 +94,9 @@ DATA_COLLECT_SET_TASK = "/data_collect_set_task"
 START_FIX_SCAN = "/start_fix_scan"
 STOP_FIX_SCAN = "/stop_fix_scan"
 IMAGE_TOPIC = "/image_topic"
-DEFAULT_DATA_ROOT = "/home/kyle/sany/weld_data_collect_ws/data"
-PROJECT_NODEMANAGE_YAML = "/home/kyle/sany/weld_data_collect_ws/src/config/nodemanage.yaml"
-DEFAULT_CAMERA_TCP_YAML = "/home/kyle/sany/weld_data_collect_ws/src/camera_3d_driver/config/cameratcp.yaml"
+DEFAULT_DATA_ROOT = "data"
+DEFAULT_CAMERA_TCP_YAML = "config/cameratcp.yaml"
+DEFAULT_FANUC_SO_FILE = "lib/libFanucRobot.so"
 RELOAD_CAMERA_3D_CONFIG = "/reload_camera_3d_config"
 
 
@@ -104,16 +105,21 @@ def default_nodemanage_yaml():
     if env_path:
         return env_path
 
-    candidates = [
-        PROJECT_NODEMANAGE_YAML,
+    candidates = []
+    try:
+        candidates.append(str(Path(get_package_share_directory("data_collect_bringup")) / "config" / "nodemanage.yaml"))
+    except Exception:
+        pass
+    candidates.extend([
+        str(Path("src/data_collect_bringup/config/nodemanage.yaml")),
+        str(Path("src/config/nodemanage.yaml")),
         os.environ.get("AUTOCOVER_NODEMANAGE_YAML", ""),
         "/etc/weld_data_collect/nodemanage.yaml",
-        "/home/kyle/sany/weld_data_collect_ws/src/data_collect_bringup/config/nodemanage.yaml",
-    ]
+    ])
     for candidate in candidates:
         if candidate and Path(candidate).exists():
             return candidate
-    return PROJECT_NODEMANAGE_YAML
+    return str(Path("src/data_collect_bringup/config/nodemanage.yaml"))
 
 
 SETTINGS_SCHEMA = [
@@ -134,7 +140,7 @@ SETTINGS_SCHEMA = [
         "title": "3D相机",
         "node": "camera_driver_3d",
         "fields": [
-            ("cfg", "配置文件", "text", None, None, "/home/kyle/sany/weld_data_collect_ws/src/camera_3d_driver/config/cameratcp.yaml"),
+            ("cfg", "配置文件", "text", None, None, DEFAULT_CAMERA_TCP_YAML),
             ("publish_tf", "发布TF", "bool", None, None, True),
         ],
     },
@@ -142,7 +148,7 @@ SETTINGS_SCHEMA = [
         "title": "Fanuc机器人",
         "node": "robot_driver_fanuc",
         "fields": [
-            ("so_file_path", "动态库路径", "text", None, None, "/home/kyle/sany/weld_data_collect_ws/src/fanuc_robot/lib/libFanucRobot.so"),
+            ("so_file_path", "动态库路径", "text", None, None, DEFAULT_FANUC_SO_FILE),
             ("robot_ip", "机器人IP", "text", None, None, "10.16.140.114"),
             ("robot_port", "机器人端口", "int", 1, 65535, 60008),
             ("target_register_index", "目标寄存器", "int", 0, 9999, 100),
@@ -152,7 +158,7 @@ SETTINGS_SCHEMA = [
         "title": "数据采集",
         "node": "data_collect_node",
         "fields": [
-            ("save_dir_root", "保存根目录", "text", None, None, "/home/kyle/sany/weld_data_collect_ws/data"),
+            ("save_dir_root", "保存根目录", "text", None, None, DEFAULT_DATA_ROOT),
             ("image_save_interval", "图像保存间隔", "int", 1, 100000, 12),
             ("image_log_save_interval", "图像日志间隔", "int", 1, 100000, 3),
             ("height_log_save_interval", "高度日志间隔", "int", 1, 100000, 4),

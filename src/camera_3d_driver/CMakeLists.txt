@@ -11,6 +11,7 @@ endif()
 
 # ====================== 查找ROS2依赖包 ======================
 find_package(ament_cmake REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 find_package(rclcpp REQUIRED)          # ROS2替代roscpp
 find_package(cv_bridge REQUIRED)       # CV-Bridge（ROS2版本）
 find_package(pcl_conversions REQUIRED) # PCL与ROS2消息转换
@@ -31,6 +32,13 @@ find_package(file_reader REQUIRED)     # 文件读取器
 find_package(rosidl_default_generators REQUIRED)
 
 find_package(tf2_eigen REQUIRED)
+
+set(RVC_ROOT "$ENV{RVC_ROOT}")
+if(NOT RVC_ROOT)
+        set(RVC_ROOT "/opt/RVC")
+endif()
+set(RVC_INCLUDE_DIR "${RVC_ROOT}/include")
+set(RVC_LIBRARY_DIR "${RVC_ROOT}/lib")
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -68,14 +76,14 @@ include_directories(
         ${PCL_INCLUDE_DIRS}
         ${OpenCV_INCLUDE_DIRS}
         ${YAML_CPP_INCLUDE_DIR}
-        /opt/RVC/include
+        ${RVC_INCLUDE_DIR}
 )
 
 # ====================== 库路径 ======================
 link_directories(
         libs                     # 保留原自定义库路径
         ${PCL_LIBRARY_DIRS}      # PCL库路径
-        /opt/RVC/lib             # RVC SDK库路径
+        ${RVC_LIBRARY_DIR}       # RVC SDK库路径
 )
 
 
@@ -100,12 +108,13 @@ ament_target_dependencies(
         std_msgs
         std_srvs  # ✅ 新增：链接 std_srvs 依赖
         tf2_eigen
+        ament_index_cpp
 )
 
 # 3. 查找 RVC 库
 find_library(RVC_LIB
         NAMES RVC libRVC.so.1
-        PATHS /opt/RVC/lib
+        PATHS ${RVC_LIBRARY_DIR}
         REQUIRED
         NO_DEFAULT_PATH
         )
@@ -116,7 +125,6 @@ target_link_libraries(camera_3d_driver
         ${OpenCV_LIBRARIES}
         ${YAML_CPP_LIBRARIES}
         ${RVC_LIB}  # 使用找到的库变量
-        /opt/RVC/lib/libRVC.so # 使用完整路径
         )
 
 install(TARGETS

@@ -1,6 +1,6 @@
 camera_driver_3d:
   ros__parameters:
-    cfg: /home/kyle/sany/weld_data_collect_ws/src/camera_3d_driver/config/cameratcp.yaml
+    cfg: config/cameratcp.yaml
     publish_tf: true
 camera_node:
   ros__parameters:
@@ -13,13 +13,13 @@ camera_node:
     frame_rate: 60.90000000000001
 robot_driver_fanuc:
   ros__parameters:
-    so_file_path: /home/kyle/sany/weld_data_collect_ws/src/fanuc_robot/lib/libFanucRobot.so
+    so_file_path: lib/libFanucRobot.so
     robot_ip: 10.16.140.114
     robot_port: 60013
     target_register_index: 100
 data_collect_node:
   ros__parameters:
-    save_dir_root: /home/kyle/sany/weld_data_collect_ws/data
+    save_dir_root: data
     image_save_interval: 2
     image_log_save_interval: 3
     height_log_save_interval: 4

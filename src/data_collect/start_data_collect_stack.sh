@@ -6,15 +6,15 @@ set -o pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-ROS_SETUP="${ROS_SETUP:-/opt/ros/humble/setup.bash}"
+ROS_SETUP="${ROS_SETUP:-/opt/ros/${ROS_DISTRO:-humble}/setup.bash}"
 WORKSPACE_SETUP="${WORKSPACE_SETUP:-${WORKSPACE_ROOT}/install/setup.bash}"
 LOG_DIR="${LOG_DIR:-${WORKSPACE_ROOT}/log/data_collect_startup}"
 
-DEFAULT_NODEMANAGE_YAML="${WORKSPACE_ROOT}/src/config/nodemanage.yaml"
+DEFAULT_NODEMANAGE_YAML="${WORKSPACE_ROOT}/install/share/data_collect_bringup/config/nodemanage.yaml"
 AUTOCOVER_NODEMANAGE_YAML="${AUTOCOVER_NODEMANAGE_YAML:-}"
 
-RVC_LIB_DIR="${RVC_LIB_DIR:-/opt/RVC/lib}"
-FANUC_SO_PATH="${FANUC_SO_PATH:-${WORKSPACE_ROOT}/src/fanuc_robot/lib/libFanucRobot.so}"
+RVC_LIB_DIR="${RVC_LIB_DIR:-${RVC_ROOT:-/opt/RVC}/lib}"
+FANUC_SO_PATH="${FANUC_SO_PATH:-${WORKSPACE_ROOT}/install/share/fanuc_robot/lib/libFanucRobot.so}"
 
 ENABLE_FANUC="${ENABLE_FANUC:-1}"
 ENABLE_CAMERA_3D="${ENABLE_CAMERA_3D:-1}"
@@ -92,13 +92,14 @@ setup_env() {
     fi
 
     if [ -z "$AUTOCOVER_NODEMANAGE_YAML" ]; then
-        if [ -f /etc/WR/Project/nodemanage.yaml ]; then
-            AUTOCOVER_NODEMANAGE_YAML="/etc/WR/Project/nodemanage.yaml"
-        elif [ -f "$DEFAULT_NODEMANAGE_YAML" ]; then
+        if [ -f "$DEFAULT_NODEMANAGE_YAML" ]; then
             AUTOCOVER_NODEMANAGE_YAML="$DEFAULT_NODEMANAGE_YAML"
             warn "Using workspace nodemanage yaml: ${AUTOCOVER_NODEMANAGE_YAML}"
+        elif [ -f "$WORKSPACE_ROOT/src/data_collect_bringup/config/nodemanage.yaml" ]; then
+            AUTOCOVER_NODEMANAGE_YAML="$WORKSPACE_ROOT/src/data_collect_bringup/config/nodemanage.yaml"
+            warn "Using source nodemanage yaml: ${AUTOCOVER_NODEMANAGE_YAML}"
         else
-            error "nodemanage yaml was not found in /etc/WR/Project or ${DEFAULT_NODEMANAGE_YAML}"
+            error "nodemanage yaml was not found in ${DEFAULT_NODEMANAGE_YAML} or ${WORKSPACE_ROOT}/src/data_collect_bringup/config/nodemanage.yaml"
             exit 1
         fi
     fi

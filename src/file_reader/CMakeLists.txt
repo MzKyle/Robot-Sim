@@ -8,6 +8,7 @@ endif()
 
 # 查找依赖
 find_package(ament_cmake REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 find_package(rclcpp REQUIRED)
 # 查找nlohmann_json（ROS2 Humble+已内置，若未找到可手动安装：sudo apt install ros-$ROS_DISTRO-nlohmann-json）
 #find_package(nlohmann_json REQUIRED)
@@ -103,6 +104,7 @@ add_executable(yaml_reader_test
 ament_target_dependencies(yaml_reader_test
         rclcpp
         yaml-cpp
+        ament_index_cpp
         )
 target_link_libraries(yaml_reader_test
         yaml_reader_lib

@@ -13,6 +13,7 @@
   <depend>std_msgs</depend>
   <depend>weld_interface</depend>
   <depend>std_srvs</depend>
+  <depend>ament_index_cpp</depend>
   <!-- 在<dependencies>区域添加以下两行 -->
   <depend>tf2</depend>
   <depend>tf2_ros</depend>

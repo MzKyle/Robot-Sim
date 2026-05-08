@@ -34,6 +34,9 @@
 #include <pcl/common/transforms.h>
 #include <tf2_eigen/tf2_eigen.h>  // ROS 包: tf2_eigen
 #include <cstdlib>
+#include <exception>
+
+#include <ament_index_cpp/get_package_share_directory.hpp>
 
 #include "../../weld_interface/include/weld_interface/topic_configs.h"
 #include "../../weld_interface/include/weld_interface/service_configs.h"
@@ -123,8 +126,26 @@ int number_points_threshold, no_detection_count_threshold;
 double percentile_low, percentile_high;
 CameraConfig current_camera_config;
 std::string current_camera_config_path;
-static const char* DEFAULT_CAMERA_TCP_CONFIG =
-        "/home/kyle/sany/weld_data_collect_ws/src/camera_3d_driver/config/cameratcp.yaml";
+
+namespace {
+
+std::string resolve_share_path(const std::string& package_name, const std::string& relative_path)
+{
+    if (relative_path.empty() || relative_path.front() == '/') {
+        return relative_path;
+    }
+
+    try {
+        return ament_index_cpp::get_package_share_directory(package_name) + "/" + relative_path;
+    } catch (const std::exception&) {
+        return relative_path;
+    }
+}
+
+const std::string DEFAULT_CAMERA_TCP_CONFIG = resolve_share_path("camera_3d_driver", "config/cameratcp.yaml");
+const std::string DEFAULT_NODEMANAGE_YAML = resolve_share_path("data_collect_bringup", "config/nodemanage.yaml");
+
+}  // namespace
 
 static void apply_camera_config(const CameraConfig& config, Transform& tcp_camera)
 {
@@ -196,14 +217,16 @@ bool load_config(Transform& tcp_camera)
     const std::string nodemanage_path =
             (env_nodemanage_path != nullptr && env_nodemanage_path[0] != '\0')
             ? env_nodemanage_path
-            : "/etc/WR/Project/nodemanage.yaml";
+            : DEFAULT_NODEMANAGE_YAML;
 
     std::string cfg_file = DEFAULT_CAMERA_TCP_CONFIG;
 
     try {
         ROS2YamlReader reader(nodemanage_path);
         auto camera_3d_params = reader.readCameraDriver3DParams();
-        cfg_file = camera_3d_params.cfg.c_str();
+        if (!camera_3d_params.cfg.empty()) {
+            cfg_file = resolve_share_path("camera_3d_driver", camera_3d_params.cfg);
+        }
         RCLCPP_INFO(rclcpp::get_logger("camera_driver_3d"), "Read cfg from nodemanage.yaml: %s", cfg_file.c_str());
     } catch (const std::exception& e) {
         RCLCPP_WARN(rclcpp::get_logger("camera_driver_3d"), "Failed to read from nodemanage.yaml: %s, using default: %s", e.what(), cfg_file.c_str());

@@ -7,6 +7,7 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(weld_interface REQUIRED)
@@ -45,10 +46,15 @@ ament_target_dependencies(
         std_srvs  # 新增这一行，将std_srvs链接到可执行文件
         tf2          # 新增
         tf2_ros      # 新增
+        ament_index_cpp
 )
 
 # 3. 安装可执行文件到指定路径（ROS2标准要求）
 install(TARGETS
         fanuc_robot
         DESTINATION lib/${PROJECT_NAME}
+        )
+
+install(DIRECTORY lib
+        DESTINATION share/${PROJECT_NAME}
         )
