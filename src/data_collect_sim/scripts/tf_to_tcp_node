@@ -1,0 +1,144 @@
+#!/usr/bin/env python3
+"""
+tf_to_tcp_node
+
+Listen to TF between robot base and tool frame, publish weld_interface/TcpPos on /tool_pos
+and a simple FanucRobotInfo on /fanuc_robot_info derived from TCP pose.
+"""
+import math
+import time
+
+import rclpy
+from rclpy.node import Node
+from rclpy.duration import Duration
+
+from geometry_msgs.msg import TransformStamped
+from tf2_ros import Buffer, TransformListener
+
+from weld_interface.msg import TcpPos, FanucRobotInfo
+
+
+class TfToTcpNode(Node):
+    def __init__(self):
+        super().__init__('tf_to_tcp')
+        self.declare_parameter('base_frame', 'world')
+        self.declare_parameter('tool_frame', 'tool0')
+        self.declare_parameter('publish_rate', 20.0)
+        self.declare_parameter('weld_height_threshold', 0.1)
+
+        self.base_frame = self.get_parameter('base_frame').value
+        self.tool_frame = self.get_parameter('tool_frame').value
+        self.rate = float(self.get_parameter('publish_rate').value)
+        self.weld_h_thresh = float(self.get_parameter('weld_height_threshold').value)
+
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
+
+        self.pub_tool = self.create_publisher(TcpPos, '/tool_pos', 10)
+        self.pub_info = self.create_publisher(FanucRobotInfo, '/fanuc_robot_info', 10)
+
+        self.timer = self.create_timer(1.0 / self.rate, self._tick)
+
+        self.get_logger().info(f'tf_to_tcp node started, listening {self.base_frame} -> {self.tool_frame}')
+
+    def _tick(self):
+        try:
+            now = rclpy.time.Time()
+            trans = self.tf_buffer.lookup_transform(self.base_frame, self.tool_frame, now, timeout=Duration(seconds=0.5))
+        except Exception as e:
+            # no transform yet
+            return
+
+        tcp = self._transform_to_tcppos(trans)
+        self.pub_tool.publish(tcp)
+
+        info = self._build_robot_info(tcp)
+        self.pub_info.publish(info)
+
+    def _transform_to_tcppos(self, trans: TransformStamped) -> TcpPos:
+        t = trans.transform.translation
+        q = trans.transform.rotation
+
+        # convert quaternion to roll-pitch-yaw
+        x = t.x
+        y = t.y
+        z = t.z
+
+        # quaternion to rpy
+        # avoid external dependency: manual conversion
+        qw = q.w
+        qx = q.x
+        qy = q.y
+        qz = q.z
+
+        # roll (x-axis rotation)
+        sinr_cosp = 2.0 * (qw * qx + qy * qz)
+        cosr_cosp = 1.0 - 2.0 * (qx * qx + qy * qy)
+        roll = math.atan2(sinr_cosp, cosr_cosp)
+
+        # pitch (y-axis rotation)
+        sinp = 2.0 * (qw * qy - qz * qx)
+        if abs(sinp) >= 1:
+            pitch = math.copysign(math.pi / 2, sinp)
+        else:
+            pitch = math.asin(sinp)
+
+        # yaw (z-axis rotation)
+        siny_cosp = 2.0 * (qw * qz + qx * qy)
+        cosy_cosp = 1.0 - 2.0 * (qy * qy + qz * qz)
+        yaw = math.atan2(siny_cosp, cosy_cosp)
+
+        msg = TcpPos()
+        msg.x = float(x)
+        msg.y = float(y)
+        msg.z = float(z)
+        msg.rx = float(roll)
+        msg.ry = float(pitch)
+        msg.rz = float(yaw)
+        msg.e1 = 0.0
+        msg.e2 = 0.0
+        msg.e3 = 0.0
+        return msg
+
+    def _build_robot_info(self, tcp: TcpPos) -> FanucRobotInfo:
+        info = FanucRobotInfo()
+        info.main_pgm = 'SIM_M20i'
+        info.cur_pgm = 'SIM_BEAD'
+        info.cur_seq = 0
+        info.ncstatus = 'RUN'
+        info.mode = 'AUTO'
+        # simulate simple welding metrics based on TCP z
+        z = tcp.z
+        if z < self.weld_h_thresh:
+            detect = 1
+        else:
+            detect = 0
+
+        info.voltage1 = 24.0
+        info.current1 = 110.0 if detect else 0.0
+        info.wire_speed1 = 4.8 if detect else 0.0
+        info.weld_detect1 = detect
+        info.voltage2 = 0.0
+        info.current2 = 0.0
+        info.wire_speed2 = 0.0
+        info.weld_detect2 = 0
+        info.alarm = 0
+        info.alarm_msg = ''
+        info.emg = 0
+        info.override = 100
+        info.weld_enable = 1 if detect else 0
+        return info
+
+
+def main():
+    rclpy.init()
+    node = TfToTcpNode()
+    try:
+        rclpy.spin(node)
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()

@@ -106,6 +106,7 @@ flowchart LR
 
 - [环境依赖与准备](guide/prerequisites.md) - 安装 ROS、系统依赖和硬件 SDK。
 - [开发运行](guide/run-app.md) - 本地编译和启动工作空间。
+- [仿真方案](guide/simulation.md) - 先用接口级仿真打通后端与前端，再接入 Gazebo。
 - [安装与打包](guide/package-install.md) - 生成并安装 `.deb` 产物。
 - [架构总览](architecture/README.md) - 理解主流程和组件边界。
 - [模块总览](modules/README.md) - 快速找到每个包的职责。

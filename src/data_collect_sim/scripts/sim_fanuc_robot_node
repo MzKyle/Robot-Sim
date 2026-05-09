@@ -1,0 +1,172 @@
+#!/usr/bin/env python3
+
+import math
+
+import rclpy
+from rcl_interfaces.msg import SetParametersResult
+from rclpy.node import Node
+from std_msgs.msg import Int32
+from weld_interface.msg import FanucRobotInfo, TcpPos, WeldRegisterInfo
+from weld_interface.srv import ReadFanucRegister
+
+
+class SimFanucRobotNode(Node):
+    def __init__(self):
+        super().__init__("robot_driver_fanuc")
+
+        defaults = {
+            "so_file_path": "sim/lib/libFanucRobot.so",
+            "robot_ip": "127.0.0.1",
+            "robot_port": 60008,
+            "target_register_index": 100,
+            "target_register_value": 100,
+            "weld_id": 101,
+            "weld_type": 1,
+            "weld_layer": 1,
+            "publish_rate": 20.0,
+            "motion_period": 18.0,
+            "alarm_enabled": False,
+            "emg_enabled": False,
+        }
+        self._parameter_keys = list(defaults.keys())
+        for key, value in defaults.items():
+            self.declare_parameter(key, value)
+
+        self.pub_tool = self.create_publisher(TcpPos, "/tool_pos", 1)
+        self.pub_info = self.create_publisher(FanucRobotInfo, "/fanuc_robot_info", 1)
+        self.pub_target = self.create_publisher(Int32, "/fanuc_target_register_value", 1)
+        self.pub_weld = self.create_publisher(WeldRegisterInfo, "/fanuc_weld_register_info", 1)
+
+        self.add_on_set_parameters_callback(self._on_parameters)
+        self.create_service(ReadFanucRegister, "/fanuc_register_read", self._read_register)
+
+        self.tick = 0
+        self.settings = self._read_settings()
+        self.timer = self.create_timer(1.0 / self.settings["publish_rate"], self._tick)
+
+    def _read_settings(self):
+        settings = {name: self.get_parameter(name).value for name in self._parameter_keys}
+        settings["publish_rate"] = max(1.0, float(settings.get("publish_rate", 20.0)))
+        settings["motion_period"] = max(1.0, float(settings.get("motion_period", 18.0)))
+        settings["target_register_index"] = int(settings.get("target_register_index", 100))
+        settings["target_register_value"] = int(settings.get("target_register_value", 100))
+        settings["weld_id"] = int(settings.get("weld_id", 101))
+        settings["weld_type"] = int(settings.get("weld_type", 1))
+        settings["weld_layer"] = int(settings.get("weld_layer", 1))
+        settings["alarm_enabled"] = bool(settings.get("alarm_enabled", False))
+        settings["emg_enabled"] = bool(settings.get("emg_enabled", False))
+        return settings
+
+    def _on_parameters(self, parameters):
+        restart_timer = False
+        for parameter in parameters:
+            self.settings[parameter.name] = parameter.value
+            if parameter.name == "publish_rate":
+                restart_timer = True
+
+        if restart_timer:
+            rate = max(1.0, float(self.settings["publish_rate"]))
+            self.timer.cancel()
+            self.timer = self.create_timer(1.0 / rate, self._tick)
+            self.settings["publish_rate"] = rate
+
+        return SetParametersResult(successful=True)
+
+    def _build_tool_pose(self, phase):
+        pose = TcpPos()
+        pose.x = 0.85 + 0.06 * math.sin(phase)
+        pose.y = -0.15 + 0.05 * math.cos(phase * 0.8)
+        pose.z = 1.45 + 0.02 * math.sin(phase * 0.5)
+        pose.rx = -3.05 + 0.02 * math.sin(phase * 0.4)
+        pose.ry = 0.08 * math.cos(phase * 0.6)
+        pose.rz = 1.85 + 0.03 * math.sin(phase * 0.7)
+        pose.e1 = 0.0
+        pose.e2 = 0.0
+        pose.e3 = 0.0
+        return pose
+
+    def _build_robot_info(self, phase):
+        info = FanucRobotInfo()
+        info.main_pgm = "SIM_WELD_MAIN"
+        info.cur_pgm = "SIM_WELD_BEAD_A"
+        info.cur_seq = int((phase * 10.0) % 400)
+        info.ncstatus = "RUN" if not self.settings["emg_enabled"] else "STOP"
+        info.mode = "AUTO"
+        info.voltage1 = float(24.0 + 1.5 * math.sin(phase * 1.3))
+        info.current1 = float(110.0 + 8.0 * math.cos(phase * 1.1))
+        info.wire_speed1 = float(4.8 + 0.2 * math.sin(phase * 0.9))
+        info.weld_detect1 = 1 if not self.settings["alarm_enabled"] else 2
+        info.voltage2 = float(0.0)
+        info.current2 = float(0.0)
+        info.wire_speed2 = float(0.0)
+        info.weld_detect2 = 0
+        info.alarm = 1 if self.settings["alarm_enabled"] else 0
+        info.alarm_msg = "simulated alarm" if self.settings["alarm_enabled"] else ""
+        info.emg = 1 if self.settings["emg_enabled"] else 0
+        info.override = 100
+        info.weld_enable = 1
+        return info
+
+    def _build_weld_register(self):
+        reg = WeldRegisterInfo()
+        reg.weld_id = int(self.settings["weld_id"])
+        reg.weld_type = int(self.settings["weld_type"])
+        reg.weld_layer = int(self.settings["weld_layer"])
+        return reg
+
+    def _tick(self):
+        phase = self.tick * (2.0 * math.pi / self.settings["motion_period"])
+        self.pub_tool.publish(self._build_tool_pose(phase))
+
+        target_value = Int32()
+        target_value.data = int(self.settings["target_register_value"])
+        self.pub_target.publish(target_value)
+
+        self.pub_info.publish(self._build_robot_info(phase))
+        self.pub_weld.publish(self._build_weld_register())
+        self.tick += 1
+
+    def _read_register(self, request, response):
+        index = int(request.register_index)
+        if index == int(self.settings["target_register_index"]):
+            response.success = True
+            response.value = int(self.settings["target_register_value"])
+            response.message = "simulated target register"
+            return response
+
+        if index == 901:
+            response.success = True
+            response.value = int(self.settings["weld_id"])
+            response.message = "simulated weld id"
+            return response
+
+        if index == 902:
+            response.success = True
+            response.value = int(self.settings["weld_type"])
+            response.message = "simulated weld type"
+            return response
+
+        if index == 903:
+            response.success = True
+            response.value = int(self.settings["weld_layer"])
+            response.message = "simulated weld layer"
+            return response
+
+        response.success = False
+        response.value = 0
+        response.message = f"register {index} is not simulated"
+        return response
+
+
+def main():
+    rclpy.init()
+    node = SimFanucRobotNode()
+    try:
+        rclpy.spin(node)
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+if __name__ == "__main__":
+    main()

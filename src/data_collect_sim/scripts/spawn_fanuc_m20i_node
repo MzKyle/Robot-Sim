@@ -1,0 +1,72 @@
+#!/usr/bin/env python3
+"""
+spawn_fanuc_m20i_node
+
+Spawn the Fanuc M-20i simple model into Gazebo using the `gz` CLI as a fallback.
+If `ros_gz` spawn service is available, this could be replaced with a proper service call.
+"""
+import os
+import subprocess
+
+import rclpy
+from rclpy.node import Node
+from ament_index_python.packages import get_package_share_directory
+
+
+class SpawnFanucNode(Node):
+    def __init__(self):
+        super().__init__('spawn_fanuc_m20i')
+        self.declare_parameter('model_path', '')
+        self.declare_parameter('model_name', 'fanuc_m20i_simple')
+        self.declare_parameter('spawn_delay', 2.0)
+        self.declare_parameter('world_name', 'weld_cell')
+
+        pkg_share = get_package_share_directory('data_collect_sim')
+        default_model = os.path.join(pkg_share, 'models', 'fanuc_m20i', 'model.sdf')
+
+        model_path = self.get_parameter('model_path').value or default_model
+        self.model_path = model_path
+        self.model_name = self.get_parameter('model_name').value
+        self.spawn_delay = float(self.get_parameter('spawn_delay').value)
+        self.world_name = self.get_parameter('world_name').value
+
+        self.get_logger().info(f'spawn_fanuc_m20i: model={self.model_path} name={self.model_name}')
+
+        # delay to allow gz sim to be ready
+        self.create_timer(self.spawn_delay, self._spawn_once)
+
+    def _spawn_once(self):
+        # attempt to spawn via gz CLI
+        if not os.path.exists(self.model_path):
+            self.get_logger().error('Model file not found: %s', self.model_path)
+            return
+
+        try:
+            cmd = [
+                'gz', 'model',
+                '-f', self.model_path,
+                '-m', self.model_name,
+                '-w', self.world_name,
+            ]
+            self.get_logger().info(f"Running: {' '.join(cmd)}")
+            res = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            self.get_logger().info('Spawn stdout: %s', res.stdout.decode('utf-8', errors='ignore'))
+            self.get_logger().info('Model spawned: %s', self.model_name)
+        except Exception as e:
+            self.get_logger().error('Failed to spawn model via gz: %s', str(e))
+
+        # destroy self after spawn attempt
+        rclpy.shutdown()
+
+
+def main():
+    rclpy.init()
+    node = SpawnFanucNode()
+    try:
+        rclpy.spin(node)
+    except Exception:
+        pass
+
+
+if __name__ == '__main__':
+    main()

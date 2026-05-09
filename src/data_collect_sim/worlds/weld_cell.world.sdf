@@ -1,0 +1,78 @@
+<?xml version="1.0" ?>
+<sdf version="1.7">
+  <world name="weld_cell">
+    <gravity>0 0 -9.8</gravity>
+    <magnetic_field>0 0 0</magnetic_field>
+    <atmosphere type="adiabatic"/>
+    <physics name="physics" type="dart">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <include>
+      <uri>model://sun</uri>
+    </include>
+
+    <include>
+      <uri>model://ground_plane</uri>
+    </include>
+
+    <model name="weld_table">
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>1.8 0.9 0.08</size>
+            </box>
+          </geometry>
+          <pose>0.9 0 0.04 0 0 0</pose>
+          <material>
+            <ambient>0.25 0.22 0.2 1</ambient>
+            <diffuse>0.45 0.4 0.35 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>1.8 0.9 0.08</size>
+            </box>
+          </geometry>
+          <pose>0.9 0 0.04 0 0 0</pose>
+        </collision>
+      </link>
+    </model>
+
+    <model name="weld_beam">
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>1.1 0.04 0.02</size>
+            </box>
+          </geometry>
+          <pose>0.95 0 0.09 0 0 0</pose>
+          <material>
+            <ambient>0.15 0.15 0.18 1</ambient>
+            <diffuse>0.3 0.3 0.35 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>1.1 0.04 0.02</size>
+            </box>
+          </geometry>
+          <pose>0.95 0 0.09 0 0 0</pose>
+        </collision>
+      </link>
+    </model>
+
+    <include>
+      <uri>model://fanuc_m20i</uri>
+      <name>fanuc_m20i</name>
+      <pose>0.2 0 0.125 0 0 0</pose>
+    </include>
+  </world>
+</sdf>
