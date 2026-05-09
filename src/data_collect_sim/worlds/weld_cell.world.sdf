@@ -68,11 +68,5 @@
         </collision>
       </link>
     </model>
-
-    <include>
-      <uri>model://fanuc_m20i</uri>
-      <name>fanuc_m20i</name>
-      <pose>0.2 0 0.125 0 0 0</pose>
-    </include>
   </world>
 </sdf>

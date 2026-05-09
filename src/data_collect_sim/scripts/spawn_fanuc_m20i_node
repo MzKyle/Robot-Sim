@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 """
-spawn_fanuc_m20i_node
-
-Spawn the Fanuc M-20i simple model into Gazebo using the `gz` CLI as a fallback.
-If `ros_gz` spawn service is available, this could be replaced with a proper service call.
+Spawn the Fanuc M-20iB/25 model into Gazebo using the official URDF chain.
 """
 import os
 import subprocess
+import tempfile
 
 import rclpy
 from rclpy.node import Node
@@ -15,48 +13,127 @@ from ament_index_python.packages import get_package_share_directory
 
 class SpawnFanucNode(Node):
     def __init__(self):
-        super().__init__('spawn_fanuc_m20i')
-        self.declare_parameter('model_path', '')
-        self.declare_parameter('model_name', 'fanuc_m20i_simple')
-        self.declare_parameter('spawn_delay', 2.0)
-        self.declare_parameter('world_name', 'weld_cell')
+        super().__init__("spawn_fanuc_m20i")
+        self.declare_parameter("model_name", "fanuc_m20i")
+        self.declare_parameter("spawn_delay", 3.0)
+        self.declare_parameter("world_name", "weld_cell")
+        self.declare_parameter("enable_gz_camera_plugins", False)
+        self.declare_parameter("legacy_model_path", "")
+        self.declare_parameter("use_legacy_sdf", False)
+        self.declare_parameter("x", 0.2)
+        self.declare_parameter("y", 0.0)
+        self.declare_parameter("z", 0.125)
+        self.declare_parameter("roll", 0.0)
+        self.declare_parameter("pitch", 0.0)
+        self.declare_parameter("yaw", 0.0)
 
-        pkg_share = get_package_share_directory('data_collect_sim')
-        default_model = os.path.join(pkg_share, 'models', 'fanuc_m20i', 'model.sdf')
+        pkg_share = get_package_share_directory("data_collect_sim")
+        self.xacro_path = os.path.join(pkg_share, "urdf", "fanuc_m20ib25_gz.xacro")
+        self.legacy_model_path = (
+            self.get_parameter("legacy_model_path").value
+            or os.path.join(pkg_share, "models", "fanuc_m20i", "model.sdf")
+        )
+        self.model_name = self.get_parameter("model_name").value
+        self.spawn_delay = float(self.get_parameter("spawn_delay").value)
+        self.world_name = self.get_parameter("world_name").value
+        self.enable_gz_camera_plugins = bool(self.get_parameter("enable_gz_camera_plugins").value)
+        self.use_legacy_sdf = bool(self.get_parameter("use_legacy_sdf").value)
+        self.pose = {
+            "x": float(self.get_parameter("x").value),
+            "y": float(self.get_parameter("y").value),
+            "z": float(self.get_parameter("z").value),
+            "R": float(self.get_parameter("roll").value),
+            "P": float(self.get_parameter("pitch").value),
+            "Y": float(self.get_parameter("yaw").value),
+        }
+        self._spawned = False
 
-        model_path = self.get_parameter('model_path').value or default_model
-        self.model_path = model_path
-        self.model_name = self.get_parameter('model_name').value
-        self.spawn_delay = float(self.get_parameter('spawn_delay').value)
-        self.world_name = self.get_parameter('world_name').value
+        self.get_logger().info(
+            f"spawn_fanuc_m20i: model={self.model_name} "
+            f"plugins={self.enable_gz_camera_plugins} legacy={self.use_legacy_sdf}"
+        )
 
-        self.get_logger().info(f'spawn_fanuc_m20i: model={self.model_path} name={self.model_name}')
-
-        # delay to allow gz sim to be ready
         self.create_timer(self.spawn_delay, self._spawn_once)
 
     def _spawn_once(self):
-        # attempt to spawn via gz CLI
-        if not os.path.exists(self.model_path):
-            self.get_logger().error('Model file not found: %s', self.model_path)
+        if self._spawned:
             return
+        self._spawned = True
 
         try:
-            cmd = [
-                'gz', 'model',
-                '-f', self.model_path,
-                '-m', self.model_name,
-                '-w', self.world_name,
-            ]
-            self.get_logger().info(f"Running: {' '.join(cmd)}")
-            res = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            self.get_logger().info('Spawn stdout: %s', res.stdout.decode('utf-8', errors='ignore'))
-            self.get_logger().info('Model spawned: %s', self.model_name)
-        except Exception as e:
-            self.get_logger().error('Failed to spawn model via gz: %s', str(e))
+            if self.use_legacy_sdf:
+                self._spawn_legacy_sdf()
+            else:
+                self._spawn_official_urdf()
+        except Exception as exc:
+            self.get_logger().error(f"Failed to spawn model: {exc}")
+        finally:
+            rclpy.shutdown()
 
-        # destroy self after spawn attempt
-        rclpy.shutdown()
+    def _spawn_legacy_sdf(self):
+        if not os.path.exists(self.legacy_model_path):
+            raise FileNotFoundError(f"Legacy model file not found: {self.legacy_model_path}")
+
+        cmd = [
+            "gz", "model",
+            "-f", self.legacy_model_path,
+            "-m", self.model_name,
+            "-w", self.world_name,
+        ]
+        self.get_logger().info(f"Running legacy spawn: {' '.join(cmd)}")
+        res = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if res.stdout:
+            self.get_logger().info(res.stdout.strip())
+        if res.stderr:
+            self.get_logger().info(res.stderr.strip())
+
+    def _spawn_official_urdf(self):
+        if not os.path.exists(self.xacro_path):
+            raise FileNotFoundError(f"Xacro file not found: {self.xacro_path}")
+
+        with tempfile.NamedTemporaryFile(prefix="fanuc_m20ib25_", suffix=".urdf", delete=False) as tmp:
+            urdf_path = tmp.name
+
+        try:
+            xacro_cmd = [
+                "xacro",
+                self.xacro_path,
+                f"enable_gz_camera_plugins:={'true' if self.enable_gz_camera_plugins else 'false'}",
+            ]
+            self.get_logger().info(f"Generating URDF: {' '.join(xacro_cmd)}")
+            with open(urdf_path, "w", encoding="utf-8") as urdf_file:
+                subprocess.run(
+                    xacro_cmd,
+                    check=True,
+                    stdout=urdf_file,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+
+            spawn_cmd = [
+                "ros2", "run", "ros_gz_sim", "create",
+                "-world", self.world_name,
+                "-file", urdf_path,
+                "-name", self.model_name,
+                "-x", str(self.pose["x"]),
+                "-y", str(self.pose["y"]),
+                "-z", str(self.pose["z"]),
+                "-R", str(self.pose["R"]),
+                "-P", str(self.pose["P"]),
+                "-Y", str(self.pose["Y"]),
+                "-allow_renaming", "false",
+            ]
+            self.get_logger().info(f"Running official spawn: {' '.join(spawn_cmd)}")
+            res = subprocess.run(spawn_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            if res.stdout:
+                self.get_logger().info(res.stdout.strip())
+            if res.stderr:
+                self.get_logger().info(res.stderr.strip())
+        finally:
+            try:
+                os.remove(urdf_path)
+            except OSError:
+                pass
 
 
 def main():
@@ -68,5 +145,5 @@ def main():
         pass
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

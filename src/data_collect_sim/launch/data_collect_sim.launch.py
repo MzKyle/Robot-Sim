@@ -22,6 +22,9 @@ def generate_launch_description():
                 "gazebo_world.launch.py",
             ])
         ),
+        launch_arguments={
+            "enable_gz_camera_plugins": LaunchConfiguration("enable_gz_camera_plugins"),
+        }.items(),
         condition=IfCondition(LaunchConfiguration("use_gazebo")),
     )
 
@@ -44,11 +47,12 @@ def generate_launch_description():
 
     return LaunchDescription([
         DeclareLaunchArgument("use_gazebo", default_value=TextSubstitution(text="true")),
-        DeclareLaunchArgument("use_sim_camera_2d", default_value=TextSubstitution(text="false")),
-        DeclareLaunchArgument("use_sim_camera_3d", default_value=TextSubstitution(text="false")),
+        DeclareLaunchArgument("use_sim_camera_2d", default_value=TextSubstitution(text="true")),
+        DeclareLaunchArgument("use_sim_camera_3d", default_value=TextSubstitution(text="true")),
         DeclareLaunchArgument("use_sim_fanuc", default_value=TextSubstitution(text="true")),
         DeclareLaunchArgument("use_tf_to_tcp", default_value=TextSubstitution(text="false")),
         DeclareLaunchArgument("use_gz_bridge", default_value=TextSubstitution(text="false")),
+        DeclareLaunchArgument("enable_gz_camera_plugins", default_value=TextSubstitution(text="false")),
         gazebo_launch,
         bringup_launch,
         Node(
