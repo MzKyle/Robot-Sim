@@ -12,33 +12,10 @@
 - `gazebo_world.launch.py` 可以单独打开 Gazebo Sim 场景，并在启动后显式 spawn 基于官方 `fanuc_m20ib_support/m20ib25` URDF 的 Fanuc M-20iB/25 模型。
 - `tf_to_tcp_node`：从 Gazebo TF 发布器读取工具位姿，发布 `/tool_pos` 和 `/fanuc_robot_info`，用于让场景驱动数据驱动后端。
 - `spawn_fanuc_m20i_node`：默认通过官方 `m20ib25` xacro 生成 URDF，并使用 `ros_gz_sim create` spawn 到场景中；旧的手写 SDF 仅保留为非默认 fallback。
-
-ros_gz 传感器接入说明（示例）:
-
- - 方案：在模型 SDF 中为相机挂载 `sensor` 并使用 ros_gz 的 camera/depth plugin，将数据桥接到 ROS 2 topics。下面是一个示例传感器片段（替换为你实际使用的 plugin 名称与参数）：
-
-```xml
-<sensor name="camera_sensor" type="camera">
-	<pose>0 0 0 0 0 0</pose>
-	<camera>
-		<horizontal_fov>1.047</horizontal_fov>
-		<image>
-			<width>640</width>
-			<height>480</height>
-			<format>R8G8B8</format>
-		</image>
-		<clip>
-			<near>0.1</near>
-			<far>100.0</far>
-		</clip>
-	</camera>
-	<plugin name="ros_gz_camera_plugin" filename="libros_gz_camera.so">
-		<!-- plugin-specific params: topic name, frame id, qos, etc. -->
-	</plugin>
-</sensor>
-```
-
- - 在启用 `ros_gz` 桥 (ros_gz_bridge/ros_gz) 后，plugin 会将 `sensor_msgs/Image` / `sensor_msgs/PointCloud2` 等发布到 ROS 2。确保 topic 名称与 `data_collect` 后端期望的 topic 对齐（例如 `/image_topic`, `/tcp_cloud_raw`）。
+- 官方 URDF 的 `camera_mount` 现在可以直接挂原生 Gazebo 传感器，不再依赖 `libros_gz_camera.so` / `libros_gz_depth_camera.so`。
+- Gazebo 机器人已取消 `<static>true</static>`，6 个关节通过 Gazebo `JointPositionController` 接收位置命令。
+- `joint_state_to_gz_joint_cmd_node`：订阅 `/joint_states`，把 `joint_state_publisher_gui` 的 6 个关节位置转成 Gazebo joint position command。
+- `robot_description_publisher_node`：发布 `/robot_description`，供 `joint_state_publisher` / `joint_state_publisher_gui` 读取官方 Fanuc URDF。
 
 - 当前 `urdf/` 目录内置了从官方 `fanuc_m20ib_support` / `fanuc_resources` 迁移来的 xacro 资源，`models/fanuc_m20i/meshes` 内保留官方 `m20ib25` visual / collision mesh；如果后续要继续和 ROS-Industrial 原包同步，优先以 `src/fanuc/` 为上游来源。
 
@@ -58,7 +35,7 @@ ros2 launch data_collect_sim data_collect_sim.launch.py
 ros2 launch data_collect_sim gazebo_world.launch.py
 ```
 
-这个启动方式会自动加载官方 URDF Fanuc 模型。默认不会加载 Gazebo 相机插件，因此不会再出现 `libros_gz_camera.so` / `libros_gz_depth_camera.so` 缺失报错；图像和点云默认由纯 ROS 仿真节点提供。
+这个启动方式会自动加载官方 URDF Fanuc 模型。默认不会加载 Gazebo 传感器，因此图像和点云默认仍由纯 ROS 仿真节点提供。
 
 手动 spawn 模型：
 
@@ -88,25 +65,63 @@ ros2 launch data_collect_sim data_collect_sim.launch.py \
 	use_sim_camera_3d:=false
 ```
 
-若后续需要重新启用 Gazebo 模型内的相机插件，可以打开：
+如果需要改成原生 Gazebo 2D / 3D 传感器输出，并通过 `ros_gz_bridge` 接到 ROS 2，使用：
 
 ```bash
 ros2 launch data_collect_sim data_collect_sim.launch.py \
-	enable_gz_camera_plugins:=true \
-	use_sim_camera_2d:=false \
-	use_sim_camera_3d:=false
+	use_gz_sensors:=true
 ```
 
-若 Gazebo 传感器输出走 Gazebo Transport，而不是 ROS 直出，可以再加上桥接：
+此时会自动发生这几件事：
+
+- 不启动 `sim_camera_2d_node`
+- 不启动 `sim_camera_3d_node`
+- 启动 `ros_gz_bridge parameter_bridge`
+- 将 Gazebo 原生 2D 图像桥接到 `/image_topic`
+- 将 Gazebo 原生 3D 点云桥接到 `/tcp_cloud_raw`
+
+Gazebo 原生相机挂在官方 Fanuc `tool0` 后的 `camera_mount` 上。`camera_mount` 相对 `tool0` 的位姿是 `xyz="0.04 0 0.13"`，`rpy="0 3.141592653589793 0"`；Gazebo 相机光轴沿 sensor frame 的 `+X` 方向，这个姿态让相机默认朝向工件台面。场景里放了红色方块、绿色圆柱和蓝色球作为相机调试目标。
+
+## 用 joint_state_publisher_gui 控制 Gazebo 机械臂
+
+第一次使用前确认 GUI 包已安装：
 
 ```bash
-ros2 launch data_collect_sim data_collect_sim.launch.py \
-	enable_gz_camera_plugins:=true \
-	use_sim_camera_2d:=false \
-	use_sim_camera_3d:=false \
-	use_gz_bridge:=true
+sudo apt install ros-humble-joint-state-publisher-gui
 ```
+
+启动 Gazebo 原生相机、GUI 关节滑条和 Gazebo 关节位置控制：
+
+```bash
+cd /home/kyle/sany/weld_data_collect_ws
+source /opt/ros/humble/setup.bash
+colcon build --symlink-install --packages-select data_collect_sim
+source install/setup.bash
+ros2 launch data_collect_sim data_collect_sim.launch.py \
+	use_gz_sensors:=true \
+	use_joint_state_gui:=true \
+	use_gz_joint_control:=true \
+	use_sim_fanuc:=false \
+	use_tf_to_tcp:=true
+```
+
+这个模式下的数据链路是：
+
+- `joint_state_publisher_gui` 发布 `/joint_states`
+- `joint_state_to_gz_joint_cmd_node` 发布 `/fanuc_m20i/joint_*/cmd_pos`
+- `ros_gz_bridge` 把这些 ROS 位置命令桥到 Gazebo
+- Gazebo 的 6 个 `JointPositionController` 驱动官方 Fanuc URDF 关节
+- `camera_mount` 固连在 `tool0` 后面，所以 2D 图像 `/image_topic` 和 3D 点云 `/tcp_cloud_raw` 会随着末端姿态变化
+
+常用可视化：
+
+```bash
+ros2 run rqt_image_view rqt_image_view /image_topic
+rviz2
+```
+
+RViz 中 `Fixed Frame` 选 `world`，添加 `PointCloud2` 显示 `/tcp_cloud_raw`。默认会启动 `robot_state_publisher` 和普通 `joint_state_publisher` 来发布 TF；开启 `use_joint_state_gui:=true` 时由 GUI 取代普通 joint state publisher。
 
 ## 现阶段说明
 
-当前默认路径已经不再加载 Gazebo 相机插件，因此正常启动不应再出现 `libros_gz_camera.so` / `libros_gz_depth_camera.so` 缺失报错。只有在显式打开 `enable_gz_camera_plugins:=true` 时，才会重新尝试加载这些插件。
+当前默认路径已经不再加载 `libros_gz_camera.so` / `libros_gz_depth_camera.so`，因此正常启动不应再出现这两个缺失报错。只有在 `use_gz_sensors:=true` 时，才会启用官方 URDF 上的原生 Gazebo `camera` / `rgbd_camera` 传感器，并通过 `ros_gz_bridge` 输出到 ROS 2。

@@ -23,7 +23,10 @@ def generate_launch_description():
 
     return LaunchDescription([
         DeclareLaunchArgument("world", default_value=world_path),
-        DeclareLaunchArgument("enable_gz_camera_plugins", default_value=TextSubstitution(text="false")),
+        DeclareLaunchArgument("use_gz_sensors", default_value=TextSubstitution(text="false")),
+        DeclareLaunchArgument("gz_partition", default_value=TextSubstitution(text="data_collect_sim")),
+        SetEnvironmentVariable("GZ_PARTITION", LaunchConfiguration("gz_partition")),
+        SetEnvironmentVariable("IGN_PARTITION", LaunchConfiguration("gz_partition")),
         SetEnvironmentVariable(
             "GZ_SIM_RESOURCE_PATH",
             [
@@ -57,8 +60,12 @@ def generate_launch_description():
                 ])
             ),
             launch_arguments={
-                "gz_args": LaunchConfiguration("world"),
+                "gz_args": [
+                    TextSubstitution(text="-r "),
+                    LaunchConfiguration("world"),
+                ],
                 "gz_version": "6",
+                "on_exit_shutdown": "true",
             }.items(),
         ),
         Node(
@@ -70,7 +77,18 @@ def generate_launch_description():
                 "model_name": "fanuc_m20i",
                 "world_name": "weld_cell",
                 "spawn_delay": 3.0,
-                "enable_gz_camera_plugins": LaunchConfiguration("enable_gz_camera_plugins"),
+                "use_gz_sensors": LaunchConfiguration("use_gz_sensors"),
+            }],
+        ),
+        Node(
+            package="data_collect_sim",
+            executable="check_gz_model_node",
+            name="check_gz_model",
+            output="screen",
+            parameters=[{
+                "model_name": "fanuc_m20i",
+                "world_name": "weld_cell",
+                "check_delay": 7.0,
             }],
         ),
     ])

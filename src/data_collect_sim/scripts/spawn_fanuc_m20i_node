@@ -11,13 +11,21 @@ from rclpy.node import Node
 from ament_index_python.packages import get_package_share_directory
 
 
+def _as_bool(value):
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in ("1", "true", "yes", "on")
+    return bool(value)
+
+
 class SpawnFanucNode(Node):
     def __init__(self):
         super().__init__("spawn_fanuc_m20i")
         self.declare_parameter("model_name", "fanuc_m20i")
         self.declare_parameter("spawn_delay", 3.0)
         self.declare_parameter("world_name", "weld_cell")
-        self.declare_parameter("enable_gz_camera_plugins", False)
+        self.declare_parameter("use_gz_sensors", False)
         self.declare_parameter("legacy_model_path", "")
         self.declare_parameter("use_legacy_sdf", False)
         self.declare_parameter("x", 0.2)
@@ -36,8 +44,8 @@ class SpawnFanucNode(Node):
         self.model_name = self.get_parameter("model_name").value
         self.spawn_delay = float(self.get_parameter("spawn_delay").value)
         self.world_name = self.get_parameter("world_name").value
-        self.enable_gz_camera_plugins = bool(self.get_parameter("enable_gz_camera_plugins").value)
-        self.use_legacy_sdf = bool(self.get_parameter("use_legacy_sdf").value)
+        self.use_gz_sensors = _as_bool(self.get_parameter("use_gz_sensors").value)
+        self.use_legacy_sdf = _as_bool(self.get_parameter("use_legacy_sdf").value)
         self.pose = {
             "x": float(self.get_parameter("x").value),
             "y": float(self.get_parameter("y").value),
@@ -50,7 +58,7 @@ class SpawnFanucNode(Node):
 
         self.get_logger().info(
             f"spawn_fanuc_m20i: model={self.model_name} "
-            f"plugins={self.enable_gz_camera_plugins} legacy={self.use_legacy_sdf}"
+            f"use_gz_sensors={self.use_gz_sensors} legacy={self.use_legacy_sdf}"
         )
 
         self.create_timer(self.spawn_delay, self._spawn_once)
@@ -68,7 +76,8 @@ class SpawnFanucNode(Node):
         except Exception as exc:
             self.get_logger().error(f"Failed to spawn model: {exc}")
         finally:
-            rclpy.shutdown()
+            if rclpy.ok():
+                rclpy.shutdown()
 
     def _spawn_legacy_sdf(self):
         if not os.path.exists(self.legacy_model_path):
@@ -98,7 +107,13 @@ class SpawnFanucNode(Node):
             xacro_cmd = [
                 "xacro",
                 self.xacro_path,
-                f"enable_gz_camera_plugins:={'true' if self.enable_gz_camera_plugins else 'false'}",
+                f"use_gz_sensors:={'true' if self.use_gz_sensors else 'false'}",
+                f"base_x:={self.pose['x']}",
+                f"base_y:={self.pose['y']}",
+                f"base_z:={self.pose['z']}",
+                f"base_roll:={self.pose['R']}",
+                f"base_pitch:={self.pose['P']}",
+                f"base_yaw:={self.pose['Y']}",
             ]
             self.get_logger().info(f"Generating URDF: {' '.join(xacro_cmd)}")
             with open(urdf_path, "w", encoding="utf-8") as urdf_file:
@@ -115,12 +130,12 @@ class SpawnFanucNode(Node):
                 "-world", self.world_name,
                 "-file", urdf_path,
                 "-name", self.model_name,
-                "-x", str(self.pose["x"]),
-                "-y", str(self.pose["y"]),
-                "-z", str(self.pose["z"]),
-                "-R", str(self.pose["R"]),
-                "-P", str(self.pose["P"]),
-                "-Y", str(self.pose["Y"]),
+                "-x", "0.0",
+                "-y", "0.0",
+                "-z", "0.0",
+                "-R", "0.0",
+                "-P", "0.0",
+                "-Y", "0.0",
                 "-allow_renaming", "false",
             ]
             self.get_logger().info(f"Running official spawn: {' '.join(spawn_cmd)}")
@@ -141,8 +156,14 @@ def main():
     node = SpawnFanucNode()
     try:
         rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
     except Exception:
         pass
+    finally:
+        node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == "__main__":

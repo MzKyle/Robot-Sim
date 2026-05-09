@@ -17,6 +17,9 @@ install(PROGRAMS
   scripts/sim_fanuc_robot_node
   scripts/tf_to_tcp_node
   scripts/spawn_fanuc_m20i_node
+  scripts/check_gz_model_node
+  scripts/joint_state_to_gz_joint_cmd_node
+  scripts/robot_description_publisher_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
