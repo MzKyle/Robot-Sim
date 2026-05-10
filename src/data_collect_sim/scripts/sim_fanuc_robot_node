@@ -27,6 +27,8 @@ class SimFanucRobotNode(Node):
             "motion_period": 18.0,
             "alarm_enabled": False,
             "emg_enabled": False,
+            "publish_tool_pose": True,
+            "publish_robot_info": True,
         }
         self._parameter_keys = list(defaults.keys())
         for key, value in defaults.items():
@@ -116,13 +118,15 @@ class SimFanucRobotNode(Node):
 
     def _tick(self):
         phase = self.tick * (2.0 * math.pi / self.settings["motion_period"])
-        self.pub_tool.publish(self._build_tool_pose(phase))
+        if self.settings["publish_tool_pose"]:
+            self.pub_tool.publish(self._build_tool_pose(phase))
 
         target_value = Int32()
         target_value.data = int(self.settings["target_register_value"])
         self.pub_target.publish(target_value)
 
-        self.pub_info.publish(self._build_robot_info(phase))
+        if self.settings["publish_robot_info"]:
+            self.pub_info.publish(self._build_robot_info(phase))
         self.pub_weld.publish(self._build_weld_register())
         self.tick += 1
 

@@ -1,47 +1,59 @@
 - ros_topic_name: "/image_topic"
-  gz_topic_name: "/fanuc_m20i/pool_camera/image"
+  gz_topic_name: "/panda_weld_arm/pool_camera/image"
   ros_type_name: "sensor_msgs/msg/Image"
   gz_type_name: "ignition.msgs.Image"
   direction: GZ_TO_ROS
 
 - ros_topic_name: "/tcp_cloud_raw"
-  gz_topic_name: "/fanuc_m20i/tcp_rgbd/points"
+  gz_topic_name: "/panda_weld_arm/tcp_rgbd/points"
   ros_type_name: "sensor_msgs/msg/PointCloud2"
   gz_type_name: "ignition.msgs.PointCloudPacked"
   direction: GZ_TO_ROS
 
-- ros_topic_name: "/fanuc_m20i/joint_1/cmd_pos"
-  gz_topic_name: "/fanuc_m20i/joint_1/cmd_pos"
+- ros_topic_name: "/tf"
+  gz_topic_name: "/model/panda_weld_arm/pose"
+  ros_type_name: "tf2_msgs/msg/TFMessage"
+  gz_type_name: "ignition.msgs.Pose_V"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/panda_weld_arm/panda_joint1/cmd_pos"
+  gz_topic_name: "/panda_weld_arm/panda_joint1/cmd_pos"
   ros_type_name: "std_msgs/msg/Float64"
   gz_type_name: "ignition.msgs.Double"
   direction: ROS_TO_GZ
 
-- ros_topic_name: "/fanuc_m20i/joint_2/cmd_pos"
-  gz_topic_name: "/fanuc_m20i/joint_2/cmd_pos"
+- ros_topic_name: "/panda_weld_arm/panda_joint2/cmd_pos"
+  gz_topic_name: "/panda_weld_arm/panda_joint2/cmd_pos"
   ros_type_name: "std_msgs/msg/Float64"
   gz_type_name: "ignition.msgs.Double"
   direction: ROS_TO_GZ
 
-- ros_topic_name: "/fanuc_m20i/joint_3/cmd_pos"
-  gz_topic_name: "/fanuc_m20i/joint_3/cmd_pos"
+- ros_topic_name: "/panda_weld_arm/panda_joint3/cmd_pos"
+  gz_topic_name: "/panda_weld_arm/panda_joint3/cmd_pos"
   ros_type_name: "std_msgs/msg/Float64"
   gz_type_name: "ignition.msgs.Double"
   direction: ROS_TO_GZ
 
-- ros_topic_name: "/fanuc_m20i/joint_4/cmd_pos"
-  gz_topic_name: "/fanuc_m20i/joint_4/cmd_pos"
+- ros_topic_name: "/panda_weld_arm/panda_joint4/cmd_pos"
+  gz_topic_name: "/panda_weld_arm/panda_joint4/cmd_pos"
   ros_type_name: "std_msgs/msg/Float64"
   gz_type_name: "ignition.msgs.Double"
   direction: ROS_TO_GZ
 
-- ros_topic_name: "/fanuc_m20i/joint_5/cmd_pos"
-  gz_topic_name: "/fanuc_m20i/joint_5/cmd_pos"
+- ros_topic_name: "/panda_weld_arm/panda_joint5/cmd_pos"
+  gz_topic_name: "/panda_weld_arm/panda_joint5/cmd_pos"
   ros_type_name: "std_msgs/msg/Float64"
   gz_type_name: "ignition.msgs.Double"
   direction: ROS_TO_GZ
 
-- ros_topic_name: "/fanuc_m20i/joint_6/cmd_pos"
-  gz_topic_name: "/fanuc_m20i/joint_6/cmd_pos"
+- ros_topic_name: "/panda_weld_arm/panda_joint6/cmd_pos"
+  gz_topic_name: "/panda_weld_arm/panda_joint6/cmd_pos"
+  ros_type_name: "std_msgs/msg/Float64"
+  gz_type_name: "ignition.msgs.Double"
+  direction: ROS_TO_GZ
+
+- ros_topic_name: "/panda_weld_arm/panda_joint7/cmd_pos"
+  gz_topic_name: "/panda_weld_arm/panda_joint7/cmd_pos"
   ros_type_name: "std_msgs/msg/Float64"
   gz_type_name: "ignition.msgs.Double"
   direction: ROS_TO_GZ

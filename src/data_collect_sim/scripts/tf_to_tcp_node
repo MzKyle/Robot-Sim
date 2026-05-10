@@ -22,12 +22,19 @@ class TfToTcpNode(Node):
     def __init__(self):
         super().__init__('tf_to_tcp')
         self.declare_parameter('base_frame', 'world')
-        self.declare_parameter('tool_frame', 'tool0')
+        self.declare_parameter('tool_frame', 'panda_weld_arm/camera_mount')
+        self.declare_parameter('tool_frame_fallbacks', [
+            'panda_weld_arm::camera_mount',
+            'camera_mount',
+            'panda_weld_arm/panda_link8',
+            'panda_weld_arm::panda_link8',
+        ])
         self.declare_parameter('publish_rate', 20.0)
         self.declare_parameter('weld_height_threshold', 0.1)
 
         self.base_frame = self.get_parameter('base_frame').value
         self.tool_frame = self.get_parameter('tool_frame').value
+        self.tool_frame_fallbacks = list(self.get_parameter('tool_frame_fallbacks').value)
         self.rate = float(self.get_parameter('publish_rate').value)
         self.weld_h_thresh = float(self.get_parameter('weld_height_threshold').value)
 
@@ -39,12 +46,12 @@ class TfToTcpNode(Node):
 
         self.timer = self.create_timer(1.0 / self.rate, self._tick)
 
-        self.get_logger().info(f'tf_to_tcp node started, listening {self.base_frame} -> {self.tool_frame}')
+        frames = ', '.join([self.tool_frame] + self.tool_frame_fallbacks)
+        self.get_logger().info(f'tf_to_tcp node started, listening {self.base_frame} -> one of [{frames}]')
 
     def _tick(self):
         try:
-            now = rclpy.time.Time()
-            trans = self.tf_buffer.lookup_transform(self.base_frame, self.tool_frame, now, timeout=Duration(seconds=0.5))
+            trans = self._lookup_tool_transform()
         except Exception as e:
             # no transform yet
             return
@@ -54,6 +61,21 @@ class TfToTcpNode(Node):
 
         info = self._build_robot_info(tcp)
         self.pub_info.publish(info)
+
+    def _lookup_tool_transform(self):
+        now = rclpy.time.Time()
+        errors = []
+        for frame in [self.tool_frame] + self.tool_frame_fallbacks:
+            try:
+                return self.tf_buffer.lookup_transform(
+                    self.base_frame,
+                    frame,
+                    now,
+                    timeout=Duration(seconds=0.1),
+                )
+            except Exception as exc:
+                errors.append(f'{frame}: {exc}')
+        raise RuntimeError('; '.join(errors))
 
     def _transform_to_tcppos(self, trans: TransformStamped) -> TcpPos:
         t = trans.transform.translation

@@ -1,5 +1,0 @@
-<?xml version="1.0" ?>
-<robot name="fanuc_m20ib25" xmlns:xacro="http://wiki.ros.org/xacro">
-  <xacro:include filename="$(find data_collect_sim)/urdf/m20ib25_macro.xacro"/>
-  <xacro:fanuc_m20ib25 prefix=""/>
-</robot>

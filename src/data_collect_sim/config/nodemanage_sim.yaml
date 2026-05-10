@@ -45,6 +45,8 @@ robot_driver_fanuc:
     weld_layer: 1
     publish_rate: 20.0
     motion_period: 18.0
+    publish_tool_pose: false
+    publish_robot_info: false
     alarm_enabled: false
     emg_enabled: false
 data_collect_node:

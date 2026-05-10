@@ -11,7 +11,7 @@ from rclpy.node import Node
 class CheckGzModelNode(Node):
     def __init__(self):
         super().__init__("check_gz_model")
-        self.declare_parameter("model_name", "fanuc_m20i")
+        self.declare_parameter("model_name", "panda_weld_arm")
         self.declare_parameter("world_name", "weld_cell")
         self.declare_parameter("check_delay", 6.0)
         self.model_name = self.get_parameter("model_name").value
@@ -24,15 +24,7 @@ class CheckGzModelNode(Node):
             return
         self._checked = True
 
-        cmd = [
-            "gz",
-            "model",
-            "-w",
-            self.world_name,
-            "-m",
-            self.model_name,
-            "-i",
-        ]
+        cmd = ["gz", "model", "-m", self.model_name, "-p"]
         try:
             result = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             info = result.stdout.strip() or "model query returned no text"
