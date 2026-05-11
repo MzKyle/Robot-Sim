@@ -35,7 +35,7 @@ class JointStateToGazeboJointCommand(Node):
         self._cmd_publishers = {
             name: self.create_publisher(
                 Float64,
-                f"/{self.model_name}/{name}/cmd_pos",
+                f"/{self.model_name}/joint/{name}/cmd_pos",
                 10,
             )
             for name in self.joint_names
@@ -44,7 +44,7 @@ class JointStateToGazeboJointCommand(Node):
         self.create_subscription(JointState, self.joint_state_topic, self._on_joint_state, 10)
         self.create_timer(1.0 / publish_rate, self._publish_commands)
 
-        topics = ", ".join(f"/{self.model_name}/{name}/cmd_pos" for name in self.joint_names)
+        topics = ", ".join(f"/{self.model_name}/joint/{name}/cmd_pos" for name in self.joint_names)
         self.get_logger().info(
             f"Listening {self.joint_state_topic}; publishing Gazebo joint position commands: {topics}"
         )

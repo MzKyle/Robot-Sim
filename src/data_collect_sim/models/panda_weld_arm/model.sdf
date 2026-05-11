@@ -835,7 +835,7 @@
     https://github.com/mkrizmancic/franka_gazebo/blob/4a88ce6ca7d3d7bb87bd3fbe91e12873cc42f9b9/config/default.yaml-->
     <plugin filename="ignition-gazebo-joint-position-controller-system" name="ignition::gazebo::systems::JointPositionController">
         <joint_name>panda_joint1</joint_name>
-        <topic>/panda_weld_arm/panda_joint1/cmd_pos</topic>
+        <topic>/model/panda_weld_arm/joint/panda_joint1/0/cmd_pos</topic>
         <p_gain>50</p_gain>
         <d_gain>20</d_gain>
         <i_gain>0</i_gain>
@@ -846,7 +846,7 @@
     </plugin>
     <plugin filename="ignition-gazebo-joint-position-controller-system" name="ignition::gazebo::systems::JointPositionController">
         <joint_name>panda_joint2</joint_name>
-        <topic>/panda_weld_arm/panda_joint2/cmd_pos</topic>
+        <topic>/model/panda_weld_arm/joint/panda_joint2/0/cmd_pos</topic>
         <p_gain>10000</p_gain>
         <d_gain>500</d_gain>
         <i_gain>0</i_gain>
@@ -857,7 +857,7 @@
     </plugin>
     <plugin filename="ignition-gazebo-joint-position-controller-system" name="ignition::gazebo::systems::JointPositionController">
         <joint_name>panda_joint3</joint_name>
-        <topic>/panda_weld_arm/panda_joint3/cmd_pos</topic>
+        <topic>/model/panda_weld_arm/joint/panda_joint3/0/cmd_pos</topic>
         <p_gain>100</p_gain>
         <d_gain>10</d_gain>
         <i_gain>0</i_gain>
@@ -868,7 +868,7 @@
     </plugin>
     <plugin filename="ignition-gazebo-joint-position-controller-system" name="ignition::gazebo::systems::JointPositionController">
         <joint_name>panda_joint4</joint_name>
-        <topic>/panda_weld_arm/panda_joint4/cmd_pos</topic>
+        <topic>/model/panda_weld_arm/joint/panda_joint4/0/cmd_pos</topic>
         <p_gain>1000</p_gain>
         <d_gain>50</d_gain>
         <i_gain>0</i_gain>
@@ -879,7 +879,7 @@
     </plugin>
     <plugin filename="ignition-gazebo-joint-position-controller-system" name="ignition::gazebo::systems::JointPositionController">
         <joint_name>panda_joint5</joint_name>
-        <topic>/panda_weld_arm/panda_joint5/cmd_pos</topic>
+        <topic>/model/panda_weld_arm/joint/panda_joint5/0/cmd_pos</topic>
         <p_gain>100</p_gain>
         <d_gain>50</d_gain>
         <i_gain>0</i_gain>
@@ -890,7 +890,7 @@
     </plugin>
     <plugin filename="ignition-gazebo-joint-position-controller-system" name="ignition::gazebo::systems::JointPositionController">
         <joint_name>panda_joint6</joint_name>
-        <topic>/panda_weld_arm/panda_joint6/cmd_pos</topic>
+        <topic>/model/panda_weld_arm/joint/panda_joint6/0/cmd_pos</topic>
         <p_gain>100</p_gain>
         <d_gain>10</d_gain>
         <i_gain>0</i_gain>
@@ -901,7 +901,7 @@
     </plugin>
     <plugin filename="ignition-gazebo-joint-position-controller-system" name="ignition::gazebo::systems::JointPositionController">
         <joint_name>panda_joint7</joint_name>
-        <topic>/panda_weld_arm/panda_joint7/cmd_pos</topic>
+        <topic>/model/panda_weld_arm/joint/panda_joint7/0/cmd_pos</topic>
         <p_gain>10</p_gain>
         <d_gain>0.1</d_gain>
         <i_gain>0.5</i_gain>
@@ -912,7 +912,7 @@
     </plugin>
     <plugin filename="ignition-gazebo-joint-position-controller-system" name="ignition::gazebo::systems::JointPositionController">
         <joint_name>panda_finger_joint1</joint_name>
-        <topic>/panda_weld_arm/panda_finger_joint1/cmd_pos</topic>
+        <topic>/model/panda_weld_arm/joint/panda_finger_joint1/0/cmd_pos</topic>
         <p_gain>100</p_gain>
         <d_gain>50</d_gain>
         <i_gain>0</i_gain>
@@ -923,7 +923,7 @@
     </plugin>
     <plugin filename="ignition-gazebo-joint-position-controller-system" name="ignition::gazebo::systems::JointPositionController">
         <joint_name>panda_finger_joint2</joint_name>
-        <topic>/panda_weld_arm/panda_finger_joint2/cmd_pos</topic>
+        <topic>/model/panda_weld_arm/joint/panda_finger_joint2/0/cmd_pos</topic>
         <p_gain>100</p_gain>
         <d_gain>50</d_gain>
         <i_gain>0</i_gain>

@@ -2,7 +2,6 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, SetEnvironmentVariable
 from launch.substitutions import EnvironmentVariable, LaunchConfiguration, PathJoinSubstitution, TextSubstitution
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 from ament_index_python.packages import get_package_share_directory
 import os
@@ -71,33 +70,5 @@ def generate_launch_description():
                 "gz_version": "6",
                 "on_exit_shutdown": "true",
             }.items(),
-        ),
-        Node(
-            package="data_collect_sim",
-            executable="spawn_panda_weld_arm_node",
-            name="spawn_panda_weld_arm",
-            output="screen",
-            parameters=[{
-                "model_name": "panda_weld_arm",
-                "world_name": "weld_cell",
-                "spawn_delay": 5.0,
-                "x": 0.2,
-                "y": 0.0,
-                "z": 0.125,
-                "roll": 0.0,
-                "pitch": 0.0,
-                "yaw": 0.0,
-            }],
-        ),
-        Node(
-            package="data_collect_sim",
-            executable="check_gz_model_node",
-            name="check_gz_model",
-            output="screen",
-            parameters=[{
-                "model_name": "panda_weld_arm",
-                "world_name": "weld_cell",
-                "check_delay": 18.0,
-            }],
         ),
     ])

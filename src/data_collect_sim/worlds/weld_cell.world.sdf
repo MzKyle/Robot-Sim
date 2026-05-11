@@ -56,6 +56,16 @@
         </ignition-gui>
       </plugin>
 
+      <plugin filename="SelectEntities" name="Select Entities">
+        <ignition-gui>
+          <property key="resizable" type="bool">false</property>
+          <property key="width" type="double">5</property>
+          <property key="height" type="double">5</property>
+          <property key="state" type="string">floating</property>
+          <property key="showTitleBar" type="bool">false</property>
+        </ignition-gui>
+      </plugin>
+
       <plugin filename="GzSceneManager" name="Scene Manager">
         <ignition-gui>
           <property key="resizable" type="bool">false</property>
@@ -74,6 +84,17 @@
           <property key="state" type="string">floating</property>
           <property key="showTitleBar" type="bool">false</property>
         </ignition-gui>
+      </plugin>
+
+      <plugin filename="TransformControl" name="Transform control">
+        <ignition-gui>
+          <property key="resizable" type="bool">false</property>
+          <property key="width" type="double">5</property>
+          <property key="height" type="double">5</property>
+          <property key="state" type="string">floating</property>
+          <property key="showTitleBar" type="bool">false</property>
+        </ignition-gui>
+        <legacy>false</legacy>
       </plugin>
 
       <plugin filename="CameraTracking" name="Camera Tracking">
@@ -179,6 +200,12 @@
         </visual>
       </link>
     </model>
+
+    <include>
+      <uri>model://panda_weld_arm</uri>
+      <name>panda_weld_arm</name>
+      <pose>0.2 0 0.125 0 0 0</pose>
+    </include>
 
     <model name="weld_table">
       <static>true</static>

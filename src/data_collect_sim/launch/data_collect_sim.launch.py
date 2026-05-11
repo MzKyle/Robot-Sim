@@ -48,11 +48,11 @@ def generate_launch_description():
 
     return LaunchDescription([
         DeclareLaunchArgument("use_gazebo", default_value=TextSubstitution(text="true")),
-        DeclareLaunchArgument("use_sim_camera_2d", default_value=TextSubstitution(text="false")),
-        DeclareLaunchArgument("use_sim_camera_3d", default_value=TextSubstitution(text="false")),
+        DeclareLaunchArgument("use_sim_camera_2d", default_value=TextSubstitution(text="true")),
+        DeclareLaunchArgument("use_sim_camera_3d", default_value=TextSubstitution(text="true")),
         DeclareLaunchArgument("use_sim_fanuc", default_value=TextSubstitution(text="true")),
         DeclareLaunchArgument("use_tf_to_tcp", default_value=TextSubstitution(text="true")),
-        DeclareLaunchArgument("use_gz_sensors", default_value=TextSubstitution(text="true")),
+        DeclareLaunchArgument("use_gz_sensors", default_value=TextSubstitution(text="false")),
         DeclareLaunchArgument("use_gz_joint_control", default_value=TextSubstitution(text="true")),
         gazebo_launch,
         bringup_launch,
@@ -124,24 +124,56 @@ def generate_launch_description():
         Node(
             package="ros_gz_bridge",
             executable="parameter_bridge",
-            name="gz_sensor_bridge",
+            name="gz_camera_bridge",
             output="screen",
-            parameters=[{
-                "config_file": PathJoinSubstitution([
-                    FindPackageShare("data_collect_sim"),
-                    "config",
-                    "ros_gz_bridge_sensors.yaml",
-                ]),
-                "override_frame_id": "camera_mount",
-            }],
+            arguments=[
+                "/image_topic@sensor_msgs/msg/Image[ignition.msgs.Image",
+                "/tcp_cloud_raw@sensor_msgs/msg/PointCloud2[ignition.msgs.PointCloudPacked",
+            ],
             condition=IfCondition(PythonExpression([
                 "'",
                 LaunchConfiguration("use_gazebo"),
-                "' == 'true' and ('",
+                "' == 'true' and '",
                 LaunchConfiguration("use_gz_sensors"),
-                "' == 'true' or '",
+                "' == 'true'",
+            ])),
+        ),
+        Node(
+            package="ros_gz_bridge",
+            executable="parameter_bridge",
+            name="gz_tf_bridge",
+            output="screen",
+            arguments=[
+                "/tf@tf2_msgs/msg/TFMessage[ignition.msgs.Pose_V",
+            ],
+            condition=IfCondition(PythonExpression([
+                "'",
+                LaunchConfiguration("use_gazebo"),
+                "' == 'true' and '",
+                LaunchConfiguration("use_tf_to_tcp"),
+                "' == 'true'",
+            ])),
+        ),
+        Node(
+            package="ros_gz_bridge",
+            executable="parameter_bridge",
+            name="gz_joint_bridge",
+            output="screen",
+            arguments=[
+                "/panda_weld_arm/joint/panda_joint1/cmd_pos@std_msgs/msg/Float64]ignition.msgs.Double",
+                "/panda_weld_arm/joint/panda_joint2/cmd_pos@std_msgs/msg/Float64]ignition.msgs.Double",
+                "/panda_weld_arm/joint/panda_joint3/cmd_pos@std_msgs/msg/Float64]ignition.msgs.Double",
+                "/panda_weld_arm/joint/panda_joint4/cmd_pos@std_msgs/msg/Float64]ignition.msgs.Double",
+                "/panda_weld_arm/joint/panda_joint5/cmd_pos@std_msgs/msg/Float64]ignition.msgs.Double",
+                "/panda_weld_arm/joint/panda_joint6/cmd_pos@std_msgs/msg/Float64]ignition.msgs.Double",
+                "/panda_weld_arm/joint/panda_joint7/cmd_pos@std_msgs/msg/Float64]ignition.msgs.Double",
+            ],
+            condition=IfCondition(PythonExpression([
+                "'",
+                LaunchConfiguration("use_gazebo"),
+                "' == 'true' and '",
                 LaunchConfiguration("use_gz_joint_control"),
-                "' == 'true')",
+                "' == 'true'",
             ])),
         ),
     ])

@@ -33,7 +33,7 @@ class PandaJointDemoNode(Node):
         self.joint_publishers = {
             joint_name: self.create_publisher(
                 Float64,
-                f"/{self.model_name}/{joint_name}/cmd_pos",
+                f"/{self.model_name}/joint/{joint_name}/cmd_pos",
                 10,
             )
             for joint_name in self.JOINTS
