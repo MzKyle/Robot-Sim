@@ -67,7 +67,7 @@ def generate_launch_description():
                     TextSubstitution(text="-r "),
                     LaunchConfiguration("world"),
                 ],
-                "gz_version": "6",
+                "gz_version": "8",
                 "on_exit_shutdown": "true",
             }.items(),
         ),

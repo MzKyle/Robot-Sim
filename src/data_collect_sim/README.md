@@ -1,16 +1,16 @@
 # data_collect_sim
 
-`data_collect_sim` 是焊接数据采集工作空间的 Gazebo 仿真入口包。当前默认场景使用 `panda_weld_arm` 机械臂模型，默认通过纯 ROS 2 的 2D/RGBD 备份相机把仿真数据接到现有后端话题；需要时也可以切回 Gazebo 相机 bridge。
+`data_collect_sim` 是焊接数据采集工作空间的 Gazebo 仿真入口包。这里保留两条可选的数据链路：一条是简单的 mock 测试链，继续像以前一样发布随机生成的图像和点云；另一条是 Gazebo 仿真链，直接读取与相机挂接的真实仿真数据。两条路都保持后端接口不变。
 
 ## 当前内容
 
 - `models/panda_weld_arm/`：Panda 机械臂 SDF、mesh 和 PBR 材质。
 - `worlds/weld_cell.world.sdf`：焊接工位场景、工件台和相机调试目标。
 - `worlds/weld_cell.world.sdf`：直接 include `model://panda_weld_arm`，场景启动即加载机械臂。
-- Gazebo 原生相机：可选发布 `/image_topic` 和 `/tcp_cloud_raw` 到 ROS 2 后端。
+- Gazebo 原生相机：可选发布 `/image_topic` 和 `/tcp_cloud_raw` 到 ROS 2 后端，绑定到模型上的末端相机。
 - `PosePublisher` + `tf_to_tcp_node`：从 Gazebo link pose 生成 `/tool_pos` 和 `/fanuc_robot_info`，保持后端接口不变。
 - `panda_joint_demo_node`：发布 7 轴 Panda 关节位置命令，让末端相机随机械臂运动。
-- 纯 ROS 相机仿真节点作为默认图像/点云来源保留。
+- 纯 ROS 相机仿真节点作为 mock 测试来源保留，用于快速验证后端链路。
 
 ## 启动方式
 
@@ -22,7 +22,25 @@ source install/setup.bash
 ros2 launch data_collect_sim data_collect_sim.launch.py
 ```
 
-默认启动会打开 Gazebo、加载 `panda_weld_arm`、启动纯 ROS 的 2D/RGBD 备份相机、启动末端 TF 到 `/tool_pos` 的转换，并启动后端采集节点。Gazebo 相机桥默认关闭；如果你的渲染环境可用，可以手动切回 `use_gz_sensors:=true`。
+默认启动会打开 Gazebo、加载 `panda_weld_arm`、启动 mock 相机链、启动末端 TF 到 `/tool_pos` 的转换，并启动后端采集节点。Gazebo 相机桥默认关闭；如果你的渲染环境可用，可以切换到 Gazebo 仿真链。
+
+两条路的选择方式：
+
+```bash
+# 1. mock 测试链：随机图像/点云，适合快速联调后端
+ros2 launch data_collect_sim data_collect_sim.launch.py \
+  use_gz_sensors:=false \
+  use_sim_camera_2d:=true \
+  use_sim_camera_3d:=true
+
+# 2. Gazebo 仿真链：读取与模型相机绑定的实际仿真数据
+ros2 launch data_collect_sim data_collect_sim.launch.py \
+  use_gz_sensors:=true \
+  use_sim_camera_2d:=false \
+  use_sim_camera_3d:=false
+```
+
+如果你希望保留 Gazebo 机械臂运动但仍使用 mock 图像，也可以把 `use_gz_joint_control:=true` 保持开启，只关闭 `use_gz_sensors`。
 
 单独打开 Gazebo 场景：
 
@@ -54,11 +72,4 @@ RViz 中 `Fixed Frame` 选 `world`，添加 `PointCloud2` 显示 `/tcp_cloud_raw
 
 ## 可选 fallback
 
-如需临时回到纯 ROS 合成相机，不使用 Gazebo 相机数据：
-
-```bash
-ros2 launch data_collect_sim data_collect_sim.launch.py \
-  use_gz_sensors:=false \
-  use_sim_camera_2d:=true \
-  use_sim_camera_3d:=true
-```
+mock 路就是 fallback 路，适合没有稳定渲染环境、但又要验证 `/image_topic`、`/tcp_cloud_raw`、`/tool_pos` 和后端采集逻辑时使用。

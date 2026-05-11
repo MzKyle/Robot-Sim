@@ -13,6 +13,21 @@ def generate_launch_description():
         "config",
         "nodemanage_sim.yaml",
     ])
+    camera_bridge_config = PathJoinSubstitution([
+        FindPackageShare("data_collect_sim"),
+        "config",
+        "ros_gz_bridge_sensors.yaml",
+    ])
+    tf_bridge_config = PathJoinSubstitution([
+        FindPackageShare("data_collect_sim"),
+        "config",
+        "ros_gz_bridge_tf.yaml",
+    ])
+    joint_bridge_config = PathJoinSubstitution([
+        FindPackageShare("data_collect_sim"),
+        "config",
+        "ros_gz_bridge_joints.yaml",
+    ])
 
     gazebo_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -126,10 +141,7 @@ def generate_launch_description():
             executable="parameter_bridge",
             name="gz_camera_bridge",
             output="screen",
-            arguments=[
-                "/image_topic@sensor_msgs/msg/Image[ignition.msgs.Image",
-                "/tcp_cloud_raw@sensor_msgs/msg/PointCloud2[ignition.msgs.PointCloudPacked",
-            ],
+            parameters=[{"config_file": camera_bridge_config}],
             condition=IfCondition(PythonExpression([
                 "'",
                 LaunchConfiguration("use_gazebo"),
@@ -143,9 +155,7 @@ def generate_launch_description():
             executable="parameter_bridge",
             name="gz_tf_bridge",
             output="screen",
-            arguments=[
-                "/tf@tf2_msgs/msg/TFMessage[ignition.msgs.Pose_V",
-            ],
+            parameters=[{"config_file": tf_bridge_config}],
             condition=IfCondition(PythonExpression([
                 "'",
                 LaunchConfiguration("use_gazebo"),
@@ -159,15 +169,7 @@ def generate_launch_description():
             executable="parameter_bridge",
             name="gz_joint_bridge",
             output="screen",
-            arguments=[
-                "/panda_weld_arm/joint/panda_joint1/cmd_pos@std_msgs/msg/Float64]ignition.msgs.Double",
-                "/panda_weld_arm/joint/panda_joint2/cmd_pos@std_msgs/msg/Float64]ignition.msgs.Double",
-                "/panda_weld_arm/joint/panda_joint3/cmd_pos@std_msgs/msg/Float64]ignition.msgs.Double",
-                "/panda_weld_arm/joint/panda_joint4/cmd_pos@std_msgs/msg/Float64]ignition.msgs.Double",
-                "/panda_weld_arm/joint/panda_joint5/cmd_pos@std_msgs/msg/Float64]ignition.msgs.Double",
-                "/panda_weld_arm/joint/panda_joint6/cmd_pos@std_msgs/msg/Float64]ignition.msgs.Double",
-                "/panda_weld_arm/joint/panda_joint7/cmd_pos@std_msgs/msg/Float64]ignition.msgs.Double",
-            ],
+            parameters=[{"config_file": joint_bridge_config}],
             condition=IfCondition(PythonExpression([
                 "'",
                 LaunchConfiguration("use_gazebo"),
