@@ -1,14 +1,14 @@
 # data_collect_sim
 
-`data_collect_sim` 是焊接数据采集工作空间的 Gazebo 仿真入口包。这里保留两条可选的数据链路：一条是简单的 mock 测试链，继续像以前一样发布随机生成的图像和点云；另一条是 Gazebo 仿真链，直接读取与相机挂接的真实仿真数据。两条路都保持后端接口不变。
+`data_collect_sim` 是焊接数据采集工作空间的 gz sim 8 仿真入口包。这里保留两条可选的数据链路：一条是简单的 mock 测试链，继续像以前一样发布随机生成的图像和点云；另一条是 gz sim 8 仿真链，直接读取与相机挂接的真实仿真数据。两条路都保持后端接口不变。
 
 ## 当前内容
 
 - `models/panda_weld_arm/`：Panda 机械臂 SDF、mesh 和 PBR 材质。
-- `worlds/weld_cell.world.sdf`：焊接工位场景、工件台和相机调试目标。
+- `worlds/weld_cell.world.sdf`：gz sim 8 焊接工位场景、工件台和相机调试目标。
 - `worlds/weld_cell.world.sdf`：直接 include `model://panda_weld_arm`，场景启动即加载机械臂。
-- Gazebo 原生相机：可选发布 `/image_topic` 和 `/tcp_cloud_raw` 到 ROS 2 后端，绑定到模型上的末端相机。
-- `PosePublisher` + `tf_to_tcp_node`：从 Gazebo link pose 生成 `/tool_pos` 和 `/fanuc_robot_info`，保持后端接口不变。
+- gz sim 8 原生相机：可选发布 `/image_topic` 和 `/tcp_cloud_raw` 到 ROS 2 后端，绑定到模型上的末端相机。
+- `PosePublisher` + `tf_to_tcp_node`：从 gz sim 8 link pose 生成 `/tool_pos` 和 `/fanuc_robot_info`，保持后端接口不变。
 - `panda_joint_demo_node`：发布 7 轴 Panda 关节位置命令，让末端相机随机械臂运动。
 - 纯 ROS 相机仿真节点作为 mock 测试来源保留，用于快速验证后端链路。
 
@@ -22,7 +22,7 @@ source install/setup.bash
 ros2 launch data_collect_sim data_collect_sim.launch.py
 ```
 
-默认启动会打开 Gazebo、加载 `panda_weld_arm`、启动 mock 相机链、启动末端 TF 到 `/tool_pos` 的转换，并启动后端采集节点。Gazebo 相机桥默认关闭；如果你的渲染环境可用，可以切换到 Gazebo 仿真链。
+默认启动会打开 gz sim 8、加载 `panda_weld_arm`、启动 mock 相机链、启动末端 TF 到 `/tool_pos` 的转换，并启动后端采集节点。gz 相机桥默认关闭；如果你的渲染环境可用，可以切换到 gz sim 8 仿真链。
 
 两条路的选择方式：
 
@@ -33,16 +33,16 @@ ros2 launch data_collect_sim data_collect_sim.launch.py \
   use_sim_camera_2d:=true \
   use_sim_camera_3d:=true
 
-# 2. Gazebo 仿真链：读取与模型相机绑定的实际仿真数据
+# 2. gz sim 8 仿真链：读取与模型相机绑定的实际仿真数据
 ros2 launch data_collect_sim data_collect_sim.launch.py \
   use_gz_sensors:=true \
   use_sim_camera_2d:=false \
   use_sim_camera_3d:=false
 ```
 
-如果你希望保留 Gazebo 机械臂运动但仍使用 mock 图像，也可以把 `use_gz_joint_control:=true` 保持开启，只关闭 `use_gz_sensors`。
+如果你希望保留 gz sim 8 机械臂运动但仍使用 mock 图像，也可以把 `use_gz_joint_control:=true` 保持开启，只关闭 `use_gz_sensors`。
 
-单独打开 Gazebo 场景：
+单独打开 gz sim 8 场景：
 
 ```bash
 ros2 launch data_collect_sim gazebo_world.launch.py
@@ -52,12 +52,12 @@ ros2 launch data_collect_sim gazebo_world.launch.py
 
 后端接口保持不变：
 
-- `/image_topic`：Gazebo 末端 2D 相机图像。
-- `/tcp_cloud_raw`：Gazebo 末端 RGBD 点云。
+- `/image_topic`：gz sim 8 末端 2D 相机图像。
+- `/tcp_cloud_raw`：gz sim 8 末端 RGBD 点云。
 - `/tool_pos`：由 `world -> panda_weld_arm/camera_mount` TF 转换得到的 TCP 位姿。
 - `/fanuc_robot_info`、`/fanuc_target_register_value`、`/fanuc_weld_register_info`：仿真机器人状态和寄存器信息，继续兼容现有后端。
 
-Gazebo 内部 topic 使用 Panda 命名，例如 `/panda_weld_arm/pool_camera/image`、`/panda_weld_arm/tcp_rgbd/points`。关节控制在 ROS 侧使用 `/panda_weld_arm/joint/panda_joint*/cmd_pos`，再桥到 Gazebo 默认的 `/model/panda_weld_arm/joint/panda_joint*/0/cmd_pos`，这样既能兼容 ROS 命名规则，也和 Gazebo 自带的 Joint position controller 面板保持一致。
+gz sim 8 内部 topic 使用 Panda 命名，例如 `/panda_weld_arm/pool_camera/image`、`/panda_weld_arm/tcp_rgbd/points`。关节控制在 ROS 侧使用 `/panda_weld_arm/joint/panda_joint*/cmd_pos`，再桥到 gz sim 8 默认的 `/model/panda_weld_arm/joint/panda_joint*/0/cmd_pos`，这样既能兼容 ROS 命名规则，也和 gz 自带的 Joint position controller 面板保持一致。
 
 ## 常用校验
 
@@ -68,7 +68,7 @@ ros2 topic hz /tcp_cloud_raw
 ros2 topic echo /tool_pos --once
 ```
 
-RViz 中 `Fixed Frame` 选 `world`，添加 `PointCloud2` 显示 `/tcp_cloud_raw`。Gazebo 中应只看到新的 Panda 机械臂，不再加载旧 Fanuc 仿真模型。
+RViz 中 `Fixed Frame` 选 `world`，添加 `PointCloud2` 显示 `/tcp_cloud_raw`。gz sim 8 中应只看到新的 Panda 机械臂，不再加载旧 Fanuc 仿真模型。
 
 ## 可选 fallback
 

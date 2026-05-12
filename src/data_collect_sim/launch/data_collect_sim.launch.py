@@ -67,8 +67,8 @@ def generate_launch_description():
         DeclareLaunchArgument("use_sim_camera_3d", default_value=TextSubstitution(text="true")),
         DeclareLaunchArgument("use_sim_fanuc", default_value=TextSubstitution(text="true")),
         DeclareLaunchArgument("use_tf_to_tcp", default_value=TextSubstitution(text="true")),
-        DeclareLaunchArgument("use_gz_sensors", default_value=TextSubstitution(text="false")),
-        DeclareLaunchArgument("use_gz_joint_control", default_value=TextSubstitution(text="true")),
+        DeclareLaunchArgument("use_gz_sensors", default_value=TextSubstitution(text="true")),
+        DeclareLaunchArgument("use_gz_joint_control", default_value=TextSubstitution(text="false")),
         gazebo_launch,
         bringup_launch,
         Node(
