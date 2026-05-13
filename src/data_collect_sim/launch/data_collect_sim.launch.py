@@ -132,7 +132,7 @@ def generate_launch_description():
             output="screen",
             parameters=[sim_config, {
                 "base_frame": "world",
-                "tool_frame": "panda_weld_arm/camera_mount",
+                "tool_frame": "panda_weld_arm/panda_link8",
             }],
             condition=IfCondition(LaunchConfiguration("use_tf_to_tcp")),
         ),

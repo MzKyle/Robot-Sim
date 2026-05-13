@@ -761,30 +761,40 @@
     <link name="camera_mount">
         <pose relative_to="panda_link8_camera_mount">0 0 0 0 0 0</pose>
         <inertial>
-            <mass>0.05</mass>
+            <pose>0.01 0 0.0245 0 0 1.5707963267948966</pose>
+            <mass>0.3</mass>
             <inertia>
-                <ixx>0.001</ixx>
-                <iyy>0.001</iyy>
-                <izz>0.001</izz>
+                <ixx>0.000150025</ixx>
+                <ixy>0</ixy>
+                <ixz>0</ixz>
+                <iyy>0.00074065</iyy>
+                <iyz>0</iyz>
+                <izz>0.000770625</izz>
             </inertia>
         </inertial>
-        <collision name="camera_mount_collision">
+        <collision name="camera_mount_collision_top">
+            <pose>0.02 0 0.034 0 0 1.5707963267948966</pose>
             <geometry>
                 <box>
-                    <size>0.08 0.08 0.08</size>
+                    <size>0.165 0.040 0.030</size>
+                </box>
+            </geometry>
+        </collision>
+        <collision name="camera_mount_collision_base">
+            <pose>0.01 0 0.00725 0 0 1.5707963267948966</pose>
+            <geometry>
+                <box>
+                    <size>0.06 0.060 0.015</size>
                 </box>
             </geometry>
         </collision>
         <visual name="camera_mount_visual">
+            <pose>0 0 0 0 0 1.5707963267948966</pose>
             <geometry>
-                <box>
-                    <size>0.08 0.08 0.08</size>
-                </box>
+                <mesh>
+                    <uri>model://rgbd_camera/meshes/3dCamera.DAE</uri>
+                </mesh>
             </geometry>
-            <material>
-                <ambient>0.1 0.5 0.7 1.0</ambient>
-                <diffuse>0.15 0.65 0.85 1.0</diffuse>
-            </material>
         </visual>
         <sensor name="pool_camera_2d" type="camera">
             <pose>0 0 0 0 0 0</pose>
@@ -797,7 +807,7 @@
                     <format>R8G8B8</format>
                 </image>
                 <clip>
-                    <near>0.1</near>
+                    <near>0.03</near>
                     <far>100.0</far>
                 </clip>
             </camera>
@@ -816,7 +826,7 @@
                     <format>R8G8B8</format>
                 </image>
                 <clip>
-                    <near>0.1</near>
+                    <near>0.03</near>
                     <far>30.0</far>
                 </clip>
             </camera>
@@ -826,7 +836,7 @@
         </sensor>
     </link>
     <joint name="panda_link8_camera_mount" type="fixed">
-        <pose relative_to="panda_link8">0.04 0 0.13 0 3.141592653589793 0</pose>
+        <pose relative_to="panda_link8">0.10 0 -0.10 0 -0.7853981633974483 3.141592653589793</pose>
         <parent>panda_link8</parent>
         <child>camera_mount</child>
     </joint>

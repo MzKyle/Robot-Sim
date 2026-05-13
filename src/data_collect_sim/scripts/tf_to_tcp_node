@@ -22,12 +22,13 @@ class TfToTcpNode(Node):
     def __init__(self):
         super().__init__('tf_to_tcp')
         self.declare_parameter('base_frame', 'world')
-        self.declare_parameter('tool_frame', 'panda_weld_arm/camera_mount')
+        self.declare_parameter('tool_frame', 'panda_weld_arm/panda_link8')
         self.declare_parameter('tool_frame_fallbacks', [
+            'panda_weld_arm::panda_link8',
+            'panda_link8',
+            'panda_weld_arm/camera_mount',
             'panda_weld_arm::camera_mount',
             'camera_mount',
-            'panda_weld_arm/panda_link8',
-            'panda_weld_arm::panda_link8',
         ])
         self.declare_parameter('publish_rate', 20.0)
         self.declare_parameter('weld_height_threshold', 0.1)
