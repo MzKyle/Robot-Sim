@@ -1,4 +1,6 @@
 import json
+import ctypes
+import math
 import os
 import queue
 import sys
@@ -6,15 +8,18 @@ import time
 import zipfile
 from pathlib import Path
 
+import numpy as np
 import yaml
 from ament_index_python.packages import get_package_share_directory
 
 try:
-    from PySide6.QtCore import QThread, Qt, QTimer, Signal, QUrl, QSize
+    from PySide6.QtCore import QThread, Qt, QTimer, Signal, QUrl, QSize, QPoint
     from PySide6.QtGui import QDesktopServices, QImage, QPixmap
+    from PySide6.QtOpenGLWidgets import QOpenGLWidget
     from PySide6.QtWidgets import (
         QAbstractItemView,
         QApplication,
+        QButtonGroup,
         QCheckBox,
         QDoubleSpinBox,
         QFileDialog,
@@ -31,6 +36,7 @@ try:
         QScrollArea,
         QSizePolicy,
         QSpinBox,
+        QStackedWidget,
         QStyle,
         QTableWidget,
         QTableWidgetItem,
@@ -41,11 +47,12 @@ try:
     )
 except ImportError:
     try:
-        from PyQt5.QtCore import QThread, Qt, QTimer, QUrl, QSize, pyqtSignal as Signal
+        from PyQt5.QtCore import QThread, Qt, QTimer, QUrl, QSize, QPoint, pyqtSignal as Signal
         from PyQt5.QtGui import QDesktopServices, QImage, QPixmap
         from PyQt5.QtWidgets import (
             QAbstractItemView,
             QApplication,
+            QButtonGroup,
             QCheckBox,
             QDoubleSpinBox,
             QFileDialog,
@@ -58,10 +65,12 @@ except ImportError:
             QLineEdit,
             QMainWindow,
             QMessageBox,
+            QOpenGLWidget,
             QPushButton,
             QScrollArea,
             QSizePolicy,
             QSpinBox,
+            QStackedWidget,
             QStyle,
             QTableWidget,
             QTableWidgetItem,
@@ -81,7 +90,8 @@ import rclpy
 from rcl_interfaces.msg import Parameter, ParameterType, ParameterValue
 from rcl_interfaces.srv import SetParameters
 from rclpy.node import Node
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, PointCloud2
+from sensor_msgs.msg import PointField
 from std_srvs.srv import Empty
 from std_srvs.srv import Trigger
 from weld_interface.msg import DataCollectStatus, FanucRobotInfo
@@ -94,10 +104,12 @@ DATA_COLLECT_SET_TASK = "/data_collect_set_task"
 START_FIX_SCAN = "/start_fix_scan"
 STOP_FIX_SCAN = "/stop_fix_scan"
 IMAGE_TOPIC = "/image_topic"
+POINT_CLOUD_TOPIC = "/tcp_cloud_raw"
 DEFAULT_DATA_ROOT = "data"
 DEFAULT_CAMERA_TCP_YAML = "config/cameratcp.yaml"
 DEFAULT_FANUC_SO_FILE = "lib/libFanucRobot.so"
 RELOAD_CAMERA_3D_CONFIG = "/reload_camera_3d_config"
+MAX_PREVIEW_POINTS = 500_000
 
 
 def default_nodemanage_yaml():
@@ -247,10 +259,320 @@ def image_msg_to_qimage(msg):
     return None
 
 
+def _point_field_dtype(field):
+    mapping = {
+        PointField.INT8: ("i1", 1),
+        PointField.UINT8: ("u1", 1),
+        PointField.INT16: ("<i2", 2),
+        PointField.UINT16: ("<u2", 2),
+        PointField.INT32: ("<i4", 4),
+        PointField.UINT32: ("<u4", 4),
+        PointField.FLOAT32: ("<f4", 4),
+        PointField.FLOAT64: ("<f8", 8),
+    }
+    return mapping.get(field.datatype)
+
+
+def pointcloud2_msg_to_xyz(msg, max_points=MAX_PREVIEW_POINTS):
+    if msg.is_bigendian:
+        return None, "PointCloud2 big-endian 数据暂不支持"
+    fields = {field.name: field for field in msg.fields}
+    required = [fields.get(name) for name in ("x", "y", "z")]
+    if any(field is None for field in required):
+        return None, "PointCloud2 缺少 x/y/z 字段"
+    if any(field.datatype != PointField.FLOAT32 for field in required):
+        return None, "PointCloud2 的 x/y/z 字段必须是 float32"
+    if msg.point_step <= 0:
+        return None, "PointCloud2 point_step 无效"
+
+    dtype_fields = []
+    cursor = 0
+    ordered_fields = sorted(msg.fields, key=lambda field: field.offset)
+    for index, field in enumerate(ordered_fields):
+        if field.offset > cursor:
+            dtype_fields.append((f"_pad_{index}", f"u1", field.offset - cursor))
+            cursor = field.offset
+        field_dtype = _point_field_dtype(field)
+        if field_dtype is None:
+            continue
+        dtype_name, size = field_dtype
+        count = max(1, field.count)
+        if count == 1:
+            dtype_fields.append((field.name, dtype_name))
+        else:
+            dtype_fields.append((field.name, dtype_name, (count,)))
+        cursor = field.offset + size * count
+    if msg.point_step > cursor:
+        dtype_fields.append(("_pad_end", "u1", msg.point_step - cursor))
+
+    try:
+        dtype = np.dtype(dtype_fields)
+        dtype = np.dtype({"names": dtype.names, "formats": [dtype.fields[name][0] for name in dtype.names],
+                          "offsets": [dtype.fields[name][1] for name in dtype.names],
+                          "itemsize": msg.point_step})
+        raw = memoryview(msg.data)
+        point_count = len(raw) // msg.point_step
+        if msg.width and msg.height:
+            point_count = min(point_count, int(msg.width) * int(msg.height))
+        if point_count <= 0:
+            return np.empty((0, 3), dtype=np.float32), ""
+        cloud = np.frombuffer(raw, dtype=dtype, count=point_count)
+        xyz = np.empty((point_count, 3), dtype=np.float32)
+        xyz[:, 0] = cloud["x"]
+        xyz[:, 1] = cloud["y"]
+        xyz[:, 2] = cloud["z"]
+    except Exception as exc:
+        return None, f"PointCloud2 解析失败：{exc}"
+
+    valid = np.isfinite(xyz).all(axis=1)
+    if not bool(np.all(valid)):
+        xyz = xyz[valid]
+    if xyz.shape[0] > max_points:
+        stride = int(math.ceil(xyz.shape[0] / max_points))
+        xyz = xyz[::stride][:max_points]
+    return np.ascontiguousarray(xyz, dtype=np.float32), ""
+
+
+class CloudRendererLibrary:
+    def __init__(self):
+        self._lib = self._load_library()
+        self._configure_signatures()
+
+    def _load_library(self):
+        candidates = []
+        env_path = os.environ.get("DATA_COLLECT_CLOUD_RENDERER_LIB")
+        if env_path:
+            candidates.append(Path(env_path))
+        try:
+            share_dir = Path(get_package_share_directory("data_collect_cloud_renderer"))
+            candidates.append(share_dir.parent.parent / "lib" / "libdata_collect_cloud_renderer.so")
+        except Exception:
+            pass
+        workspace = Path(__file__).resolve().parents[3]
+        candidates.extend([
+            workspace / "install" / "data_collect_cloud_renderer" / "lib" / "libdata_collect_cloud_renderer.so",
+            workspace / "build" / "data_collect_cloud_renderer" / "libdata_collect_cloud_renderer.so",
+            Path("install/data_collect_cloud_renderer/lib/libdata_collect_cloud_renderer.so"),
+            Path("build/data_collect_cloud_renderer/libdata_collect_cloud_renderer.so"),
+        ])
+
+        errors = []
+        for candidate in candidates:
+            try:
+                if candidate.exists():
+                    return ctypes.CDLL(str(candidate))
+            except Exception as exc:
+                errors.append(f"{candidate}: {exc}")
+        details = "; ".join(errors) if errors else "未找到 libdata_collect_cloud_renderer.so"
+        raise RuntimeError(details)
+
+    def _configure_signatures(self):
+        self._lib.dc_cloud_renderer_create.argtypes = []
+        self._lib.dc_cloud_renderer_create.restype = ctypes.c_void_p
+        self._lib.dc_cloud_renderer_destroy.argtypes = [ctypes.c_void_p]
+        self._lib.dc_cloud_renderer_destroy.restype = None
+        self._lib.dc_cloud_renderer_initialize.argtypes = [ctypes.c_void_p]
+        self._lib.dc_cloud_renderer_initialize.restype = ctypes.c_int
+        self._lib.dc_cloud_renderer_resize.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int]
+        self._lib.dc_cloud_renderer_resize.restype = ctypes.c_int
+        self._lib.dc_cloud_renderer_upload_points.argtypes = [
+            ctypes.c_void_p,
+            ctypes.POINTER(ctypes.c_float),
+            ctypes.c_size_t,
+        ]
+        self._lib.dc_cloud_renderer_upload_points.restype = ctypes.c_int
+        self._lib.dc_cloud_renderer_draw.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_float,
+            ctypes.c_float,
+            ctypes.c_float,
+            ctypes.c_float,
+            ctypes.c_float,
+            ctypes.c_float,
+        ]
+        self._lib.dc_cloud_renderer_draw.restype = ctypes.c_int
+        self._lib.dc_cloud_renderer_last_error.argtypes = [ctypes.c_void_p]
+        self._lib.dc_cloud_renderer_last_error.restype = ctypes.c_char_p
+
+    def create(self):
+        renderer = self._lib.dc_cloud_renderer_create()
+        if not renderer:
+            raise RuntimeError("无法创建点云渲染器")
+        return renderer
+
+    def destroy(self, renderer):
+        self._lib.dc_cloud_renderer_destroy(renderer)
+
+    def initialize(self, renderer):
+        return bool(self._lib.dc_cloud_renderer_initialize(renderer))
+
+    def resize(self, renderer, width, height):
+        return bool(self._lib.dc_cloud_renderer_resize(renderer, width, height))
+
+    def upload_points(self, renderer, points):
+        pointer = points.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
+        return bool(self._lib.dc_cloud_renderer_upload_points(renderer, pointer, points.shape[0]))
+
+    def draw(self, renderer, yaw, pitch, distance, pan_x, pan_y, point_size):
+        return bool(self._lib.dc_cloud_renderer_draw(
+            renderer,
+            float(yaw),
+            float(pitch),
+            float(distance),
+            float(pan_x),
+            float(pan_y),
+            float(point_size),
+        ))
+
+    def last_error(self, renderer):
+        raw = self._lib.dc_cloud_renderer_last_error(renderer)
+        return raw.decode("utf-8", errors="replace") if raw else "未知点云渲染错误"
+
+
+class PointCloudOpenGLWidget(QOpenGLWidget):
+    status_changed = Signal(str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("cloudPreview")
+        self.setMinimumHeight(220)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.setMouseTracking(True)
+        self._library = None
+        self._renderer = None
+        self._initialized = False
+        self._unavailable = ""
+        self._pending_points = None
+        self._point_count = 0
+        self._yaw = 0.55
+        self._pitch = -0.55
+        self._distance = 3.2
+        self._pan_x = 0.0
+        self._pan_y = 0.0
+        self._point_size = 2.0
+        self._last_pos = QPoint()
+
+    def reset_view(self):
+        self._yaw = 0.55
+        self._pitch = -0.55
+        self._distance = 3.2
+        self._pan_x = 0.0
+        self._pan_y = 0.0
+        self.update()
+
+    def set_points(self, points):
+        if points is None:
+            return
+        self._pending_points = np.ascontiguousarray(points, dtype=np.float32)
+        self._point_count = self._pending_points.shape[0]
+        self.update()
+
+    def initializeGL(self):
+        try:
+            self._library = CloudRendererLibrary()
+            self._renderer = self._library.create()
+            if not self._library.initialize(self._renderer):
+                self._set_unavailable(self._library.last_error(self._renderer))
+                return
+            self._initialized = True
+            self._unavailable = ""
+            self.status_changed.emit("点云渲染器已启动")
+        except Exception as exc:
+            self._set_unavailable(str(exc))
+
+    def resizeGL(self, width, height):
+        if self._initialized and self._renderer:
+            if not self._library.resize(self._renderer, width, height):
+                self._set_unavailable(self._library.last_error(self._renderer))
+
+    def paintGL(self):
+        if not self._initialized or not self._renderer:
+            return
+        if self._pending_points is not None:
+            points = self._pending_points
+            self._pending_points = None
+            if not self._library.upload_points(self._renderer, points):
+                self._set_unavailable(self._library.last_error(self._renderer))
+                return
+            self.status_changed.emit(f"点云在线：{self._point_count} 点")
+        if not self._library.draw(
+            self._renderer,
+            self._yaw,
+            self._pitch,
+            self._distance,
+            self._pan_x,
+            self._pan_y,
+            self._point_size,
+        ):
+            self._set_unavailable(self._library.last_error(self._renderer))
+
+    def closeEvent(self, event):
+        self._destroy_renderer()
+        super().closeEvent(event)
+
+    def __del__(self):
+        try:
+            self._destroy_renderer()
+        except Exception:
+            pass
+
+    def _destroy_renderer(self):
+        if self._renderer and self._library:
+            try:
+                if self.isValid():
+                    self.makeCurrent()
+                    try:
+                        self._library.destroy(self._renderer)
+                    finally:
+                        self.doneCurrent()
+                else:
+                    self._library.destroy(self._renderer)
+            except Exception:
+                pass
+        self._renderer = None
+        self._initialized = False
+
+    def _set_unavailable(self, message):
+        self._unavailable = message or "点云渲染不可用"
+        self._initialized = False
+        self.status_changed.emit(f"点云不可用：{self._unavailable}")
+
+    def mousePressEvent(self, event):
+        self._last_pos = event.pos()
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        delta = event.pos() - self._last_pos
+        self._last_pos = event.pos()
+        buttons = event.buttons()
+        left = qt_enum(Qt, "MouseButton", "LeftButton")
+        right = qt_enum(Qt, "MouseButton", "RightButton")
+        middle = qt_enum(Qt, "MouseButton", "MiddleButton")
+        if buttons & left:
+            self._yaw += delta.x() * 0.008
+            self._pitch = max(-1.45, min(1.45, self._pitch + delta.y() * 0.008))
+            self.update()
+        elif buttons & right or buttons & middle:
+            scale = 0.0025 * self._distance
+            self._pan_x += delta.x() * scale
+            self._pan_y -= delta.y() * scale
+            self.update()
+        super().mouseMoveEvent(event)
+
+    def wheelEvent(self, event):
+        delta = event.angleDelta().y()
+        if delta:
+            factor = 0.88 if delta > 0 else 1.14
+            self._distance = max(0.35, min(20.0, self._distance * factor))
+            self.update()
+        super().wheelEvent(event)
+
+
 class RosBridge(QThread):
     status_received = Signal(dict)
     fanuc_received = Signal(dict)
     image_received = Signal(object)
+    point_cloud_received = Signal(object)
     services_received = Signal(dict)
     log_received = Signal(str)
     ros_state_changed = Signal(bool)
@@ -263,6 +585,7 @@ class RosBridge(QThread):
         self._clients = {}
         self._last_service_emit = 0.0
         self._last_image_emit = 0.0
+        self._last_cloud_emit = 0.0
 
     def stop(self):
         self._running = False
@@ -311,6 +634,12 @@ class RosBridge(QThread):
             Image,
             IMAGE_TOPIC,
             self._on_image,
+            1,
+        )
+        self._node.create_subscription(
+            PointCloud2,
+            POINT_CLOUD_TOPIC,
+            self._on_point_cloud,
             1,
         )
         self.ros_state_changed.emit(True)
@@ -501,6 +830,17 @@ class RosBridge(QThread):
         if image is not None:
             self.image_received.emit(image)
 
+    def _on_point_cloud(self, msg):
+        now = time.monotonic()
+        if now - self._last_cloud_emit < 0.2:
+            return
+        self._last_cloud_emit = now
+        points, error = pointcloud2_msg_to_xyz(msg)
+        if error:
+            self.log_received.emit(error)
+            return
+        self.point_cloud_received.emit(points)
+
 
 class StatusPill(QLabel):
     def __init__(self, text="未知"):
@@ -550,6 +890,7 @@ class MainWindow(QMainWindow):
         self._fanuc_panel = None
         self._operation_buttons_layout = None
         self._preview_metrics_layout = None
+        self._preview_stack = None
         self._settings_body_layout = None
         self._camera_tcp_body_layout = None
         self._history_buttons_layout = None
@@ -557,6 +898,7 @@ class MainWindow(QMainWindow):
         self._status_grid = None
         self._history_toolbar = None
         self._settings_toolbar = None
+        self._preview_mode_buttons = []
         self._tab_scrolls = []
         self._settings_save_timer = QTimer(self)
         self._settings_save_timer.setSingleShot(True)
@@ -854,12 +1196,53 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(12)
 
+        toolbar = QWidget()
+        toolbar.setObjectName("toolbarPanel")
+        toolbar_layout = QHBoxLayout(toolbar)
+        toolbar_layout.setContentsMargins(12, 12, 12, 12)
+        toolbar_layout.setSpacing(10)
+
+        self.preview_image_btn = QPushButton("图像")
+        self.preview_cloud_btn = QPushButton("点云")
+        for button in (self.preview_image_btn, self.preview_cloud_btn):
+            button.setCheckable(True)
+            self._decorate_button(button, "secondary")
+        self.preview_image_btn.setChecked(True)
+        self._preview_mode_group = QButtonGroup(self)
+        self._preview_mode_group.setExclusive(True)
+        self._preview_mode_group.addButton(self.preview_image_btn, 0)
+        self._preview_mode_group.addButton(self.preview_cloud_btn, 1)
+        self.preview_image_btn.clicked.connect(self._set_preview_mode)
+        self.preview_cloud_btn.clicked.connect(self._set_preview_mode)
+        self._preview_mode_buttons = [self.preview_image_btn, self.preview_cloud_btn]
+
+        self.reset_cloud_view_btn = QPushButton("重置视角")
+        self._decorate_button(self.reset_cloud_view_btn, "secondary", "SP_BrowserReload")
+        self.reset_cloud_view_btn.clicked.connect(self._reset_cloud_view)
+
+        self.cloud_status_label = QLabel("点云等待中")
+        self.cloud_status_label.setObjectName("summaryLabel")
+        toolbar_layout.addWidget(self.preview_image_btn)
+        toolbar_layout.addWidget(self.preview_cloud_btn)
+        toolbar_layout.addWidget(self.reset_cloud_view_btn)
+        toolbar_layout.addWidget(self.cloud_status_label, 1)
+        layout.addWidget(toolbar)
+
+        self._preview_stack = QStackedWidget()
+        self._preview_stack.setObjectName("previewStack")
+        self._preview_stack.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
         self.image_label = QLabel("等待图像...")
         self.image_label.setAlignment(Qt.AlignCenter)
         self.image_label.setMinimumHeight(220)
         self.image_label.setObjectName("imagePreview")
         self.image_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        layout.addWidget(self.image_label, 1)
+        self._preview_stack.addWidget(self.image_label)
+
+        self.cloud_preview = PointCloudOpenGLWidget()
+        self.cloud_preview.status_changed.connect(self._update_cloud_status)
+        self._preview_stack.addWidget(self.cloud_preview)
+        layout.addWidget(self._preview_stack, 1)
 
         metrics = QGroupBox("预览指标")
         metrics.setProperty("accent", "teal")
@@ -1240,6 +1623,7 @@ class MainWindow(QMainWindow):
         self._ros.status_received.connect(self._update_status)
         self._ros.fanuc_received.connect(self._update_fanuc)
         self._ros.image_received.connect(self._update_image)
+        self._ros.point_cloud_received.connect(self._update_point_cloud)
         self._ros.services_received.connect(self._update_services)
         self._ros.log_received.connect(self._append_log)
 
@@ -1306,6 +1690,28 @@ class MainWindow(QMainWindow):
         self._last_image_time = time.monotonic()
         self.image_pill.set_state("在线", "ok")
         self._render_image()
+
+    def _update_point_cloud(self, points):
+        if points is None:
+            return
+        self.cloud_preview.set_points(points)
+        self.cloud_status_label.setText(f"点云接收：{points.shape[0]} 点")
+
+    def _set_preview_mode(self):
+        if self._preview_stack is None:
+            return
+        index = 1 if self.preview_cloud_btn.isChecked() else 0
+        self._preview_stack.setCurrentIndex(max(0, index))
+        if index == 0:
+            self._render_image()
+        else:
+            self.cloud_preview.update()
+
+    def _reset_cloud_view(self):
+        self.cloud_preview.reset_view()
+
+    def _update_cloud_status(self, text):
+        self.cloud_status_label.setText(text)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

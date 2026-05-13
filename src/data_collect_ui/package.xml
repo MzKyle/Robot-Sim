@@ -14,7 +14,9 @@
   <exec_depend>std_srvs</exec_depend>
   <exec_depend>weld_interface</exec_depend>
   <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>data_collect_cloud_renderer</exec_depend>
   <exec_depend>python3-pyqt5</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
 
   <export>
