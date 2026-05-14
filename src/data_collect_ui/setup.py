@@ -19,7 +19,7 @@ setup(
     tests_require=["pytest"],
     entry_points={
         "console_scripts": [
-            "data_collect_ui = data_collect_ui.main:main",
+            "data_collect_ui = data_collect_ui.app:main",
         ],
     },
 )
