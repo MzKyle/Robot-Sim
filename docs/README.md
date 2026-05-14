@@ -109,6 +109,7 @@ flowchart LR
 - [仿真方案](guide/simulation.md) - 先用接口级仿真打通后端与前端，再接入 Gazebo。
 - [安装与打包](guide/package-install.md) - 生成并安装 `.deb` 产物。
 - [架构总览](architecture/README.md) - 理解主流程和组件边界。
+- [目标架构草案](architecture/target-architecture.md) - 面向通用数据采集平台的轻量化拆分建议。
 - [模块总览](modules/README.md) - 快速找到每个包的职责。
 - [配置指南](configuration/settings.md) - 了解 `nodemanage.yaml` 的结构和默认值。
 - [ROS 接口参考](interfaces/ros-api.md) - 查看主题和服务列表。

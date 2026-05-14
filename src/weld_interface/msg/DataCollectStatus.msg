@@ -19,3 +19,9 @@ string operator_name
 string shift
 string notes
 string last_error
+bool quality_available
+float32 quality_sync_error_ms
+float32 quality_frame_loss_rate
+float32 quality_blur_score
+float32 quality_point_cloud_completeness
+string quality_reason

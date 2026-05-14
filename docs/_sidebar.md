@@ -8,6 +8,7 @@
 
 - **系统架构**
   - [架构总览](architecture/README.md)
+  - [目标架构草案](architecture/target-architecture.md)
   - [模块全景](architecture/module-overview.md)
   - [数据流](architecture/data-flow.md)
   - [状态模型](architecture/state-model.md)

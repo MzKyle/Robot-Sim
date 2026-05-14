@@ -27,6 +27,7 @@
 #define FANUC_TARGET_REGISTER_VALUE_TOPIC_NAME "/fanuc_target_register_value" //目标寄存器当前值 std_msgs::msg::Int32
 #define FANUC_WELD_REGISTER_INFO_TOPIC_NAME "/fanuc_weld_register_info" //焊接寄存器信息 weld_interface::msg::WeldRegisterInfo
 #define DATA_COLLECT_STATUS_TOPIC_NAME "/data_collect_status" //数据采集状态 weld_interface::msg::DataCollectStatus
+#define DATA_COLLECT_QUALITY_TOPIC_NAME "/data_collect_quality" //采集质量评估状态 weld_interface::msg::CollectionQuality
 
 //ros_bridge topics
 #define SELECT_POINTCLOUD_TOPIC_NAME "/select_pointcloud" // 订阅高度图像 sensor_msgs::msg::PointCloud2

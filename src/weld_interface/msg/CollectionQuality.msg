@@ -1,0 +1,9 @@
+std_msgs/Header header
+bool available
+string session_dir
+float32 sync_error_ms
+float32 frame_loss_rate
+float32 blur_score
+float32 point_cloud_completeness
+string level
+string reason

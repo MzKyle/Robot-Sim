@@ -381,6 +381,10 @@ class CloudRendererLibrary:
             ctypes.c_size_t,
         ]
         self._lib.dc_cloud_renderer_upload_points.restype = ctypes.c_int
+        self._lib.dc_cloud_renderer_show_debug_points.argtypes = [ctypes.c_void_p]
+        self._lib.dc_cloud_renderer_show_debug_points.restype = ctypes.c_int
+        self._lib.dc_cloud_renderer_set_diagnostic_mode.argtypes = [ctypes.c_void_p, ctypes.c_int]
+        self._lib.dc_cloud_renderer_set_diagnostic_mode.restype = None
         self._lib.dc_cloud_renderer_draw.argtypes = [
             ctypes.c_void_p,
             ctypes.c_float,
@@ -412,6 +416,12 @@ class CloudRendererLibrary:
     def upload_points(self, renderer, points):
         pointer = points.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
         return bool(self._lib.dc_cloud_renderer_upload_points(renderer, pointer, points.shape[0]))
+
+    def show_debug_points(self, renderer):
+        return bool(self._lib.dc_cloud_renderer_show_debug_points(renderer))
+
+    def set_diagnostic_mode(self, renderer, enabled):
+        self._lib.dc_cloud_renderer_set_diagnostic_mode(renderer, 1 if enabled else 0)
 
     def draw(self, renderer, yaw, pitch, distance, pan_x, pan_y, point_size):
         return bool(self._lib.dc_cloud_renderer_draw(
@@ -446,18 +456,48 @@ class PointCloudOpenGLWidget(QOpenGLWidget):
         self._point_count = 0
         self._yaw = 0.55
         self._pitch = -0.55
-        self._distance = 3.2
+        self._distance = 0.95
         self._pan_x = 0.0
         self._pan_y = 0.0
-        self._point_size = 2.0
+        self._point_size = 4.0
         self._last_pos = QPoint()
+        self._diagnostic_mode = False
 
     def reset_view(self):
         self._yaw = 0.55
         self._pitch = -0.55
-        self._distance = 3.2
+        self._distance = 0.95
         self._pan_x = 0.0
         self._pan_y = 0.0
+        self.update()
+
+    def set_diagnostic_mode(self, enabled):
+        if not self._initialized or not self._renderer:
+            self.status_changed.emit("OpenGL 诊断等待渲染器初始化")
+            return
+        self.makeCurrent()
+        try:
+            self._diagnostic_mode = bool(enabled)
+            self._library.set_diagnostic_mode(self._renderer, self._diagnostic_mode)
+        finally:
+            self.doneCurrent()
+        self.status_changed.emit("OpenGL 诊断模式：应显示中央红色矩形" if enabled else "OpenGL 诊断模式已关闭")
+        self.update()
+
+    def show_debug_points(self):
+        if not self._initialized or not self._renderer:
+            self.status_changed.emit("点云调试点阵等待渲染器初始化")
+            return
+        self.makeCurrent()
+        try:
+            self._diagnostic_mode = False
+            self._library.set_diagnostic_mode(self._renderer, False)
+            if not self._library.show_debug_points(self._renderer):
+                self._set_unavailable(self._library.last_error(self._renderer))
+                return
+        finally:
+            self.doneCurrent()
+        self.status_changed.emit("点云调试点阵已载入")
         self.update()
 
     def set_points(self, points):
@@ -562,10 +602,10 @@ class PointCloudOpenGLWidget(QOpenGLWidget):
     def wheelEvent(self, event):
         delta = event.angleDelta().y()
         if delta:
-            factor = 0.88 if delta > 0 else 1.14
-            self._distance = max(0.35, min(20.0, self._distance * factor))
+            factor = 0.82 if delta > 0 else 1.20
+            self._distance = max(0.08, min(12.0, self._distance * factor))
             self.update()
-        super().wheelEvent(event)
+        event.accept()
 
 
 class RosBridge(QThread):
@@ -1219,12 +1259,21 @@ class MainWindow(QMainWindow):
         self.reset_cloud_view_btn = QPushButton("重置视角")
         self._decorate_button(self.reset_cloud_view_btn, "secondary", "SP_BrowserReload")
         self.reset_cloud_view_btn.clicked.connect(self._reset_cloud_view)
+        self.diagnostic_cloud_btn = QPushButton("红框诊断")
+        self._decorate_button(self.diagnostic_cloud_btn, "secondary", "SP_MessageBoxWarning")
+        self.diagnostic_cloud_btn.setCheckable(True)
+        self.diagnostic_cloud_btn.clicked.connect(self._toggle_cloud_diagnostic)
+        self.debug_cloud_btn = QPushButton("测试点阵")
+        self._decorate_button(self.debug_cloud_btn, "secondary", "SP_ComputerIcon")
+        self.debug_cloud_btn.clicked.connect(self._show_debug_cloud)
 
         self.cloud_status_label = QLabel("点云等待中")
         self.cloud_status_label.setObjectName("summaryLabel")
         toolbar_layout.addWidget(self.preview_image_btn)
         toolbar_layout.addWidget(self.preview_cloud_btn)
         toolbar_layout.addWidget(self.reset_cloud_view_btn)
+        toolbar_layout.addWidget(self.diagnostic_cloud_btn)
+        toolbar_layout.addWidget(self.debug_cloud_btn)
         toolbar_layout.addWidget(self.cloud_status_label, 1)
         layout.addWidget(toolbar)
 
@@ -1694,6 +1743,8 @@ class MainWindow(QMainWindow):
     def _update_point_cloud(self, points):
         if points is None:
             return
+        if getattr(self.cloud_preview, "_diagnostic_mode", False):
+            return
         self.cloud_preview.set_points(points)
         self.cloud_status_label.setText(f"点云接收：{points.shape[0]} 点")
 
@@ -1709,6 +1760,17 @@ class MainWindow(QMainWindow):
 
     def _reset_cloud_view(self):
         self.cloud_preview.reset_view()
+
+    def _toggle_cloud_diagnostic(self):
+        self.preview_cloud_btn.setChecked(True)
+        self._set_preview_mode()
+        self.cloud_preview.set_diagnostic_mode(self.diagnostic_cloud_btn.isChecked())
+
+    def _show_debug_cloud(self):
+        self.preview_cloud_btn.setChecked(True)
+        self._set_preview_mode()
+        self.diagnostic_cloud_btn.setChecked(False)
+        self.cloud_preview.show_debug_points()
 
     def _update_cloud_status(self, text):
         self.cloud_status_label.setText(text)

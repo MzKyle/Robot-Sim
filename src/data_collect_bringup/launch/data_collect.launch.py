@@ -75,6 +75,12 @@ def _node_actions(context):
             output="screen",
             condition=IfCondition(LaunchConfiguration("enable_data_collect")),
         ),
+        Node(
+            package="data_collect_quality",
+            executable="data_collect_quality_node",
+            output="screen",
+            condition=IfCondition(LaunchConfiguration("enable_data_collect_quality")),
+        ),
     ]
 
 
@@ -112,6 +118,7 @@ def generate_launch_description():
         DeclareLaunchArgument("enable_camera_3d", default_value=TextSubstitution(text="true")),
         DeclareLaunchArgument("enable_camera_2d", default_value=TextSubstitution(text="true")),
         DeclareLaunchArgument("enable_data_collect", default_value=TextSubstitution(text="true")),
+        DeclareLaunchArgument("enable_data_collect_quality", default_value=TextSubstitution(text="true")),
 
         SetEnvironmentVariable("AUTOCOVER_NODEMANAGE_YAML", nodemanage_yaml),
         SetEnvironmentVariable(

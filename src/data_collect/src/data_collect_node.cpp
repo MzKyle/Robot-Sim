@@ -37,6 +37,7 @@
 #include "weld_interface/msg/line_coeffs.hpp"
 #include "weld_interface/msg/fanuc_robot_info.hpp"
 #include "weld_interface/msg/data_collect_status.hpp"
+#include "weld_interface/msg/collection_quality.hpp"
 #include "weld_interface/msg/weld_register_info.hpp"
 #include "weld_interface/srv/set_collection_task.hpp"
 
@@ -202,6 +203,9 @@ public:
 
         sub_weld_register_info_ = this->create_subscription<weld_interface::msg::WeldRegisterInfo>(
                 FANUC_WELD_REGISTER_INFO_TOPIC_NAME, 10, std::bind(&DataCollectNode::cb_weld_register_info, this, std::placeholders::_1));
+
+        sub_collection_quality_ = this->create_subscription<weld_interface::msg::CollectionQuality>(
+            DATA_COLLECT_QUALITY_TOPIC_NAME, 10, std::bind(&DataCollectNode::cb_collection_quality, this, std::placeholders::_1));
 
         status_pub_ = this->create_publisher<weld_interface::msg::DataCollectStatus>(
                 DATA_COLLECT_STATUS_TOPIC_NAME, rclcpp::QoS(1).transient_local());
@@ -461,6 +465,13 @@ public:
         estimated_line_save_counter_ = 0;
         fanuc_info_save_counter_ = 0;
         manifest_update_counter_ = 0;
+
+        quality_available_ = false;
+        quality_sync_error_ms_ = -1.0f;
+        quality_frame_loss_rate_ = 1.0f;
+        quality_blur_score_ = 0.0f;
+        quality_point_cloud_completeness_ = 0.0f;
+        quality_reason_ = "waiting_quality";
     }
 
     void save_collection_metadata(const std::string& root_dir) {
@@ -635,6 +646,13 @@ public:
         manifest["topics"]["point_cloud"] = POINT_CLOUD_TOPIC_NAME;
         manifest["topics"]["tool_pose"] = TCP_PUBLISH_TOPIC_NAME;
         manifest["topics"]["fanuc_info"] = FANUC_ROBOT_INFO_TOPIC_NAME;
+        manifest["topics"]["quality"] = DATA_COLLECT_QUALITY_TOPIC_NAME;
+        manifest["quality"]["available"] = quality_available_;
+        manifest["quality"]["sync_error_ms"] = quality_sync_error_ms_;
+        manifest["quality"]["frame_loss_rate"] = quality_frame_loss_rate_;
+        manifest["quality"]["blur_score"] = quality_blur_score_;
+        manifest["quality"]["point_cloud_completeness"] = quality_point_cloud_completeness_;
+        manifest["quality"]["reason"] = quality_reason_;
         manifest["last_error"] = last_error_;
 
         const std::string manifest_path = current_save_dir_ + "/manifest.json";
@@ -676,6 +694,12 @@ public:
         status.shift = shift_;
         status.notes = notes_;
         status.last_error = last_error_;
+        status.quality_available = quality_available_;
+        status.quality_sync_error_ms = quality_sync_error_ms_;
+        status.quality_frame_loss_rate = quality_frame_loss_rate_;
+        status.quality_blur_score = quality_blur_score_;
+        status.quality_point_cloud_completeness = quality_point_cloud_completeness_;
+        status.quality_reason = quality_reason_;
         status_pub_->publish(status);
 
         if (status.running && ++manifest_update_counter_ >= 5) {
@@ -890,6 +914,27 @@ public:
         has_weld_register_info_ = true;
     }
 
+    void cb_collection_quality(const weld_interface::msg::CollectionQuality::SharedPtr msg) {
+        if (msg == nullptr) {
+            return;
+        }
+
+        std::lock_guard<std::mutex> lock(run_mutex_);
+        if (msg->session_dir.empty() || current_save_dir_.empty()) {
+            return;
+        }
+        if (msg->session_dir != current_save_dir_) {
+            return;
+        }
+
+        quality_available_ = msg->available;
+        quality_sync_error_ms_ = msg->sync_error_ms;
+        quality_frame_loss_rate_ = msg->frame_loss_rate;
+        quality_blur_score_ = msg->blur_score;
+        quality_point_cloud_completeness_ = msg->point_cloud_completeness;
+        quality_reason_ = msg->reason;
+    }
+
 private:
     // 运行模式
     std::atomic_bool run_mode_;
@@ -943,6 +988,14 @@ private:
     int cached_override_{0};
     int cached_weld_detect1_{0}, cached_weld_detect2_{0};
 
+    // 质量评估摘要
+    bool quality_available_{false};
+    float quality_sync_error_ms_{-1.0f};
+    float quality_frame_loss_rate_{1.0f};
+    float quality_blur_score_{0.0f};
+    float quality_point_cloud_completeness_{0.0f};
+    std::string quality_reason_{"waiting_quality"};
+
     // 计数器
     int image_total_counter_;
     int image_log_total_counter_;
@@ -972,6 +1025,7 @@ private:
     rclcpp::Subscription<weld_interface::msg::FanucRobotInfo>::SharedPtr sub_fanuc_robot_info_;
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr sub_target_register_value_;
     rclcpp::Subscription<weld_interface::msg::WeldRegisterInfo>::SharedPtr sub_weld_register_info_;
+    rclcpp::Subscription<weld_interface::msg::CollectionQuality>::SharedPtr sub_collection_quality_;
     rclcpp::Publisher<weld_interface::msg::DataCollectStatus>::SharedPtr status_pub_;
     rclcpp::TimerBase::SharedPtr status_timer_;
 

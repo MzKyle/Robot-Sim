@@ -2,6 +2,8 @@
 
 焊接数据采集工作空间采用“Bringup 入口 + 功能节点 + 桌面操作台”的方式组织。配置文件统一从 `src/config/nodemanage.yaml` 注入，数据流通过 ROS 主题和服务连接各个节点。
 
+如果你的目标是把它继续演进成通用数据采集平台，建议先看 [目标架构草案](target-architecture.md)。这份文档会把 rosbag2、预览、质量评估和前端控制重新拆分成更轻的边界。
+
 ## 组件分层
 
 ```mermaid
@@ -49,7 +51,8 @@ flowchart TB
 
 ## 建议阅读顺序
 
-1. [模块全景](module-overview.md)
-2. [数据流](data-flow.md)
-3. [状态模型](state-model.md)
-4. [ROS 主题与服务](../interfaces/ros-api.md)
+1. [目标架构草案](target-architecture.md)
+2. [模块全景](module-overview.md)
+3. [数据流](data-flow.md)
+4. [状态模型](state-model.md)
+5. [ROS 主题与服务](../interfaces/ros-api.md)

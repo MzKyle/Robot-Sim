@@ -20,6 +20,7 @@ target_include_directories(${PROJECT_NAME}_headers INTERFACE
 
 
 rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/CollectionQuality.msg"
         "msg/FanucRobotInfo.msg"
         "msg/TcpPos.msg"
         "msg/Height.msg"

@@ -14,6 +14,13 @@ void dc_cloud_renderer_destroy(DcCloudRenderer *renderer);
 int dc_cloud_renderer_initialize(DcCloudRenderer *renderer);
 int dc_cloud_renderer_resize(DcCloudRenderer *renderer, int width, int height);
 int dc_cloud_renderer_upload_points(DcCloudRenderer *renderer, const float *xyz, size_t point_count);
+int dc_cloud_renderer_upload_points_rgb(
+    DcCloudRenderer *renderer,
+    const float *xyz,
+    const float *rgb,
+    size_t point_count);
+int dc_cloud_renderer_show_debug_points(DcCloudRenderer *renderer);
+void dc_cloud_renderer_set_diagnostic_mode(DcCloudRenderer *renderer, int enabled);
 int dc_cloud_renderer_draw(
     DcCloudRenderer *renderer,
     float yaw,
