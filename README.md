@@ -5,6 +5,7 @@
   <img alt="Ubuntu 22.04" src="https://img.shields.io/badge/Ubuntu-22.04-E95420?style=for-the-badge" />
   <img alt="colcon workspace" src="https://img.shields.io/badge/Build-colcon-2E7D32?style=for-the-badge" />
   <img alt="Status active development" src="https://img.shields.io/badge/Status-Active%20Development-2D6CDF?style=for-the-badge" />
+  <img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge" />
 </p>
 
 <p align="center">
@@ -397,6 +398,10 @@ manifest.json           标准采集元数据
 ```
 
 `manifest.json` 会记录：
+
+## License
+
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
 
 - 采集开始时间。
 - 采集结束时间。
