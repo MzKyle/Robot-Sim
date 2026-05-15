@@ -28,6 +28,18 @@ ros2 service call /start_fix_scan std_srvs/srv/Empty "{}"
 ros2 service call /stop_fix_scan std_srvs/srv/Empty "{}"
 ```
 
+单次扫描：
+
+```bash
+ros2 service call /scan_3d weld_interface/srv/Scan3d "{}"
+```
+
+重新加载 3D 相机配置：
+
+```bash
+ros2 service call /reload_camera_3d_config std_srvs/srv/Trigger "{}"
+```
+
 ## 设置任务信息
 
 ```bash

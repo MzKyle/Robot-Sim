@@ -483,21 +483,17 @@ class MainWindow(QMainWindow):
         self.reset_cloud_view_btn = QPushButton("重置视角")
         self._decorate_button(self.reset_cloud_view_btn, "secondary", "SP_BrowserReload")
         self.reset_cloud_view_btn.clicked.connect(self._reset_cloud_view)
-        self.diagnostic_cloud_btn = QPushButton("红框诊断")
-        self._decorate_button(self.diagnostic_cloud_btn, "secondary", "SP_MessageBoxWarning")
-        self.diagnostic_cloud_btn.setCheckable(True)
-        self.diagnostic_cloud_btn.clicked.connect(self._toggle_cloud_diagnostic)
-        self.debug_cloud_btn = QPushButton("测试点阵")
-        self._decorate_button(self.debug_cloud_btn, "secondary", "SP_ComputerIcon")
-        self.debug_cloud_btn.clicked.connect(self._show_debug_cloud)
+        self.accumulate_cloud_btn = QPushButton("累积")
+        self._decorate_button(self.accumulate_cloud_btn, "secondary", "SP_FileDialogDetailedView")
+        self.accumulate_cloud_btn.setCheckable(True)
+        self.accumulate_cloud_btn.clicked.connect(self._toggle_cloud_accumulation)
 
         self.cloud_status_label = QLabel("点云等待中")
         self.cloud_status_label.setObjectName("summaryLabel")
         toolbar_layout.addWidget(self.preview_image_btn)
         toolbar_layout.addWidget(self.preview_cloud_btn)
         toolbar_layout.addWidget(self.reset_cloud_view_btn)
-        toolbar_layout.addWidget(self.diagnostic_cloud_btn)
-        toolbar_layout.addWidget(self.debug_cloud_btn)
+        toolbar_layout.addWidget(self.accumulate_cloud_btn)
         toolbar_layout.addWidget(self.cloud_status_label, 1)
         layout.addWidget(toolbar)
 
@@ -967,8 +963,6 @@ class MainWindow(QMainWindow):
     def _update_point_cloud(self, points):
         if points is None:
             return
-        if getattr(self.cloud_preview, "_diagnostic_mode", False):
-            return
         self.cloud_preview.set_points(points)
         self.cloud_status_label.setText(f"点云接收：{points.shape[0]} 点")
 
@@ -985,16 +979,10 @@ class MainWindow(QMainWindow):
     def _reset_cloud_view(self):
         self.cloud_preview.reset_view()
 
-    def _toggle_cloud_diagnostic(self):
+    def _toggle_cloud_accumulation(self):
         self.preview_cloud_btn.setChecked(True)
         self._set_preview_mode()
-        self.cloud_preview.set_diagnostic_mode(self.diagnostic_cloud_btn.isChecked())
-
-    def _show_debug_cloud(self):
-        self.preview_cloud_btn.setChecked(True)
-        self._set_preview_mode()
-        self.diagnostic_cloud_btn.setChecked(False)
-        self.cloud_preview.show_debug_points()
+        self.cloud_preview.set_accumulation_enabled(self.accumulate_cloud_btn.isChecked())
 
     def _update_cloud_status(self, text):
         self.cloud_status_label.setText(text)

@@ -7,8 +7,9 @@
 
 ## 推荐做法
 
-- 在目标机上先确认 RVC SDK、MVSDK 和 Fanuc 共享库都可用。
-- 通过 `ros2 launch data_collect_bringup data_collect.launch.py` 启动完整采集栈。
+- 在目标机上先确认 RVC SDK、MVSDK、Fanuc 共享库和数据目录权限都可用。
+- 通过 `ros2 launch data_collect_bringup data_collect.launch.py` 启动真实采集栈。
+- 没有真实设备时，使用 `ros2 launch data_collect_sim data_collect_sim.launch.py` 验证前后端联调。
 - 仅调试部分功能时，可按需选择核心包重新编译。
 - 如果主机使用自定义 OpenCV，建议在干净系统中重新构建打包产物。
 

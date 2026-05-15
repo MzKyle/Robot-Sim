@@ -9,15 +9,18 @@ ros2 topic echo --once /data_collect_status
 ros2 topic echo --once /fanuc_robot_info
 ros2 topic hz /image_topic
 ros2 topic hz /tcp_cloud_raw
+ros2 topic echo --once /tool_pos
+ros2 topic echo --once /data_collect_quality
 ```
 
 ## 推荐检查项
 
 - 节点是否正常启动。
 - `/data_collect_status` 是否能持续更新。
-- 2D 图像和 3D 点云是否有数据。
-- Fanuc 节点是否能正确连接控制器。
-- 采集目录是否按目标寄存器值组织。
+- 2D 图像、3D 点云和 TCP 位姿是否有数据。
+- Fanuc 节点或仿真节点是否正常发布状态。
+- 采集目录是否按日期、焊接编号和焊道号组织。
+- `/data_collect_quality` 是否持续输出质量等级。
 
 ## 结束条件
 
@@ -25,6 +28,7 @@ ros2 topic hz /tcp_cloud_raw
 
 1. 后端可正常启动。
 2. UI 可以打开并显示状态。
-3. 图像、点云和机器人状态可保存。
+3. 图像、点云、TCP 位姿和机器人状态可保存。
 4. 服务调用可以正常启停采集。
 5. 历史目录和元数据可以正常生成。
+6. 质量评估能够给出 PASS、WARN 或 FAIL 结果。

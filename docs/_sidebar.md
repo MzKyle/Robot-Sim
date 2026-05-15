@@ -4,6 +4,7 @@
 - **快速入门**
   - [环境依赖](guide/prerequisites.md)
   - [开发运行](guide/run-app.md)
+  - [仿真方案](guide/simulation.md)
   - [安装与打包](guide/package-install.md)
 
 - **系统架构**
@@ -18,7 +19,9 @@
   - [2D 相机节点](modules/camera-pool-driver.md)
   - [3D 相机节点](modules/camera-3d-driver.md)
   - [Fanuc 机器人节点](modules/fanuc-robot.md)
+  - [采集质量节点](modules/data-collect-quality.md)
   - [采集核心](modules/data-collect.md)
+  - [仿真入口](modules/data-collect-sim.md)
   - [桌面操作台](modules/data-collect-ui.md)
   - [ROS 接口包](modules/weld-interface.md)
   - [配置读取工具](modules/file-reader.md)

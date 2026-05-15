@@ -29,7 +29,7 @@ RELOAD_CAMERA_3D_CONFIG = "/reload_camera_3d_config"
 DEFAULT_DATA_ROOT = "data"
 DEFAULT_CAMERA_TCP_YAML = "config/cameratcp.yaml"
 DEFAULT_FANUC_SO_FILE = "lib/libFanucRobot.so"
-MAX_PREVIEW_POINTS = 500_000
+MAX_PREVIEW_POINTS = 1_000_000
 
 # Settings and Camera Configuration Schemas
 SETTINGS_SCHEMA = [
@@ -198,8 +198,107 @@ def _point_field_dtype(field):
     return mapping.get(field.datatype)
 
 
+def _normalize_rgb_channel(values):
+    """Normalize one PointCloud2 color channel to float32 0..1."""
+    channel = np.asarray(values, dtype=np.float32)
+    if channel.size and np.nanmax(channel) > 1.0:
+        channel = channel / 255.0
+    return np.clip(np.nan_to_num(channel, nan=0.0, posinf=1.0, neginf=0.0), 0.0, 1.0)
+
+
+def _packed_rgb_to_float(values):
+    """Decode PCL-style packed rgb/rgba values to float32 RGB columns."""
+    packed = np.asarray(values)
+    if packed.ndim == 2 and packed.shape[1] >= 3:
+        return np.column_stack([
+            _normalize_rgb_channel(packed[:, 0]),
+            _normalize_rgb_channel(packed[:, 1]),
+            _normalize_rgb_channel(packed[:, 2]),
+        ]).astype(np.float32, copy=False)
+
+    if packed.dtype.kind == "f":
+        if packed.dtype.itemsize != 4:
+            return None
+        packed = packed.astype("<f4", copy=False).view("<u4")
+    else:
+        packed = packed.astype("<u4", copy=False)
+    rgb = np.empty((packed.shape[0], 3), dtype=np.float32)
+    rgb[:, 0] = ((packed >> 16) & 0xFF).astype(np.float32) / 255.0
+    rgb[:, 1] = ((packed >> 8) & 0xFF).astype(np.float32) / 255.0
+    rgb[:, 2] = (packed & 0xFF).astype(np.float32) / 255.0
+    return rgb
+
+
+def _extract_pointcloud_rgb(cloud, fields):
+    """Extract RGB columns from common PointCloud2 rgb layouts."""
+    names = cloud.dtype.names or ()
+    for name in ("rgb", "rgba"):
+        if name in fields and name in names:
+            rgb = _packed_rgb_to_float(cloud[name])
+            if rgb is not None:
+                return rgb
+
+    if all(name in fields and name in names for name in ("r", "g", "b")):
+        return np.column_stack([
+            _normalize_rgb_channel(cloud["r"]),
+            _normalize_rgb_channel(cloud["g"]),
+            _normalize_rgb_channel(cloud["b"]),
+        ]).astype(np.float32, copy=False)
+
+    return None
+
+
+def _combine_xyz_rgb(xyz, rgb):
+    """Build a contiguous preview point array from xyz and optional rgb columns."""
+    if rgb is not None:
+        points = np.empty((xyz.shape[0], 6), dtype=np.float32)
+        points[:, :3] = xyz
+        points[:, 3:] = rgb
+        return np.ascontiguousarray(points, dtype=np.float32)
+    return np.ascontiguousarray(xyz, dtype=np.float32)
+
+
+def _sample_flat_preview(xyz, rgb, max_points):
+    """Uniformly sample a flat point sequence without biasing to the first rows."""
+    if xyz.shape[0] > max_points:
+        indices = np.linspace(0, xyz.shape[0] - 1, max_points, dtype=np.int64)
+        xyz = xyz[indices]
+        if rgb is not None:
+            rgb = rgb[indices]
+    return _combine_xyz_rgb(xyz, rgb)
+
+
+def _sample_organized_preview(xyz, rgb, valid, width, height, max_points):
+    """Sample organized clouds across both image axes to avoid stripe artifacts."""
+    if width <= 0 or height <= 0 or xyz.shape[0] != width * height:
+        return None
+
+    if xyz.shape[0] <= max_points:
+        xyz = xyz[valid]
+        if rgb is not None:
+            rgb = rgb[valid]
+        return _sample_flat_preview(xyz, rgb, max_points)
+
+    target_cols = min(width, max(1, int(math.sqrt(max_points * width / height))))
+    target_rows = min(height, max(1, max_points // target_cols))
+    while target_rows * target_cols > max_points and target_rows > 1:
+        target_rows -= 1
+    row_indices = np.unique(np.linspace(0, height - 1, target_rows, dtype=np.int64))
+    col_indices = np.unique(np.linspace(0, width - 1, target_cols, dtype=np.int64))
+    indices = (row_indices[:, None] * width + col_indices[None, :]).ravel()
+    if indices.shape[0] > max_points:
+        keep = np.linspace(0, indices.shape[0] - 1, max_points, dtype=np.int64)
+        indices = indices[keep]
+
+    sampled_valid = valid[indices]
+    xyz = xyz[indices][sampled_valid]
+    if rgb is not None:
+        rgb = rgb[indices][sampled_valid]
+    return _sample_flat_preview(xyz, rgb, max_points)
+
+
 def pointcloud2_msg_to_xyz(msg, max_points=MAX_PREVIEW_POINTS):
-    """Convert ROS PointCloud2 message to numpy array of (x, y, z) coordinates."""
+    """Convert ROS PointCloud2 message to xyz or xyzrgb preview points."""
     if msg.is_bigendian:
         return None, "PointCloud2 big-endian 数据暂不支持"
     fields = {field.name: field for field in msg.fields}
@@ -237,23 +336,57 @@ def pointcloud2_msg_to_xyz(msg, max_points=MAX_PREVIEW_POINTS):
                           "offsets": [dtype.fields[name][1] for name in dtype.names],
                           "itemsize": msg.point_step})
         raw = memoryview(msg.data)
+        width = int(msg.width or 0)
+        height = int(msg.height or 0)
+        row_step = int(msg.row_step or 0)
         point_count = len(raw) // msg.point_step
-        if msg.width and msg.height:
-            point_count = min(point_count, int(msg.width) * int(msg.height))
+        organized_width = 0
+        organized_height = 0
+        if width and height:
+            point_count = min(point_count, width * height)
         if point_count <= 0:
             return np.empty((0, 3), dtype=np.float32), ""
-        cloud = np.frombuffer(raw, dtype=dtype, count=point_count)
+        if width and height and row_step > msg.point_step * width:
+            rows = []
+            row_bytes = msg.point_step * width
+            for row in range(height):
+                start = row * row_step
+                end = start + row_bytes
+                if end > len(raw):
+                    break
+                rows.append(np.frombuffer(raw[start:end], dtype=dtype, count=width))
+            if not rows:
+                return np.empty((0, 3), dtype=np.float32), ""
+            cloud = np.concatenate(rows)
+            point_count = cloud.shape[0]
+            organized_width = width
+            organized_height = len(rows)
+        else:
+            cloud = np.frombuffer(raw, dtype=dtype, count=point_count)
+            if width and height and point_count >= width:
+                organized_width = width
+                organized_height = min(height, point_count // width)
         xyz = np.empty((point_count, 3), dtype=np.float32)
         xyz[:, 0] = cloud["x"]
         xyz[:, 1] = cloud["y"]
         xyz[:, 2] = cloud["z"]
+        rgb = _extract_pointcloud_rgb(cloud, fields)
     except Exception as exc:
         return None, f"PointCloud2 解析失败：{exc}"
 
     valid = np.isfinite(xyz).all(axis=1)
-    if not bool(np.all(valid)):
-        xyz = xyz[valid]
-    if xyz.shape[0] > max_points:
-        stride = int(math.ceil(xyz.shape[0] / max_points))
-        xyz = xyz[::stride][:max_points]
-    return np.ascontiguousarray(xyz, dtype=np.float32), ""
+    organized = _sample_organized_preview(
+        xyz,
+        rgb,
+        valid,
+        organized_width,
+        organized_height,
+        max_points,
+    )
+    if organized is not None:
+        return organized, ""
+
+    xyz = xyz[valid]
+    if rgb is not None:
+        rgb = rgb[valid]
+    return _sample_flat_preview(xyz, rgb, max_points), ""

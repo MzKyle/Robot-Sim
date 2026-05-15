@@ -6,13 +6,14 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstdint>
-#include <limits>
+#include <cstdlib>
 #include <vector>
 #include <sstream>
 #include <string>
 
 namespace {
+
+constexpr size_t kPointStride = 6;
 
 constexpr const char *kVertexShader = R"GLSL(
 #version 330 core
@@ -29,7 +30,6 @@ uniform float u_aspect;
 uniform float u_min_z;
 uniform float u_max_z;
 uniform float u_point_size;
-uniform int u_debug_colors;
 
 out float v_height;
 out vec3 v_color;
@@ -41,19 +41,34 @@ void main()
         p = (a_position - u_center) / max(u_radius, 0.000001);
     }
 
+    float camera_distance = max(u_distance, 0.35);
     float cy = cos(u_yaw);
     float sy = sin(u_yaw);
-    p = vec3(cy * p.x - sy * p.y, sy * p.x + cy * p.y, p.z);
-
     float cp = cos(u_pitch);
     float sp = sin(u_pitch);
-    p = vec3(p.x, cp * p.y - sp * p.z, sp * p.y + cp * p.z);
 
-    p.xy += u_pan;
-    float view_scale = max(u_distance, 0.08);
-    vec2 ndc = vec2(p.x / max(u_aspect, 0.001), p.y) / view_scale;
-    float depth = clamp(p.z / 4.0 + 0.5, 0.0, 1.0);
-    gl_Position = vec4(ndc, depth * 2.0 - 1.0, 1.0);
+    vec3 camera_dir = normalize(vec3(cp * cy, cp * sy, sp));
+    vec3 forward = -camera_dir;
+    vec3 right = cross(forward, vec3(0.0, 0.0, 1.0));
+    if (dot(right, right) < 0.0001) {
+        right = vec3(1.0, 0.0, 0.0);
+    }
+    right = normalize(right);
+    vec3 up = cross(right, forward);
+
+    vec3 from_camera = p - camera_dir * camera_distance;
+    float view_x = dot(from_camera, right) + u_pan.x;
+    float view_y = dot(from_camera, up) + u_pan.y;
+    float view_z = dot(from_camera, forward);
+
+    const float near_plane = 0.02;
+    const float far_plane = 200.0;
+    const float tan_half_fov = 0.41421356237;
+    float clip_x = view_x / (max(u_aspect, 0.001) * tan_half_fov);
+    float clip_y = view_y / tan_half_fov;
+    float clip_z = ((far_plane + near_plane) / (far_plane - near_plane)) * view_z
+        - (2.0 * far_plane * near_plane) / (far_plane - near_plane);
+    gl_Position = vec4(clip_x, clip_y, clip_z, view_z);
     gl_PointSize = u_point_size;
     v_height = u_radius > 0.0
         ? clamp((a_position.z - u_min_z) / max(u_max_z - u_min_z, 0.000001), 0.0, 1.0)
@@ -66,23 +81,18 @@ constexpr const char *kFragmentShader = R"GLSL(
 #version 330 core
 in float v_height;
 in vec3 v_color;
-uniform int u_debug_colors;
 out vec4 frag_color;
 
 void main()
 {
-    if (u_debug_colors != 0) {
-        frag_color = vec4(1.0, 1.0, 0.0, 1.0);
-        return;
-    }
-
     vec3 height_low = vec3(0.12, 0.46, 0.92);
     vec3 height_mid = vec3(0.10, 0.78, 0.58);
     vec3 height_high = vec3(1.00, 0.70, 0.18);
     vec3 height_color = v_height < 0.5
         ? mix(height_low, height_mid, v_height * 2.0)
         : mix(height_mid, height_high, (v_height - 0.5) * 2.0);
-    vec3 color = length(v_color) > 0.001 ? v_color : height_color;
+    float color_strength = max(max(v_color.r, v_color.g), v_color.b);
+    vec3 color = color_strength > 0.12 ? max(v_color, vec3(0.18)) : height_color;
     frag_color = vec4(color, 1.0);
 }
 )GLSL";
@@ -164,8 +174,6 @@ GLuint link_program(std::string &error)
 
 }  // namespace
 
-void compute_fit(DcCloudRenderer *renderer, const float *xyz, size_t point_count);
-
 struct DcCloudRenderer {
     GLuint vao = 0;
     GLuint vbo = 0;
@@ -181,7 +189,6 @@ struct DcCloudRenderer {
     float max_z = 1.0f;
     bool initialized = false;
     bool uploaded_once = false;
-    bool diagnostic_mode = false;
     bool prefer_cuda_upload = false;
     std::string error;
 
@@ -207,7 +214,7 @@ struct DcCloudRenderer {
     bool ensure_capacity(size_t requested)
     {
         requested = std::max<size_t>(requested, 1);
-        if (requested <= capacity && vbo && cuda_vbo) {
+        if (requested <= capacity && vbo && (!prefer_cuda_upload || cuda_vbo)) {
             return true;
         }
 
@@ -224,7 +231,7 @@ struct DcCloudRenderer {
         glBindBuffer(GL_ARRAY_BUFFER, vbo);
         glBufferData(
             GL_ARRAY_BUFFER,
-            static_cast<GLsizeiptr>(new_capacity * 6 * sizeof(float)),
+            static_cast<GLsizeiptr>(new_capacity * kPointStride * sizeof(float)),
             nullptr,
             GL_DYNAMIC_DRAW);
         GLenum gl_err = glGetError();
@@ -239,16 +246,21 @@ struct DcCloudRenderer {
         glBindVertexArray(vao);
         glBindBuffer(GL_ARRAY_BUFFER, vbo);
         glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), nullptr);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, kPointStride * sizeof(float), nullptr);
         glEnableVertexAttribArray(1);
         glVertexAttribPointer(
             1,
             3,
             GL_FLOAT,
             GL_FALSE,
-            6 * sizeof(float),
+            kPointStride * sizeof(float),
             reinterpret_cast<void *>(3 * sizeof(float)));
         glBindVertexArray(0);
+
+        if (!prefer_cuda_upload) {
+            capacity = new_capacity;
+            return true;
+        }
 
         const cudaError_t err = cudaGraphicsGLRegisterBuffer(
             &cuda_vbo,
@@ -256,11 +268,9 @@ struct DcCloudRenderer {
             cudaGraphicsRegisterFlagsWriteDiscard);
         if (err != cudaSuccess) {
             cuda_vbo = nullptr;
-            set_error(cuda_error_string(
-                "CUDA/OpenGL interop failed while registering the VBO. "
-                "If this is a hybrid GPU system, start the UI with the NVIDIA OpenGL context",
-                err));
-            return false;
+            prefer_cuda_upload = false;
+            capacity = new_capacity;
+            return true;
         }
 
         capacity = new_capacity;
@@ -268,45 +278,128 @@ struct DcCloudRenderer {
     }
 };
 
-std::vector<float> make_debug_points()
-{
-    std::vector<float> points;
-    points.reserve(41 * 41 * 6);
-    for (int ix = -20; ix <= 20; ++ix) {
-        for (int iy = -20; iy <= 20; ++iy) {
-            const float x = static_cast<float>(ix) / 20.0f;
-            const float y = static_cast<float>(iy) / 20.0f;
-            const float z = 0.18f * std::sin(x * 5.0f) * std::cos(y * 5.0f);
-            points.push_back(x);
-            points.push_back(y);
-            points.push_back(z);
-            points.push_back(1.0f);
-            points.push_back(1.0f);
-            points.push_back(0.0f);
-        }
-    }
-    return points;
-}
-
 std::vector<float> make_interleaved_points(const float *xyz, const float *rgb, size_t point_count)
 {
     std::vector<float> interleaved;
-    interleaved.resize(point_count * 6);
+    interleaved.resize(point_count * kPointStride);
     for (size_t i = 0; i < point_count; ++i) {
-        interleaved[i * 6 + 0] = xyz[i * 3 + 0];
-        interleaved[i * 6 + 1] = xyz[i * 3 + 1];
-        interleaved[i * 6 + 2] = xyz[i * 3 + 2];
+        interleaved[i * kPointStride + 0] = xyz[i * 3 + 0];
+        interleaved[i * kPointStride + 1] = xyz[i * 3 + 1];
+        interleaved[i * kPointStride + 2] = xyz[i * 3 + 2];
         if (rgb) {
-            interleaved[i * 6 + 3] = rgb[i * 3 + 0];
-            interleaved[i * 6 + 4] = rgb[i * 3 + 1];
-            interleaved[i * 6 + 5] = rgb[i * 3 + 2];
+            interleaved[i * kPointStride + 3] = std::clamp(rgb[i * 3 + 0], 0.0f, 1.0f);
+            interleaved[i * kPointStride + 4] = std::clamp(rgb[i * 3 + 1], 0.0f, 1.0f);
+            interleaved[i * kPointStride + 5] = std::clamp(rgb[i * 3 + 2], 0.0f, 1.0f);
         } else {
-            interleaved[i * 6 + 3] = 0.0f;
-            interleaved[i * 6 + 4] = 0.0f;
-            interleaved[i * 6 + 5] = 0.0f;
+            interleaved[i * kPointStride + 3] = 0.0f;
+            interleaved[i * kPointStride + 4] = 0.0f;
+            interleaved[i * kPointStride + 5] = 0.0f;
         }
     }
     return interleaved;
+}
+
+float percentile(std::vector<float> values, float q)
+{
+    if (values.empty()) {
+        return 0.0f;
+    }
+    const size_t index = std::min(
+        values.size() - 1,
+        static_cast<size_t>(std::floor(q * static_cast<float>(values.size() - 1))));
+    std::nth_element(values.begin(), values.begin() + index, values.end());
+    return values[index];
+}
+
+void update_fit(DcCloudRenderer *renderer, const float *points, size_t point_count, size_t stride)
+{
+    std::vector<float> xs;
+    std::vector<float> ys;
+    std::vector<float> zs;
+    const size_t sample_count = std::min<size_t>(point_count, 50000);
+    const size_t step = std::max<size_t>(1, point_count / sample_count);
+    xs.reserve(sample_count);
+    ys.reserve(sample_count);
+    zs.reserve(sample_count);
+    for (size_t i = 0; i < point_count; i += step) {
+        xs.push_back(points[i * stride + 0]);
+        ys.push_back(points[i * stride + 1]);
+        zs.push_back(points[i * stride + 2]);
+        if (xs.size() >= sample_count) {
+            break;
+        }
+    }
+
+    const float fit_min_x = percentile(xs, 0.01f);
+    const float fit_max_x = percentile(xs, 0.99f);
+    const float fit_min_y = percentile(ys, 0.01f);
+    const float fit_max_y = percentile(ys, 0.99f);
+    const float fit_min_z = percentile(zs, 0.01f);
+    const float fit_max_z = percentile(zs, 0.99f);
+
+    renderer->center[0] = (fit_min_x + fit_max_x) * 0.5f;
+    renderer->center[1] = (fit_min_y + fit_max_y) * 0.5f;
+    renderer->center[2] = (fit_min_z + fit_max_z) * 0.5f;
+    renderer->min_z = fit_min_z;
+    renderer->max_z = fit_max_z;
+
+    const float dx = std::max(0.001f, fit_max_x - fit_min_x);
+    const float dy = std::max(0.001f, fit_max_y - fit_min_y);
+    const float dz = std::max(0.001f, fit_max_z - fit_min_z);
+    const float diagonal = std::sqrt(dx * dx + dy * dy + dz * dz);
+    renderer->radius = std::max(0.001f, 0.55f * diagonal);
+}
+
+bool upload_interleaved_points(
+    DcCloudRenderer *renderer,
+    const float *xyzrgb,
+    size_t point_count,
+    bool already_interleaved)
+{
+    if (!renderer) {
+        return false;
+    }
+    if (!renderer->initialized) {
+        renderer->set_error("renderer is not initialized");
+        return false;
+    }
+    renderer->error.clear();
+
+    renderer->count = point_count;
+    if (point_count == 0) {
+        return true;
+    }
+    if (!xyzrgb) {
+        renderer->set_error("point buffer is null");
+        return false;
+    }
+    if (!renderer->ensure_capacity(point_count)) {
+        return false;
+    }
+
+    update_fit(renderer, xyzrgb, point_count, already_interleaved ? kPointStride : 3);
+
+    std::vector<float> interleaved;
+    const float *upload_data = xyzrgb;
+    if (!already_interleaved) {
+        interleaved = make_interleaved_points(xyzrgb, nullptr, point_count);
+        upload_data = interleaved.data();
+    }
+
+    const size_t bytes = point_count * kPointStride * sizeof(float);
+    glBindBuffer(GL_ARRAY_BUFFER, renderer->vbo);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, static_cast<GLsizeiptr>(bytes), upload_data);
+    const GLenum cpu_upload_gl_err = glGetError();
+    if (cpu_upload_gl_err != GL_NO_ERROR) {
+        std::ostringstream out;
+        out << "OpenGL VBO upload failed (GL error 0x"
+            << std::hex << static_cast<unsigned int>(cpu_upload_gl_err) << ")";
+        renderer->set_error(out.str());
+        return false;
+    }
+    renderer->uploaded_once = true;
+
+    return true;
 }
 
 extern "C" DcCloudRenderer *dc_cloud_renderer_create(void)
@@ -352,10 +445,13 @@ extern "C" int dc_cloud_renderer_initialize(DcCloudRenderer *renderer)
         return 0;
     }
 
-    const cudaError_t cuda_set = cudaSetDevice(0);
-    if (cuda_set != cudaSuccess) {
-        renderer->set_error(cuda_error_string("cudaSetDevice(0) failed", cuda_set));
-        return 0;
+    const char *cuda_upload = std::getenv("DATA_COLLECT_CLOUD_RENDERER_CUDA_UPLOAD");
+    renderer->prefer_cuda_upload = cuda_upload && std::string(cuda_upload) != "0";
+    if (renderer->prefer_cuda_upload) {
+        const cudaError_t cuda_set = cudaSetDevice(0);
+        if (cuda_set != cudaSuccess) {
+            renderer->prefer_cuda_upload = false;
+        }
     }
 
     renderer->program = link_program(renderer->error);
@@ -373,7 +469,10 @@ extern "C" int dc_cloud_renderer_initialize(DcCloudRenderer *renderer)
         return 0;
     }
 
-    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LEQUAL);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glEnable(GL_PROGRAM_POINT_SIZE);
     renderer->initialized = true;
     return 1;
@@ -394,6 +493,15 @@ extern "C" int dc_cloud_renderer_upload_points(
     const float *xyz,
     size_t point_count)
 {
+    return upload_interleaved_points(renderer, xyz, point_count, false) ? 1 : 0;
+}
+
+extern "C" int dc_cloud_renderer_upload_points_rgb(
+    DcCloudRenderer *renderer,
+    const float *xyz,
+    const float *rgb,
+    size_t point_count)
+{
     if (!renderer) {
         return 0;
     }
@@ -401,175 +509,26 @@ extern "C" int dc_cloud_renderer_upload_points(
         renderer->set_error("renderer is not initialized");
         return 0;
     }
-    renderer->error.clear();
-
-    renderer->count = point_count;
     if (point_count == 0) {
+        renderer->count = 0;
+        renderer->error.clear();
         return 1;
     }
     if (!xyz) {
         renderer->set_error("point buffer is null");
         return 0;
     }
-    if (!renderer->ensure_capacity(point_count)) {
-        return 0;
-    }
 
-    float min_x = std::numeric_limits<float>::max();
-    float min_y = std::numeric_limits<float>::max();
-    float min_z = std::numeric_limits<float>::max();
-    float max_x = std::numeric_limits<float>::lowest();
-    float max_y = std::numeric_limits<float>::lowest();
-    float max_z = std::numeric_limits<float>::lowest();
-    for (size_t i = 0; i < point_count; ++i) {
-        const float x = xyz[i * 3 + 0];
-        const float y = xyz[i * 3 + 1];
-        const float z = xyz[i * 3 + 2];
-        min_x = std::min(min_x, x);
-        min_y = std::min(min_y, y);
-        min_z = std::min(min_z, z);
-        max_x = std::max(max_x, x);
-        max_y = std::max(max_y, y);
-        max_z = std::max(max_z, z);
-    }
-
-    renderer->min_z = min_z;
-    renderer->max_z = max_z;
-
-    std::vector<float> xs;
-    std::vector<float> ys;
-    std::vector<float> zs;
-    const size_t sample_count = std::min<size_t>(point_count, 20000);
-    const size_t stride = std::max<size_t>(1, point_count / sample_count);
-    xs.reserve(sample_count);
-    ys.reserve(sample_count);
-    zs.reserve(sample_count);
-    for (size_t i = 0; i < point_count; i += stride) {
-        xs.push_back(xyz[i * 3 + 0]);
-        ys.push_back(xyz[i * 3 + 1]);
-        zs.push_back(xyz[i * 3 + 2]);
-        if (xs.size() >= sample_count) {
-            break;
-        }
-    }
-    auto percentile = [](std::vector<float> values, float q) {
-        if (values.empty()) {
-            return 0.0f;
-        }
-        const size_t index = std::min(
-            values.size() - 1,
-            static_cast<size_t>(std::floor(q * static_cast<float>(values.size() - 1))));
-        std::nth_element(values.begin(), values.begin() + index, values.end());
-        return values[index];
-    };
-    const float fit_min_x = percentile(xs, 0.08f);
-    const float fit_max_x = percentile(xs, 0.92f);
-    const float fit_min_y = percentile(ys, 0.08f);
-    const float fit_max_y = percentile(ys, 0.92f);
-    const float fit_min_z = percentile(zs, 0.08f);
-    const float fit_max_z = percentile(zs, 0.92f);
-    renderer->center[0] = (fit_min_x + fit_max_x) * 0.5f;
-    renderer->center[1] = (fit_min_y + fit_max_y) * 0.5f;
-    renderer->center[2] = (fit_min_z + fit_max_z) * 0.5f;
-    const float dx = std::max(0.001f, fit_max_x - fit_min_x);
-    const float dy = std::max(0.001f, fit_max_y - fit_min_y);
-    const float dz = std::max(0.001f, fit_max_z - fit_min_z);
-    renderer->radius = std::max(0.001f, 0.36f * std::sqrt(dx * dx + dy * dy + dz * dz));
-
-    glBindBuffer(GL_ARRAY_BUFFER, renderer->vbo);
-    glBufferSubData(
-        GL_ARRAY_BUFFER,
-        0,
-        static_cast<GLsizeiptr>(point_count * 3 * sizeof(float)),
-        xyz);
-    const GLenum cpu_upload_gl_err = glGetError();
-    if (cpu_upload_gl_err != GL_NO_ERROR) {
-        std::ostringstream out;
-        out << "OpenGL VBO upload failed (GL error 0x"
-            << std::hex << static_cast<unsigned int>(cpu_upload_gl_err) << ")";
-        renderer->set_error(out.str());
-        return 0;
-    }
-    renderer->uploaded_once = true;
-
-    if (!renderer->prefer_cuda_upload) {
-        return 1;
-    }
-
-    cudaError_t err = cudaGraphicsMapResources(1, &renderer->cuda_vbo, 0);
-    if (err != cudaSuccess) {
-        renderer->set_error(cuda_error_string("cudaGraphicsMapResources failed", err));
-        return 0;
-    }
-
-    void *device_ptr = nullptr;
-    size_t mapped_size = 0;
-    err = cudaGraphicsResourceGetMappedPointer(&device_ptr, &mapped_size, renderer->cuda_vbo);
-    if (err == cudaSuccess) {
-        const size_t bytes = point_count * 3 * sizeof(float);
-        if (mapped_size < bytes) {
-            err = cudaErrorInvalidValue;
-        } else {
-            err = cudaMemcpy(device_ptr, xyz, bytes, cudaMemcpyHostToDevice);
-        }
-    }
-
-    const cudaError_t unmap_err = cudaGraphicsUnmapResources(1, &renderer->cuda_vbo, 0);
-    if (err != cudaSuccess) {
-        renderer->set_error(cuda_error_string("CUDA upload to OpenGL VBO failed after OpenGL fallback upload", err));
-        return 0;
-    }
-    if (unmap_err != cudaSuccess) {
-        renderer->set_error(cuda_error_string("cudaGraphicsUnmapResources failed", unmap_err));
-        return 0;
-    }
-    return 1;
+    std::vector<float> interleaved = make_interleaved_points(xyz, rgb, point_count);
+    return upload_interleaved_points(renderer, interleaved.data(), point_count, true) ? 1 : 0;
 }
 
-extern "C" int dc_cloud_renderer_show_debug_points(DcCloudRenderer *renderer)
+extern "C" int dc_cloud_renderer_upload_points_interleaved(
+    DcCloudRenderer *renderer,
+    const float *xyzrgb,
+    size_t point_count)
 {
-    if (!renderer) {
-        return 0;
-    }
-    if (!renderer->initialized) {
-        renderer->set_error("renderer is not initialized");
-        return 0;
-    }
-    static const std::vector<float> debug_points = make_debug_points();
-    if (!renderer->ensure_capacity(debug_points.size() / 3)) {
-        return 0;
-    }
-    glBindBuffer(GL_ARRAY_BUFFER, renderer->vbo);
-    glBufferSubData(
-        GL_ARRAY_BUFFER,
-        0,
-        static_cast<GLsizeiptr>(debug_points.size() * sizeof(float)),
-        debug_points.data());
-    const GLenum err = glGetError();
-    if (err != GL_NO_ERROR) {
-        std::ostringstream out;
-        out << "OpenGL debug VBO upload failed (GL error 0x"
-            << std::hex << static_cast<unsigned int>(err) << ")";
-        renderer->set_error(out.str());
-        return 0;
-    }
-    renderer->center[0] = 0.0f;
-    renderer->center[1] = 0.0f;
-    renderer->center[2] = 0.0f;
-    renderer->min_z = -0.2f;
-    renderer->max_z = 0.2f;
-    renderer->radius = -1.0f;
-    renderer->count = debug_points.size() / 3;
-    renderer->uploaded_once = true;
-    return 1;
-}
-
-extern "C" void dc_cloud_renderer_set_diagnostic_mode(DcCloudRenderer *renderer, int enabled)
-{
-    if (!renderer) {
-        return;
-    }
-    renderer->diagnostic_mode = enabled != 0;
+    return upload_interleaved_points(renderer, xyzrgb, point_count, true) ? 1 : 0;
 }
 
 extern "C" int dc_cloud_renderer_draw(
@@ -589,62 +548,34 @@ extern "C" int dc_cloud_renderer_draw(
         return 0;
     }
 
+    glDisable(GL_SCISSOR_TEST);
     glViewport(0, 0, renderer->width, renderer->height);
-    glClearColor(0.015f, 0.020f, 0.025f, 1.0f);
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LEQUAL);
+    glDepthMask(GL_TRUE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable(GL_PROGRAM_POINT_SIZE);
+    glClearColor(0.026f, 0.029f, 0.034f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    if (renderer->diagnostic_mode) {
-        const int box_w = std::max(24, renderer->width / 3);
-        const int box_h = std::max(24, renderer->height / 3);
-        const int box_x = std::max(0, (renderer->width - box_w) / 2);
-        const int box_y = std::max(0, (renderer->height - box_h) / 2);
-        glEnable(GL_SCISSOR_TEST);
-        glScissor(box_x, box_y, box_w, box_h);
-        glClearColor(1.0f, 0.12f, 0.02f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-        glDisable(GL_SCISSOR_TEST);
-        glClearColor(0.015f, 0.020f, 0.025f, 1.0f);
-        return 1;
-    }
-
-    bool drawing_debug_points = false;
-    if (renderer->count == 0 && !renderer->uploaded_once) {
-        static const std::vector<float> debug_points = make_debug_points();
-        if (!renderer->ensure_capacity(debug_points.size() / 3)) {
-            return 0;
-        }
-        glBindBuffer(GL_ARRAY_BUFFER, renderer->vbo);
-        glBufferSubData(
-            GL_ARRAY_BUFFER,
-            0,
-            static_cast<GLsizeiptr>(debug_points.size() * sizeof(float)),
-            debug_points.data());
-        renderer->count = debug_points.size() / 3;
-        drawing_debug_points = true;
-    } else if (renderer->count == 0) {
+    if (renderer->count == 0) {
         return 1;
     }
 
     const float aspect = static_cast<float>(renderer->width) / static_cast<float>(renderer->height);
 
     glUseProgram(renderer->program);
-    const float debug_center[3] = {0.0f, 0.0f, 0.0f};
-    glUniform3fv(
-        glGetUniformLocation(renderer->program, "u_center"),
-        1,
-        drawing_debug_points ? debug_center : renderer->center);
-    glUniform1f(
-        glGetUniformLocation(renderer->program, "u_radius"),
-        drawing_debug_points ? -1.0f : renderer->radius);
+    glUniform3fv(glGetUniformLocation(renderer->program, "u_center"), 1, renderer->center);
+    glUniform1f(glGetUniformLocation(renderer->program, "u_radius"), renderer->radius);
     glUniform1f(glGetUniformLocation(renderer->program, "u_yaw"), yaw);
     glUniform1f(glGetUniformLocation(renderer->program, "u_pitch"), pitch);
     glUniform2f(glGetUniformLocation(renderer->program, "u_pan"), pan_x, pan_y);
-    glUniform1f(glGetUniformLocation(renderer->program, "u_distance"), std::max(0.15f, distance));
+    glUniform1f(glGetUniformLocation(renderer->program, "u_distance"), std::max(0.35f, distance));
     glUniform1f(glGetUniformLocation(renderer->program, "u_aspect"), aspect);
     glUniform1f(glGetUniformLocation(renderer->program, "u_min_z"), renderer->min_z);
     glUniform1f(glGetUniformLocation(renderer->program, "u_max_z"), renderer->max_z);
-    glUniform1f(glGetUniformLocation(renderer->program, "u_point_size"), std::max(2.0f, point_size));
-    glUniform1i(glGetUniformLocation(renderer->program, "u_debug_colors"), drawing_debug_points ? 1 : 0);
+    glUniform1f(glGetUniformLocation(renderer->program, "u_point_size"), std::max(1.0f, point_size));
 
     glBindVertexArray(renderer->vao);
     glDrawArrays(GL_POINTS, 0, static_cast<GLsizei>(renderer->count));

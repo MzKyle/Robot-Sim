@@ -5,7 +5,7 @@
 - Ubuntu 22.04
 - ROS 2 Humble
 - `colcon`
-- OpenCV、PCL、cv_bridge 等 ROS 依赖
+- OpenCV、PCL、cv_bridge、ros_gz_bridge、ros_gz_sim 等 ROS 依赖
 
 ## 桌面界面依赖
 
@@ -17,13 +17,15 @@ sudo apt install python3-pyqt5 python3-yaml
 
 ## 硬件与 SDK 依赖
 
-- 运行 3D 相机节点需要 RVC SDK。
-- 运行 2D 相机节点需要对应 MVSDK。
-- 运行 Fanuc 机器人节点需要 Fanuc 共享库及其依赖。
+- 运行真实 3D 相机节点需要 RVC SDK。
+- 运行真实 2D 相机节点需要对应 MVSDK。
+- 运行真实 Fanuc 机器人节点需要 Fanuc 共享库及其依赖。
+- 运行仿真链路需要 gz sim 8 可用，并且主机具备可用的图形渲染环境。
 
 ## 建议准备项
 
 - 可访问的机器人控制器 IP 和端口。
 - 已安装的相机 SDK 和驱动库。
 - 有写权限的数据保存目录。
+- 如果优先做联调，建议先准备仿真链路，再逐步切到真实设备。
 - 适合调试的终端环境，方便同时查看 ROS 日志和节点输出。

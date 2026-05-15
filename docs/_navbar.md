@@ -1,5 +1,6 @@
 - [首页](/)
 - [快速入门](guide/prerequisites.md)
+- [仿真](guide/simulation.md)
 - [架构](architecture/README.md)
 - [模块](modules/README.md)
 - [配置](configuration/settings.md)

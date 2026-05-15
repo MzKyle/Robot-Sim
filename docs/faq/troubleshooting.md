@@ -21,11 +21,13 @@ python3 -m pip install --user PySide6
 
 ## 采集目录进入 unknown
 
-说明启动采集时还没有收到目标寄存器值。请检查 Fanuc 节点是否启动、机器人连接是否正常、`target_register_index` 是否正确。
+说明启动采集时还没有收到焊接寄存器信息。请检查 Fanuc 节点或仿真节点是否启动、机器人连接是否正常、`target_register_index` 是否正确。
 
 ## 没有点云或图像保存
 
 请先确认采集状态为 `running`，再检查对应 topic 是否有数据。
+
+如果你跑的是仿真链路，还要确认 `data_collect_sim.launch.py` 的 `use_gz_sensors` 和 `use_gazebo` 是否开启。
 
 ## Fanuc 节点启动失败
 

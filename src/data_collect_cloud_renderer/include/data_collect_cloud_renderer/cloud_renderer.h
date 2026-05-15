@@ -19,8 +19,10 @@ int dc_cloud_renderer_upload_points_rgb(
     const float *xyz,
     const float *rgb,
     size_t point_count);
-int dc_cloud_renderer_show_debug_points(DcCloudRenderer *renderer);
-void dc_cloud_renderer_set_diagnostic_mode(DcCloudRenderer *renderer, int enabled);
+int dc_cloud_renderer_upload_points_interleaved(
+    DcCloudRenderer *renderer,
+    const float *xyzrgb,
+    size_t point_count);
 int dc_cloud_renderer_draw(
     DcCloudRenderer *renderer,
     float yaw,
