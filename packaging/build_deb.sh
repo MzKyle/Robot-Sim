@@ -48,6 +48,8 @@ PACKAGES=(
     file_reader
     fanuc_robot
     data_collect
+    data_collect_quality
+    data_collect_cloud_renderer
     data_collect_bringup
     data_collect_ui
 )
