@@ -22,6 +22,8 @@
 - `use_tf_to_tcp`：是否启用 TF 到 TCP 的转换节点。
 - `use_gz_joint_control`：是否启用关节控制桥接和演示节点。
 
+**默认值**：launch 文件中默认设置为 `use_gazebo=true`、`use_gz_sensors=true`、`use_sim_camera_2d=true`、`use_sim_camera_3d=true`。当 `use_gz_sensors=true` 时，ros_gz_bridge 会被启用，mock 摄像头节点仅在 `use_gz_sensors=false` 时启动。
+
 ## 关键话题
 
 - `/image_topic`：gz 相机或 mock 2D 相机图像。

@@ -22,7 +22,7 @@ source install/setup.bash
 ros2 launch data_collect_sim data_collect_sim.launch.py
 ```
 
-默认启动会打开 gz sim 8、加载 `panda_weld_arm`、启动 mock 相机链、启动末端 TF 到 `/tool_pos` 的转换，并启动后端采集节点。gz 相机桥默认关闭；如果你的渲染环境可用，可以切换到 gz sim 8 仿真链。
+ 默认启动会打开 gz sim 8 并加载 `panda_weld_arm`，launch 文件的默认参数为 `use_gazebo=true`、`use_gz_sensors=true`。因此默认会启用 gz 仿真与 ros_gz_bridge 的传感器桥接，仿真链路作为默认数据源；当你将 `use_gz_sensors:=false` 时，才会回退到 mock 相机链以便快速联调后端。
 
 两条路的选择方式：
 
