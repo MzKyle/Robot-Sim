@@ -544,4 +544,4 @@ ros2 topic hz /tcp_cloud_raw
 
 ## 许可证
 
-当前仓库未附带 LICENSE 文件。若要作为开源项目对外发布，建议补充明确的许可证，例如 MIT 或 Apache-2.0。
+MIT许可协议
