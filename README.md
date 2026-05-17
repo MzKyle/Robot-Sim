@@ -14,6 +14,145 @@
 
 这是一个独立的 ROS 2 Humble 工作空间，用于焊接现场的数据采集、状态记录与桌面可视化管理。项目从 `autocover_G36` 中拆分而来，只保留采集相关能力；运行本工作空间不需要原始工作空间，也不会修改原始工作空间内容。
 
+## ROS 2 Humble + gz sim 8 专业仿真平台
+
+本工作空间新增 `robot_sim_*` 包族，用于把初版 `data_collect_sim` 升级为标准 ROS 2 学习与实验平台。首版以 Panda 机械臂为底座，打通 gz sim 8、`ros_gz_bridge`、`ros2_control`、MoveIt2、RViz2 和常用传感器话题。
+
+### Quickstart
+
+先编译仿真相关包：
+
+```bash
+cd /home/kyle/sany/weld_data_collect_ws
+source /opt/ros/humble/setup.bash
+colcon build --symlink-install --packages-select \
+  robot_sim_description robot_sim_control robot_sim_scenarios \
+  robot_sim_moveit_config robot_sim_bringup
+source install/setup.bash
+```
+
+启动完整仿真、控制器、MoveIt2 和 RViz2：
+
+```bash
+ros2 launch robot_sim_bringup sim.launch.py
+```
+
+服务器或无桌面环境可用 headless 模式：
+
+```bash
+ros2 launch robot_sim_bringup sim.launch.py rviz:=false headless:=true
+```
+
+### ros_gz
+
+主要入口在 `robot_sim_bringup`：
+
+- `sim.launch.py`：单机完整学习模式，启动 gz sim、robot_state_publisher、controller_manager、传感器 bridge、MoveIt2/RViz2。
+- `sensors.launch.py`：只启动传感器 bridge，便于单独验证图像、点云、激光和 IMU。
+- `distributed_local.launch.py`：本机多进程、多 namespace 模拟分布式运行。
+
+场景在 `robot_sim_scenarios/worlds/robot_lab.world.sdf`，模型和传感器挂载在 `robot_sim_description/models` 与 `robot_sim_description/urdf`。
+
+常用验收命令：
+
+```bash
+ros2 topic list
+ros2 topic echo /clock --once
+ros2 topic echo /tf_static --once
+```
+
+### ros2_control
+
+控制配置在 `robot_sim_control/config/panda_controllers.yaml`，默认控制器为：
+
+- `joint_state_broadcaster`
+- `arm_controller`
+- 可选 `gripper_controller`
+
+验收控制器状态：
+
+```bash
+ros2 control list_controllers
+ros2 topic echo /joint_states --once
+```
+
+发送一条 Panda 轨迹：
+
+```bash
+ros2 action send_goal /arm_controller/follow_joint_trajectory \
+  control_msgs/action/FollowJointTrajectory \
+  "{trajectory: {joint_names: [panda_joint1, panda_joint2, panda_joint3, panda_joint4, panda_joint5, panda_joint6, panda_joint7], points: [{positions: [0.2, -0.6, 0.1, -2.2, 0.1, 1.4, 0.6], time_from_start: {sec: 2}}]}}"
+```
+
+说明：当前主机的 `gz_ros2_control` 二进制库与 `gz sim 8` 插件 ABI 不匹配，仿真首版使用 `ros2_control` 的标准 controller/action 接口，加一个 `joint_state_to_gz_joint_cmd_node` 适配到 gz 原生关节控制。上层接口保持 `/joint_states`、`/arm_controller/follow_joint_trajectory` 和 `/arm_controller/state` 不变，后续安装 GZ8 兼容的 `gz_ros2_control` 后可替换底层硬件插件。
+
+### MoveIt2
+
+MoveIt2 配置在 `robot_sim_moveit_config`，默认规划组为 `panda_arm`，执行控制器指向 `arm_controller` 的 `FollowJointTrajectory` action。
+
+单独启动 MoveIt2：
+
+```bash
+ros2 launch robot_sim_moveit_config moveit.launch.py
+```
+
+完整仿真默认会启动 MoveIt2 和 RViz2。在 RViz2 中选择 `panda_arm` 后可规划并执行，轨迹会进入：
+
+```text
+/arm_controller/follow_joint_trajectory
+```
+
+### Sensor Plugins
+
+首版使用 gz 原生传感器和 `ros_gz_bridge`，默认公开标准 ROS 2 话题：
+
+```text
+/camera/color/image_raw
+/camera/color/camera_info
+/camera/depth/image_raw
+/camera/depth/camera_info
+/camera/points
+/scan
+/lidar/points
+/imu/data
+/joint_states
+/tf
+/tf_static
+```
+
+传感器验收：
+
+```bash
+ros2 topic hz /camera/color/image_raw
+ros2 topic hz /camera/depth/image_raw
+ros2 topic hz /camera/points
+ros2 topic hz /scan
+ros2 topic hz /lidar/points
+ros2 topic echo /imu/data --once
+```
+
+### Distributed Local
+
+本机分布式模式用于模拟后续控制、传感器、规划和监督进程拆分：
+
+```bash
+ros2 launch robot_sim_bringup distributed_local.launch.py rviz:=false headless:=true
+```
+
+默认 namespace：
+
+- `/robot`：robot_state_publisher、controller_manager、MoveIt2。
+- `/sensors`：camera、lidar、imu、bridge。
+- `/world`：gz sim 场景。
+- `/supervisor`：后续实验编排和状态监控预留。
+
+验收 namespace 隔离：
+
+```bash
+ros2 topic list | grep -E '^/(robot|sensors|world|supervisor)'
+ros2 control list_controllers -c /robot/controller_manager
+```
+
 ## 简介
 
 本仓库面向焊接产线的数据采集场景，提供 2D 相机、3D 相机、Fanuc 机器人状态、采集控制和桌面操作台的一体化能力。README 按常见开源项目的写法组织，便于快速了解项目、安装、配置和参与开发。

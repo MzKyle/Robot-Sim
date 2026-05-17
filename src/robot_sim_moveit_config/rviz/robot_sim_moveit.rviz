@@ -1,0 +1,64 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Enabled: true
+      Name: Grid
+      Plane: XY
+      Cell Size: 0.5
+    - Class: rviz_default_plugins/RobotModel
+      Enabled: true
+      Name: RobotModel
+      Robot Description: robot_description
+      TF Prefix: ""
+      Visual Enabled: true
+      Collision Enabled: false
+    - Class: rviz_default_plugins/TF
+      Enabled: false
+      Name: TF
+    - Class: rviz_default_plugins/PointCloud2
+      Enabled: true
+      Name: Camera Points
+      Topic: /camera/points
+      Queue Size: 10
+      Style: Points
+      Size (m): 0.01
+    - Class: rviz_default_plugins/LaserScan
+      Enabled: true
+      Name: 2D Scan
+      Topic: /scan
+      Queue Size: 10
+      Style: Points
+      Size (m): 0.02
+    - Class: moveit_rviz_plugin/MotionPlanning
+      Enabled: true
+      Name: MotionPlanning
+      Planning Group: panda_arm
+      Robot Description: robot_description
+      Planning Scene Topic: /monitored_planning_scene
+      MoveIt_Planning_Time: 5
+  Enabled: true
+  Global Options:
+    Background Color: 35; 35; 38
+    Fixed Frame: world
+    Frame Rate: 30
+  Tools:
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 2.6
+      Focal Point:
+        X: 0.7
+        Y: 0
+        Z: 0.45
+      Pitch: 0.45
+      Yaw: 3.7
+Window Geometry:
+  Width: 1280
+  Height: 850
