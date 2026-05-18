@@ -7,9 +7,9 @@ flowchart LR
     Camera2D[2D Camera] --> Node2D[camera_pool_driver]
     Camera3D[3D Camera] --> Node3D[camera_3d_driver]
     Robot[Fanuc Robot] --> RobotNode[fanuc_robot]
-    SimSim[gz sim 8 / Panda] --> SimLaunch[data_collect_sim]
-    SimLaunch --> SimNode3D[ros_gz_bridge + sim_camera_3d_node]
-    SimLaunch --> SimRobot[sim_fanuc_robot_node + tf_to_tcp_node]
+    SimSim[gz sim 8 / Panda] --> SimLaunch[robot_sim_bringup]
+    SimLaunch --> SimNode3D[ros_gz_bridge sensor groups]
+    SimLaunch --> SimRobot[gz_ros2_control + ros2_control]
     SimLaunch --> Quality[data_collect_quality]
 
     Node2D --> Collect[data_collect]
@@ -31,7 +31,7 @@ flowchart LR
 
 1. `data_collect_bringup` 读取 `nodemanage.yaml` 并启动各个节点。
 2. 真实链路下，相机、机器人和质量节点先完成硬件初始化，再开始对外发布数据。
-3. `data_collect_sim` 会启动 gz sim 8、Panda 机械臂、仿真机器人链和可选 mock 传感器链，用同一套 ROS 接口对外输出。
+3. `robot_sim_bringup` 会按 `mock`、`light`、`full` 模式启动控制链、Gazebo 和可选传感器组。
 4. `data_collect` 根据任务状态和采样间隔决定是否保存数据。
 5. `data_collect_ui` 订阅状态话题，并通过服务完成采集控制和任务录入。
 6. 每次采集结束后会生成标准元数据，供历史检索使用。

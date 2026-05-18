@@ -2,22 +2,23 @@
 <robot name="panda_arm" xmlns:xacro="http://www.ros.org/wiki/xacro">
   <xacro:arg name="prefix" default=""/>
   <xacro:arg name="hardware_plugin" default="mock_components/GenericSystem"/>
+  <xacro:arg name="controllers_file" default=""/>
+  <xacro:arg name="mesh_root" default="package://robot_sim_description/models/panda_arm/meshes"/>
+  <xacro:arg name="camera_mesh" default="package://robot_sim_description/models/rgbd_camera/meshes/3dCamera.DAE"/>
+  <xacro:arg name="use_gz_ros2_control" default="false"/>
+  <xacro:arg name="ros_namespace" default=""/>
+  <xacro:arg name="enable_camera" default="false"/>
+  <xacro:arg name="enable_depth" default="false"/>
+  <xacro:arg name="enable_lidar" default="false"/>
+  <xacro:arg name="enable_imu" default="false"/>
 
   <xacro:property name="prefix" value="$(arg prefix)"/>
   <xacro:property name="hardware_plugin" value="$(arg hardware_plugin)"/>
+  <xacro:property name="controllers_file" value="$(arg controllers_file)"/>
+  <xacro:property name="ros_namespace" value="$(arg ros_namespace)"/>
   <xacro:property name="PI" value="3.141592653589793"/>
-  <xacro:property name="mesh_root" value="package://robot_sim_description/models/panda_arm/meshes"/>
-  <xacro:property name="camera_mesh" value="package://robot_sim_description/models/rgbd_camera/meshes/3dCamera.DAE"/>
-
-  <material name="panda_white">
-    <color rgba="0.92 0.92 0.88 1.0"/>
-  </material>
-  <material name="panda_dark">
-    <color rgba="0.08 0.09 0.10 1.0"/>
-  </material>
-  <material name="sensor_blue">
-    <color rgba="0.1 0.28 0.75 1.0"/>
-  </material>
+  <xacro:property name="mesh_root" value="$(arg mesh_root)"/>
+  <xacro:property name="camera_mesh" value="$(arg camera_mesh)"/>
 
   <xacro:macro name="simple_inertial" params="mass:=1.0 ixx:=0.01 iyy:=0.01 izz:=0.01 xyz:='0 0 0' rpy:='0 0 0'">
     <inertial>
@@ -27,13 +28,12 @@
     </inertial>
   </xacro:macro>
 
-  <xacro:macro name="mesh_link" params="name visual collision material:=panda_white mass:=1.0">
+  <xacro:macro name="mesh_link" params="name visual collision mass:=1.0">
     <link name="${prefix}${name}">
       <visual>
         <geometry>
           <mesh filename="${mesh_root}/visual/${visual}"/>
         </geometry>
-        <material name="${material}"/>
       </visual>
       <collision>
         <geometry>
@@ -66,14 +66,14 @@
     <child link="${prefix}panda_link0"/>
   </joint>
 
-  <xacro:mesh_link name="panda_link0" visual="link0.dae" collision="link0.stl" material="panda_white" mass="2.8"/>
-  <xacro:mesh_link name="panda_link1" visual="link1.dae" collision="link1.stl" material="panda_white" mass="2.6"/>
-  <xacro:mesh_link name="panda_link2" visual="link2.dae" collision="link2.stl" material="panda_white" mass="2.7"/>
-  <xacro:mesh_link name="panda_link3" visual="link3.dae" collision="link3.stl" material="panda_white" mass="2.3"/>
-  <xacro:mesh_link name="panda_link4" visual="link4.dae" collision="link4.stl" material="panda_white" mass="2.3"/>
-  <xacro:mesh_link name="panda_link5" visual="link5.dae" collision="link5.stl" material="panda_white" mass="2.4"/>
-  <xacro:mesh_link name="panda_link6" visual="link6.dae" collision="link6.stl" material="panda_white" mass="1.8"/>
-  <xacro:mesh_link name="panda_link7" visual="link7.dae" collision="link7.stl" material="panda_dark" mass="1.2"/>
+  <xacro:mesh_link name="panda_link0" visual="link0.dae" collision="link0.stl" mass="2.8"/>
+  <xacro:mesh_link name="panda_link1" visual="link1.dae" collision="link1.stl" mass="2.6"/>
+  <xacro:mesh_link name="panda_link2" visual="link2.dae" collision="link2.stl" mass="2.7"/>
+  <xacro:mesh_link name="panda_link3" visual="link3.dae" collision="link3.stl" mass="2.3"/>
+  <xacro:mesh_link name="panda_link4" visual="link4.dae" collision="link4.stl" mass="2.3"/>
+  <xacro:mesh_link name="panda_link5" visual="link5.dae" collision="link5.stl" mass="2.4"/>
+  <xacro:mesh_link name="panda_link6" visual="link6.dae" collision="link6.stl" mass="1.8"/>
+  <xacro:mesh_link name="panda_link7" visual="link7.dae" collision="link7.stl" mass="1.2"/>
 
   <joint name="${prefix}panda_joint1" type="revolute">
     <origin xyz="0 0 0.333" rpy="0 0 0"/>
@@ -132,7 +132,7 @@
     <dynamics damping="3.0" friction="0.48"/>
   </joint>
 
-  <xacro:mesh_link name="panda_hand" visual="hand.dae" collision="hand.stl" material="panda_dark" mass="0.14"/>
+  <xacro:mesh_link name="panda_hand" visual="hand.dae" collision="hand.stl" mass="0.14"/>
   <joint name="${prefix}panda_hand_joint" type="fixed">
     <origin xyz="0 0 0.107" rpy="0 0 -0.7853981633974483"/>
     <parent link="${prefix}panda_link7"/>
@@ -153,7 +153,6 @@
       <geometry>
         <mesh filename="${mesh_root}/visual/finger.dae"/>
       </geometry>
-      <material name="panda_dark"/>
     </visual>
     <collision>
       <geometry>
@@ -168,7 +167,6 @@
       <geometry>
         <mesh filename="${mesh_root}/visual/finger.dae"/>
       </geometry>
-      <material name="panda_dark"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 ${PI}"/>
@@ -202,7 +200,6 @@
       <geometry>
         <mesh filename="${camera_mesh}"/>
       </geometry>
-      <material name="sensor_blue"/>
     </visual>
     <collision>
       <origin xyz="0.02 0 0.034" rpy="0 0 1.5707963267948966"/>
@@ -249,7 +246,137 @@
     <child link="${prefix}imu_link"/>
   </joint>
 
-  <ros2_control name="${prefix}PandaMockSystem" type="system">
+  <xacro:if value="$(arg enable_camera)">
+    <gazebo reference="${prefix}camera_mount">
+      <sensor name="color_camera" type="camera">
+        <pose>0 0 0 0 0 0</pose>
+        <topic>/camera/color/image_raw</topic>
+        <camera>
+          <horizontal_fov>1.047</horizontal_fov>
+          <image>
+            <width>640</width>
+            <height>480</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip>
+            <near>0.03</near>
+            <far>100.0</far>
+          </clip>
+        </camera>
+        <always_on>true</always_on>
+        <update_rate>30</update_rate>
+        <visualize>true</visualize>
+      </sensor>
+    </gazebo>
+  </xacro:if>
+
+  <xacro:if value="$(arg enable_depth)">
+    <gazebo reference="${prefix}camera_mount">
+      <sensor name="rgbd_camera" type="rgbd_camera">
+        <pose>0 0 0 0 0 0</pose>
+        <topic>/camera/depth</topic>
+        <camera>
+          <horizontal_fov>1.047</horizontal_fov>
+          <image>
+            <width>640</width>
+            <height>480</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip>
+            <near>0.03</near>
+            <far>30.0</far>
+          </clip>
+        </camera>
+        <always_on>true</always_on>
+        <update_rate>15</update_rate>
+        <visualize>false</visualize>
+      </sensor>
+    </gazebo>
+  </xacro:if>
+
+  <xacro:if value="$(arg enable_lidar)">
+    <gazebo reference="${prefix}camera_mount">
+      <sensor name="lidar_2d" type="gpu_lidar">
+        <pose>0 0 0.035 0 0 0</pose>
+        <topic>/scan</topic>
+        <update_rate>20</update_rate>
+        <lidar>
+          <scan>
+            <horizontal>
+              <samples>720</samples>
+              <resolution>1</resolution>
+              <min_angle>-1.5707963267948966</min_angle>
+              <max_angle>1.5707963267948966</max_angle>
+            </horizontal>
+          </scan>
+          <range>
+            <min>0.05</min>
+            <max>12.0</max>
+            <resolution>0.01</resolution>
+          </range>
+        </lidar>
+        <visualize>false</visualize>
+      </sensor>
+    </gazebo>
+
+    <gazebo reference="${prefix}camera_mount">
+      <sensor name="lidar_3d" type="gpu_lidar">
+        <pose>0 0 0.055 0 0 0</pose>
+        <topic>/lidar</topic>
+        <update_rate>10</update_rate>
+        <lidar>
+          <scan>
+            <horizontal>
+              <samples>320</samples>
+              <resolution>1</resolution>
+              <min_angle>-1.5707963267948966</min_angle>
+              <max_angle>1.5707963267948966</max_angle>
+            </horizontal>
+            <vertical>
+              <samples>32</samples>
+              <resolution>1</resolution>
+              <min_angle>-0.5235987755982988</min_angle>
+              <max_angle>0.5235987755982988</max_angle>
+            </vertical>
+          </scan>
+          <range>
+            <min>0.05</min>
+            <max>15.0</max>
+            <resolution>0.02</resolution>
+          </range>
+        </lidar>
+        <visualize>false</visualize>
+      </sensor>
+    </gazebo>
+  </xacro:if>
+
+  <xacro:if value="$(arg enable_imu)">
+    <gazebo reference="${prefix}camera_mount">
+      <sensor name="imu" type="imu">
+        <pose>0 0 0.02 0 0 0</pose>
+        <topic>/imu/data</topic>
+        <always_on>true</always_on>
+        <update_rate>100</update_rate>
+        <visualize>false</visualize>
+      </sensor>
+    </gazebo>
+  </xacro:if>
+
+  <xacro:if value="$(arg use_gz_ros2_control)">
+    <gazebo>
+      <plugin filename="libgz_ros2_control-system.so" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+        <parameters>${controllers_file}</parameters>
+        <robot_param>robot_description</robot_param>
+        <robot_param_node>robot_state_publisher</robot_param_node>
+        <controller_manager_name>controller_manager</controller_manager_name>
+        <ros>
+          <namespace>${ros_namespace}</namespace>
+        </ros>
+      </plugin>
+    </gazebo>
+  </xacro:if>
+
+  <ros2_control name="${prefix}PandaSystem" type="system">
     <hardware>
       <plugin>${hardware_plugin}</plugin>
     </hardware>

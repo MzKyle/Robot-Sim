@@ -8,7 +8,7 @@ src/config/nodemanage.yaml
 
 真实设备链路启动时，`data_collect.launch.py` 会把这个 YAML 传给 2D 相机、3D 相机、Fanuc 节点和采集质量节点；`data_collect_node` 也会通过 `AUTOCOVER_NODEMANAGE_YAML` 读取同一个文件。界面中的 `参数设置` 页会直接修改这个 YAML。
 
-仿真链路使用 `src/data_collect_sim/config/nodemanage_sim.yaml`，其中保存了 gz sim 8、Panda 机械臂、模拟 Fanuc 和 mock 相机节点的参数。
+仿真链路使用 `robot_sim_bringup` 的 launch 参数和 `robot_sim_control/config/panda_controllers.yaml`。旧 `data_collect_sim/config/nodemanage_sim.yaml` 已移除。
 
 ## 常用配置段
 
@@ -67,9 +67,9 @@ camera_node:
 
 ## 仿真配置
 
-`data_collect_sim/config/nodemanage_sim.yaml` 里的关键段位于：
+`robot_sim_bringup` 的关键参数位于 launch 命令中：
 
-- `camera_driver_3d`：仿真 3D 相机参数。
-- `camera_node`：mock 2D 相机参数。
-- `robot_driver_fanuc`：仿真机器人、寄存器和状态开关。
-- `data_collect_node`：仿真数据保存根目录，默认写到 `data/sim`。
+- `sim_mode`：`mock`、`light` 或 `full`，默认 `light`。
+- `enable_camera`、`enable_depth`、`enable_lidar`、`enable_imu`：按组启停传感器。
+- `use_moveit`、`rviz`、`headless`、`use_sim_time`：支持 `auto|true|false`。
+- `robot_sim_control/config/panda_controllers.yaml`：Panda 控制器配置。

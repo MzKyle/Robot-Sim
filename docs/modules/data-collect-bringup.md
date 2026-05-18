@@ -21,4 +21,4 @@ ros2 launch data_collect_bringup data_collect.launch.py
 ## 与仿真入口的区别
 
 - `data_collect_bringup` 面向真实硬件。
-- `data_collect_sim` 面向 gz sim 8、Panda 机械臂和 mock 链路。
+- `robot_sim_bringup` 面向 gz sim 8、Panda 机械臂、Gazebo hardware plugin 和 mock 控制链。

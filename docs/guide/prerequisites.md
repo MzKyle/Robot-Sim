@@ -21,6 +21,7 @@ sudo apt install python3-pyqt5 python3-yaml
 - 运行真实 2D 相机节点需要对应 MVSDK。
 - 运行真实 Fanuc 机器人节点需要 Fanuc 共享库及其依赖。
 - 运行仿真链路需要 gz sim 8 可用，并且主机具备可用的图形渲染环境。
+- ROS 2 Humble + gz sim 8/Harmonic 需要源码版 `gz_ros2_control` overlay；构建前设置 `GZ_VERSION=harmonic`。
 
 ## 建议准备项
 

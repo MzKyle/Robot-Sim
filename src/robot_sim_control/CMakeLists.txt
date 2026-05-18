@@ -8,9 +8,4 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}
 )
 
-install(PROGRAMS
-  scripts/joint_state_to_gz_joint_cmd_node
-  DESTINATION lib/${PROJECT_NAME}
-)
-
 ament_package()

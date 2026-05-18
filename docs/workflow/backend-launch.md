@@ -17,10 +17,10 @@ ros2 launch data_collect_bringup data_collect.launch.py
 cd /home/kyle/sany/weld_data_collect_ws
 source /opt/ros/humble/setup.bash
 source install/setup.bash
-ros2 launch data_collect_sim data_collect_sim.launch.py
+ros2 launch robot_sim_bringup sim.launch.py
 ```
 
-这条命令会启动 gz sim 8、Panda 机械臂、模拟机器人链和默认的仿真桥接。
+这条命令会启动轻量仿真：gz sim 8、Panda 机械臂和 Gazebo hardware plugin，默认关闭传感器以节省性能。
 
 ## 常用参数覆盖
 
@@ -40,7 +40,7 @@ ros2 launch data_collect_bringup data_collect.launch.py \
   enable_camera_2d:=false
 ```
 
-仿真启动时常用的开关是 `use_gazebo`、`use_gz_sensors`、`use_sim_camera_2d`、`use_sim_camera_3d`、`use_sim_fanuc`、`use_tf_to_tcp` 和 `use_gz_joint_control`。
+仿真启动时常用的开关是 `sim_mode`、`enable_camera`、`enable_depth`、`enable_lidar`、`enable_imu`、`use_moveit`、`rviz`、`headless` 和 `use_sim_time`。
 
 ## 脚本启动
 

@@ -291,10 +291,5 @@
       </link>
     </model>
 
-    <include>
-      <uri>model://panda_arm</uri>
-      <name>panda</name>
-      <pose>0.2 0 0.125 0 0 0</pose>
-    </include>
   </world>
 </sdf>
