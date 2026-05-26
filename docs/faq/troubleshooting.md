@@ -6,7 +6,7 @@
 
 ```bash
 source /opt/ros/humble/setup.bash
-source /home/kyle/sany/weld_data_collect_ws/install/setup.bash
+source /home/kyle/sany/robot_sim/install/setup.bash
 ```
 
 ## UI 无法启动

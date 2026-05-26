@@ -1,9 +1,11 @@
 # 安装与打包
 
+当前打包脚本主要面向采集测试工具链。Gazebo 仿真主线通常直接在源码工作空间中编译运行。
+
 ## 打包命令
 
 ```bash
-cd /home/kyle/sany/weld_data_collect_ws
+cd /home/kyle/sany/robot_sim
 bash packaging/build_deb.sh
 ```
 

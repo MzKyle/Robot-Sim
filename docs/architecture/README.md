@@ -1,6 +1,6 @@
 # 架构总览
 
-焊接数据采集工作空间采用“Bringup 入口 + 功能节点 + 桌面操作台”的方式组织。真实设备链路由 `data_collect_bringup` 驱动，仿真链路由 `robot_sim_bringup` 驱动。配置文件通过 `src/config/nodemanage.yaml`、`robot_sim_control/config/panda_controllers.yaml` 和 launch 参数注入，数据流通过 ROS 主题和服务连接各个节点。
+`robot_sim` 当前采用“仿真 bringup + 运控配置 + 采集测试辅助”的方式组织。仿真主链路由 `robot_sim_bringup` 驱动，真实设备和采集测试链路由 `data_collect_bringup` 按需启动。配置文件通过 `robot_sim_control/config/panda_controllers.yaml`、launch 参数和 `src/config/nodemanage.yaml` 注入，数据流通过 ROS 主题、服务和 action 连接各个节点。
 
 如果你的目标是把它继续演进成通用数据采集平台，建议先看 [目标架构草案](target-architecture.md)。这份文档会把 rosbag2、预览、质量评估和前端控制重新拆分成更轻的边界。
 

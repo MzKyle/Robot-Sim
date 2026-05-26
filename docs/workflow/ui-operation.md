@@ -3,7 +3,7 @@
 ## 启动界面
 
 ```bash
-cd /home/kyle/sany/weld_data_collect_ws
+cd /home/kyle/sany/robot_sim
 source /opt/ros/humble/setup.bash
 source install/setup.bash
 ros2 run data_collect_ui data_collect_ui

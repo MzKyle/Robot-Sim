@@ -5,7 +5,7 @@
 ## 启动前准备
 
 ```bash
-cd /home/kyle/sany/weld_data_collect_ws
+cd /home/kyle/sany/robot_sim
 source /opt/ros/humble/setup.bash
 export GZ_VERSION=harmonic
 colcon build --symlink-install --allow-overriding gz_ros2_control --packages-select \
