@@ -11,6 +11,7 @@ find_package(std_msgs REQUIRED)
 
 find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(robot_task_interfaces REQUIRED)
 
 add_library(${PROJECT_NAME}_headers INTERFACE)
 target_include_directories(${PROJECT_NAME}_headers INTERFACE
@@ -52,11 +53,13 @@ rosidl_generate_interfaces(${PROJECT_NAME}
         "srv/IntData.srv"
         "srv/ReadFanucRegister.srv"
         "srv/SetCollectionTask.srv"
+        "srv/SetWeldCollectionTask.srv"
         "msg/WeldRegisterInfo.msg"
+        "msg/WeldTaskExtension.msg"
         "msg/ModbusData.msg"
         "msg/ModbusDataArray.msg"
         "srv/WriteDataPoint.srv"
-        DEPENDENCIES std_msgs sensor_msgs
+        DEPENDENCIES std_msgs sensor_msgs robot_task_interfaces
         )
 
       install(DIRECTORY include/

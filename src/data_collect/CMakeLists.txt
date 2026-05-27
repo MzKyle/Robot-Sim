@@ -17,6 +17,8 @@ find_package(pcl_conversions REQUIRED)
 find_package(pcl_ros REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(weld_interface REQUIRED)
+find_package(acquisition_interfaces REQUIRED)
+find_package(robot_task_interfaces REQUIRED)
 find_package(file_reader REQUIRED)
 
 if(BUILD_TESTING)
@@ -45,6 +47,8 @@ ament_target_dependencies(data_collect_node
         pcl_ros
         std_srvs
         weld_interface
+        acquisition_interfaces
+        robot_task_interfaces
         file_reader
         ament_index_cpp
         )

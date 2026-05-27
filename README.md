@@ -40,6 +40,16 @@ ros2 launch robot_sim_bringup sim.launch.py
 ros2 launch robot_sim_bringup sim.launch.py sim_mode:=full
 ```
 
+默认会加载 `sim_profile:=panda`。也可以显式指定内置 profile 或外部 profile 文件：
+
+```bash
+ros2 launch robot_sim_bringup sim.launch.py sim_profile:=panda sim_mode:=full
+
+ros2 launch robot_sim_bringup sim.launch.py \
+  sim_profile_file:=/path/to/custom_robot.yaml \
+  sim_mode:=light
+```
+
 纯 ROS 控制链 mock：
 
 ```bash
@@ -59,38 +69,86 @@ ros2 launch robot_sim_bringup sim.launch.py sim_mode:=mock
 ```bash
 ros2 launch robot_sim_bringup sim.launch.py \
   sim_mode:=light \
-  enable_camera:=true \
-  enable_depth:=false \
-  enable_lidar:=true \
-  enable_imu:=true
+  sensor_overrides:=camera=true,depth=false,lidar=true,imu=true
 ```
 
-## 运控验收
+## 仿真 Profile
 
-查看控制器：
+`sim_profile` 用 YAML 描述机器人接入所需的仿真资源，当前内置文件为：
+
+```text
+src/robot_sim_bringup/config/sim_profiles/panda.yaml
+```
+
+配置拆成四类：
+
+- `config/sim_profiles/*.yaml`：机器人、world、controller、MoveIt、namespace、传感器能力和静态 TF。
+- `config/sim_modes.yaml`：`mock/light/full` 默认开关和启动延迟。
+- `config/bridge_groups/*.yaml`：每组 `ros_gz_bridge` 的节点名、命名空间策略和 bridge 配置文件。
+- `robot_sim_scenarios/scenarios/*.yaml`：base world、可复用 assets 和业务 scenario 的组合关系。
+
+profile 中集中声明：
+
+- 机器人 xacro、spawn 名称和 xacro 参数。
+- 单机/分布式 layout 对应的 world scenario。
+- ros2_control controllers 文件和需要 spawn 的 controller。
+- MoveIt2 的 SRDF、kinematics、joint limits、controller、OMPL 和 RViz 配置。
+- Gazebo resource path、clock bridge、传感器 bridge group 和静态 TF。
+
+新增机器人时，建议复制 `panda.yaml` 后替换对应路径。新机器人的 xacro 需要支持这些通用参数：
+
+```text
+hardware_plugin
+controllers_file
+controller_manager_name
+use_gz_ros2_control
+ros_namespace
+```
+
+传感器开关由 profile 的 `sensors.<group>.xacro_arg` 映射，例如 Panda 使用 `enable_camera`、`enable_depth`、`enable_lidar`、`enable_imu`。命令行用 `sensor_overrides:=camera=true,lidar=false` 覆盖任意已声明 sensor group；如果覆盖了不存在的 group，launch 会快速报错。
+
+## 场景组件
+
+Gazebo 场景不再以单个固定 `robot_lab.world.sdf` 作为入口，而是拆成：
+
+- `src/robot_sim_scenarios/worlds/base/`：地面、光照、物理参数和 GUI。
+- `src/robot_sim_scenarios/assets/`：桌子、标定板、工件、目标物和障碍物等可复用 SDF 组件。
+- `src/robot_sim_scenarios/scenarios/`：把 base world 与 assets 组合成 `lab_demo`、`welding_demo`、`calibration_demo`、`sensor_test`、`planning_obstacles`。
+
+`sim_profile` 只引用 scenario YAML，launch 启动时会生成临时 world 文件并交给 Gazebo。迁移到新项目时，通常只需要复制 assets/scenarios 并改 profile 里的 scenario 引用。
+
+## 仿真验收
+
+换机器人或改 profile 后，优先跑固定 smoke test，而不是只做手工 topic 检查：
+
+```bash
+scripts/sim_smoke_test.sh --profile panda --mode full --timeout 120
+```
+
+默认会以 `full` 模式、`headless:=true`、`rviz:=false`、`use_moveit:=false` 启动单机仿真，并检查：
+
+- URDF/xacro 能生成且 `check_urdf` 通过。
+- Gazebo 能 spawn profile 中的 `spawn_name`。
+- `/joint_states` 包含主轨迹控制器关节。
+- profile 中启用的 controller 全部 `active`。
+- 第一个 `JointTrajectoryController` 的 `follow_joint_trajectory` action 可执行。
+- 启用 sensor group 的 bridge topic 有 hz，默认要求大于 1 Hz。
+- URDF link 和启用传感器静态 TF frame 在同一棵 TF tree 中。
+
+可选项：
+
+```bash
+scripts/sim_smoke_test.sh --profile panda --mode full --with-moveit
+scripts/sim_smoke_test.sh --profile panda --mode full --with-rosbag --keep-logs
+scripts/sim_smoke_test.sh --profile-file /path/to/custom_robot.yaml --mode full
+```
+
+排查单项问题时仍可使用手工命令：
 
 ```bash
 ros2 control list_controllers
 ros2 topic echo /joint_states --once
-```
-
-发送一条 Panda 关节轨迹：
-
-```bash
-ros2 action send_goal /arm_controller/follow_joint_trajectory \
-  control_msgs/action/FollowJointTrajectory \
-  "{trajectory: {joint_names: [panda_joint1, panda_joint2, panda_joint3, panda_joint4, panda_joint5, panda_joint6, panda_joint7], points: [{positions: [0.2, -0.6, 0.1, -2.2, 0.1, 1.4, 0.6], time_from_start: {sec: 2}}]}}"
-```
-
-完整模式下检查传感器：
-
-```bash
 ros2 topic hz /camera/color/image_raw
-ros2 topic hz /camera/depth/image_raw
-ros2 topic hz /camera/points
-ros2 topic hz /scan
-ros2 topic hz /lidar/points
-ros2 topic echo /imu/data --once
 ```
 
 ## 系统结构
@@ -122,10 +180,14 @@ flowchart LR
 | `src/robot_sim_bringup/` | 仿真总入口，提供单机、传感器桥接和本机分布式 launch |
 | `src/robot_sim_description/` | Panda 机械臂、夹爪、相机挂载、传感器和 Gazebo 插件描述 |
 | `src/robot_sim_control/` | `joint_state_broadcaster`、`arm_controller`、可选 `gripper_controller` 配置 |
-| `src/robot_sim_scenarios/` | Gazebo world 场景 |
+| `src/robot_sim_scenarios/` | base world、assets 和 scenario 场景 |
 | `src/robot_sim_moveit_config/` | Panda MoveIt2 规划和执行配置 |
 | `src/gz_ros2_control/` | Humble + gz sim 8/Harmonic 使用的源码 overlay |
+| `src/simulation_interfaces/` | 通用仿真 scenario 接口 |
+| `src/robot_task_interfaces/` | 通用任务上下文接口 |
+| `src/acquisition_interfaces/` | 通用采集状态、质量和任务接口 |
 | `src/data_collect*`、`src/camera_*`、`src/fanuc_robot/` | 采集链路和真实设备测试辅助模块 |
+| `src/weld_interface/` | 焊接业务 adapter 和旧接口兼容层 |
 
 ## 本机分布式仿真
 
@@ -214,7 +276,8 @@ http://localhost:3000
 
 ```bash
 colcon build --symlink-install --packages-select \
+  robot_task_interfaces acquisition_interfaces simulation_interfaces \
   weld_interface file_reader data_collect data_collect_quality data_collect_ui
 ```
 
-真实设备驱动依赖 RVC SDK、MVSDK 和 Fanuc 共享库；缺少厂商 SDK 时，建议先使用 `robot_sim_bringup` 的仿真话题完成运控和接口联调。
+新项目优先接入 `/task/set_context`、`/acquisition/set_task`、`/acquisition/status` 和 `/acquisition/quality`。焊接字段通过 `weld_interface/WeldTaskExtension` 或旧 `/data_collect_set_task` 兼容服务保留。真实设备驱动依赖 RVC SDK、MVSDK 和 Fanuc 共享库；缺少厂商 SDK 时，建议先使用 `robot_sim_bringup` 的仿真话题完成运控和接口联调。

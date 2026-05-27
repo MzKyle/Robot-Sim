@@ -70,6 +70,7 @@ camera_node:
 `robot_sim_bringup` 的关键参数位于 launch 命令中：
 
 - `sim_mode`：`mock`、`light` 或 `full`，默认 `light`。
-- `enable_camera`、`enable_depth`、`enable_lidar`、`enable_imu`：按组启停传感器。
+- `sim_profile`、`sim_profile_file`：选择内置或外部仿真 profile。
+- `sensor_overrides`：按组启停传感器，例如 `camera=true,lidar=false`。
 - `use_moveit`、`rviz`、`headless`、`use_sim_time`：支持 `auto|true|false`。
 - `robot_sim_control/config/panda_controllers.yaml`：Panda 控制器配置。

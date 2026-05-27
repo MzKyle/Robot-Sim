@@ -1,0 +1,120 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:macro name="panda_gazebo_sensors" params="prefix enable_camera enable_depth enable_lidar enable_imu">
+    <xacro:if value="${enable_camera}">
+      <gazebo reference="${prefix}camera_mount">
+        <sensor name="color_camera" type="camera">
+          <pose>0 0 0 0 0 0</pose>
+          <topic>/camera/color/image_raw</topic>
+          <camera>
+            <horizontal_fov>1.047</horizontal_fov>
+            <image>
+              <width>640</width>
+              <height>480</height>
+              <format>R8G8B8</format>
+            </image>
+            <clip>
+              <near>0.03</near>
+              <far>100.0</far>
+            </clip>
+          </camera>
+          <always_on>true</always_on>
+          <update_rate>30</update_rate>
+          <visualize>true</visualize>
+        </sensor>
+      </gazebo>
+    </xacro:if>
+
+    <xacro:if value="${enable_depth}">
+      <gazebo reference="${prefix}camera_mount">
+        <sensor name="rgbd_camera" type="rgbd_camera">
+          <pose>0 0 0 0 0 0</pose>
+          <topic>/camera/depth</topic>
+          <camera>
+            <horizontal_fov>1.047</horizontal_fov>
+            <image>
+              <width>640</width>
+              <height>480</height>
+              <format>R8G8B8</format>
+            </image>
+            <clip>
+              <near>0.03</near>
+              <far>30.0</far>
+            </clip>
+          </camera>
+          <always_on>true</always_on>
+          <update_rate>15</update_rate>
+          <visualize>false</visualize>
+        </sensor>
+      </gazebo>
+    </xacro:if>
+
+    <xacro:if value="${enable_lidar}">
+      <gazebo reference="${prefix}camera_mount">
+        <sensor name="lidar_2d" type="gpu_lidar">
+          <pose>0 0 0.035 0 0 0</pose>
+          <topic>/scan</topic>
+          <update_rate>20</update_rate>
+          <lidar>
+            <scan>
+              <horizontal>
+                <samples>720</samples>
+                <resolution>1</resolution>
+                <min_angle>-1.5707963267948966</min_angle>
+                <max_angle>1.5707963267948966</max_angle>
+              </horizontal>
+            </scan>
+            <range>
+              <min>0.05</min>
+              <max>12.0</max>
+              <resolution>0.01</resolution>
+            </range>
+          </lidar>
+          <visualize>false</visualize>
+        </sensor>
+      </gazebo>
+
+      <gazebo reference="${prefix}camera_mount">
+        <sensor name="lidar_3d" type="gpu_lidar">
+          <pose>0 0 0.055 0 0 0</pose>
+          <topic>/lidar</topic>
+          <update_rate>10</update_rate>
+          <lidar>
+            <scan>
+              <horizontal>
+                <samples>320</samples>
+                <resolution>1</resolution>
+                <min_angle>-1.5707963267948966</min_angle>
+                <max_angle>1.5707963267948966</max_angle>
+              </horizontal>
+              <vertical>
+                <samples>32</samples>
+                <resolution>1</resolution>
+                <min_angle>-0.5235987755982988</min_angle>
+                <max_angle>0.5235987755982988</max_angle>
+              </vertical>
+            </scan>
+            <range>
+              <min>0.05</min>
+              <max>15.0</max>
+              <resolution>0.02</resolution>
+            </range>
+          </lidar>
+          <visualize>false</visualize>
+        </sensor>
+      </gazebo>
+    </xacro:if>
+
+    <xacro:if value="${enable_imu}">
+      <gazebo reference="${prefix}camera_mount">
+        <sensor name="imu" type="imu">
+          <pose>0 0 0.02 0 0 0</pose>
+          <topic>/imu/data</topic>
+          <always_on>true</always_on>
+          <update_rate>100</update_rate>
+          <visualize>false</visualize>
+        </sensor>
+      </gazebo>
+    </xacro:if>
+  </xacro:macro>
+</robot>

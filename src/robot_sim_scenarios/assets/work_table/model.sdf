@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<sdf version="1.7">
+  <model name="work_table">
+    <static>true</static>
+    <link name="link">
+      <collision name="collision">
+        <geometry>
+          <box>
+            <size>1.8 0.9 0.08</size>
+          </box>
+        </geometry>
+      </collision>
+      <visual name="visual">
+        <geometry>
+          <box>
+            <size>1.8 0.9 0.08</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.26 0.25 0.23 1</ambient>
+          <diffuse>0.45 0.43 0.38 1</diffuse>
+        </material>
+      </visual>
+    </link>
+  </model>
+</sdf>

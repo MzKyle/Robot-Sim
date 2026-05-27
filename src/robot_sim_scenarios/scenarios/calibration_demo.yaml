@@ -1,0 +1,24 @@
+schema: 1
+name: calibration_demo
+world_name: robot_lab
+description: Camera and hand-eye calibration scene.
+
+base:
+  package: robot_sim_scenarios
+  path: worlds/base/lab.world.sdf
+
+scenario:
+  type: calibration
+  task_family: sensor_calibration
+
+assets:
+  - name: work_table
+    package: robot_sim_scenarios
+    path: assets/work_table/model.sdf
+    pose: [0.95, 0, 0.04, 0, 0, 0]
+    tags: [table]
+  - name: calibration_board
+    package: robot_sim_scenarios
+    path: assets/calibration_board/model.sdf
+    pose: [1.05, -0.32, 0.32, 0, 0.35, 0]
+    tags: [calibration]

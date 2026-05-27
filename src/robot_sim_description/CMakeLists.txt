@@ -4,8 +4,9 @@ project(robot_sim_description)
 find_package(ament_cmake REQUIRED)
 
 install(DIRECTORY
+  macros
   models
-  urdf
+  robots
   DESTINATION share/${PROJECT_NAME}
 )
 

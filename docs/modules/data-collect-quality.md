@@ -1,13 +1,13 @@
 # 采集质量节点
 
-`data_collect_quality` 负责基于采集状态、2D 图像和 3D 点云计算质量指标，并把结果发布到 `/data_collect_quality`。
+`data_collect_quality` 负责基于采集状态、2D 图像和 3D 点云计算质量指标，并把结果发布到 `/acquisition/quality`；旧 `/data_collect_quality` 仍保留。
 
 ## 主要职责
 
 - 订阅 `/data_collect_status`、`/image_topic` 和 `/tcp_cloud_raw`。
 - 计算图像同步误差、帧丢失率、清晰度和点云完整度。
 - 以 PASS / WARN / FAIL 的形式给出质量等级。
-- 将结果写入 `weld_interface/msg/CollectionQuality`。
+- 将结果写入 `acquisition_interfaces/msg/AcquisitionQuality`，并同步旧 `weld_interface/msg/CollectionQuality`。
 
 ## 默认阈值
 

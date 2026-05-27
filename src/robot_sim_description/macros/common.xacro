@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:macro name="simple_inertial" params="mass:=1.0 ixx:=0.01 iyy:=0.01 izz:=0.01 xyz:='0 0 0' rpy:='0 0 0'">
+    <inertial>
+      <origin xyz="${xyz}" rpy="${rpy}"/>
+      <mass value="${mass}"/>
+      <inertia ixx="${ixx}" ixy="0.0" ixz="0.0" iyy="${iyy}" iyz="0.0" izz="${izz}"/>
+    </inertial>
+  </xacro:macro>
+
+  <xacro:macro name="mesh_link" params="prefix name mesh_root visual collision mass:=1.0">
+    <link name="${prefix}${name}">
+      <visual>
+        <geometry>
+          <mesh filename="${mesh_root}/visual/${visual}"/>
+        </geometry>
+      </visual>
+      <collision>
+        <geometry>
+          <mesh filename="${mesh_root}/collision/${collision}"/>
+        </geometry>
+      </collision>
+      <xacro:simple_inertial mass="${mass}" ixx="0.01" iyy="0.01" izz="0.01"/>
+    </link>
+  </xacro:macro>
+</robot>

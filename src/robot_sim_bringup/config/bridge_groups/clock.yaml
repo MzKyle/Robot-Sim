@@ -1,0 +1,7 @@
+schema: 1
+name: clock
+node_name: clock_bridge
+namespace: sensors
+config:
+  package: robot_sim_bringup
+  path: config/ros_gz_bridge_clock.yaml

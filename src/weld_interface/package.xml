@@ -21,6 +21,9 @@
   <build_depend>sensor_msgs</build_depend>
   <exec_depend>sensor_msgs</exec_depend>
 
+  <build_depend>robot_task_interfaces</build_depend>
+  <exec_depend>robot_task_interfaces</exec_depend>
+
   <!-- 测试依赖 -->
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

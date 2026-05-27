@@ -1,0 +1,24 @@
+schema: 1
+name: welding_demo
+world_name: robot_lab
+description: Welding adapter scene; uses the same base world plus workpiece assets.
+
+base:
+  package: robot_sim_scenarios
+  path: worlds/base/lab.world.sdf
+
+scenario:
+  type: welding
+  task_family: welding_adapter
+
+assets:
+  - name: work_table
+    package: robot_sim_scenarios
+    path: assets/work_table/model.sdf
+    pose: [0.95, 0, 0.04, 0, 0, 0]
+    tags: [table]
+  - name: test_beam
+    package: robot_sim_scenarios
+    path: assets/test_beam/model.sdf
+    pose: [0.95, 0, 0.10, 0, 0, 0]
+    tags: [workpiece, weld_candidate]

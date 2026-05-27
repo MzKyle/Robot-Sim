@@ -1,0 +1,45 @@
+schema: 1
+default: light
+
+modes:
+  mock:
+    use_gazebo: false
+    use_sim_time: false
+    use_moveit: false
+    rviz: false
+    headless: true
+    sensors_default: false
+    delays:
+      gazebo: 0.0
+      spawn: 0.0
+      bridge: 0.0
+      controller: 2.0
+      moveit: 4.0
+
+  light:
+    use_gazebo: true
+    use_sim_time: true
+    use_moveit: false
+    rviz: false
+    headless: true
+    sensors_default: false
+    delays:
+      gazebo: 1.0
+      spawn: 2.0
+      bridge: 2.0
+      controller: 5.0
+      moveit: 7.0
+
+  full:
+    use_gazebo: true
+    use_sim_time: true
+    use_moveit: true
+    rviz: true
+    headless: false
+    sensors_default: true
+    delays:
+      gazebo: 1.0
+      spawn: 2.0
+      bridge: 2.0
+      controller: 5.0
+      moveit: 7.0

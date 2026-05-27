@@ -1,0 +1,5 @@
+simulation_interfaces/SimulationScenario scenario
+bool reset_world
+---
+bool success
+string message

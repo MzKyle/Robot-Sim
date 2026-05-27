@@ -27,7 +27,7 @@ python3 -m pip install --user PySide6
 
 请先确认采集状态为 `running`，再检查对应 topic 是否有数据。
 
-如果你跑的是仿真链路，还要确认 `robot_sim_bringup` 的 `sim_mode` 和对应传感器组开关是否开启，例如 `sim_mode:=full` 或 `enable_camera:=true`。
+如果你跑的是仿真链路，还要确认 `robot_sim_bringup` 的 `sim_mode` 和对应传感器组开关是否开启，例如 `sim_mode:=full` 或 `sensor_overrides:=camera=true`。
 
 ## Fanuc 节点启动失败
 

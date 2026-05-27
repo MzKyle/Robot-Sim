@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<sdf version="1.7">
+  <model name="planning_column">
+    <static>true</static>
+    <link name="link">
+      <collision name="collision">
+        <geometry>
+          <cylinder>
+            <radius>0.08</radius>
+            <length>0.55</length>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name="visual">
+        <geometry>
+          <cylinder>
+            <radius>0.08</radius>
+            <length>0.55</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.12 0.18 0.28 1</ambient>
+          <diffuse>0.18 0.26 0.42 1</diffuse>
+        </material>
+      </visual>
+    </link>
+  </model>
+</sdf>

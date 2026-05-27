@@ -8,9 +8,13 @@
 | `data_collect_quality` | 采集质量评估与状态发布 |
 | `data_collect` | 采集保存、状态发布和数据目录组织 |
 | `robot_sim_bringup` | gz sim 8 仿真入口、三档仿真模式和传感器桥接 |
+| `robot_sim_scenarios` | base world、assets 和 scenario 组合 |
+| `simulation_interfaces` | 通用仿真 scenario 接口 |
+| `robot_task_interfaces` | 通用任务上下文接口 |
+| `acquisition_interfaces` | 通用采集状态、质量和任务接口 |
 | `data_collect_ui` | 桌面操作台、任务录入和历史检索 |
 | `data_collect_bringup` | launch 入口和默认配置注入 |
-| `weld_interface` | ROS 消息和服务定义 |
+| `weld_interface` | 焊接业务 adapter 和旧接口兼容层 |
 | `file_reader` | 配置读取和辅助工具 |
 
 ## 代码边界

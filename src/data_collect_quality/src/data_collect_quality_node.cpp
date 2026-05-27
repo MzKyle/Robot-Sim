@@ -15,6 +15,7 @@
 #include "weld_interface/msg/collection_quality.hpp"
 #include "weld_interface/msg/data_collect_status.hpp"
 #include "weld_interface/topic_configs.h"
+#include "acquisition_interfaces/msg/acquisition_quality.hpp"
 
 class DataCollectQualityNode : public rclcpp::Node {
 public:
@@ -48,6 +49,9 @@ public:
 
         pub_quality_ = this->create_publisher<weld_interface::msg::CollectionQuality>(
             DATA_COLLECT_QUALITY_TOPIC_NAME,
+            rclcpp::QoS(1).transient_local());
+        pub_acquisition_quality_ = this->create_publisher<acquisition_interfaces::msg::AcquisitionQuality>(
+            "/acquisition/quality",
             rclcpp::QoS(1).transient_local());
 
         timer_ = this->create_wall_timer(
@@ -246,12 +250,25 @@ private:
         }
 
         pub_quality_->publish(msg);
+
+        acquisition_interfaces::msg::AcquisitionQuality generic_msg;
+        generic_msg.header = msg.header;
+        generic_msg.available = msg.available;
+        generic_msg.session_dir = msg.session_dir;
+        generic_msg.sync_error_ms = msg.sync_error_ms;
+        generic_msg.frame_loss_rate = msg.frame_loss_rate;
+        generic_msg.blur_score = msg.blur_score;
+        generic_msg.point_cloud_completeness = msg.point_cloud_completeness;
+        generic_msg.level = msg.level;
+        generic_msg.reason = msg.reason;
+        pub_acquisition_quality_->publish(generic_msg);
     }
 
     rclcpp::Subscription<weld_interface::msg::DataCollectStatus>::SharedPtr sub_status_;
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr sub_image_;
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_cloud_;
     rclcpp::Publisher<weld_interface::msg::CollectionQuality>::SharedPtr pub_quality_;
+    rclcpp::Publisher<acquisition_interfaces::msg::AcquisitionQuality>::SharedPtr pub_acquisition_quality_;
     rclcpp::TimerBase::SharedPtr timer_;
 
     std::mutex mutex_;

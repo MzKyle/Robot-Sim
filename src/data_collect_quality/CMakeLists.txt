@@ -11,6 +11,7 @@ find_package(sensor_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(weld_interface REQUIRED)
+find_package(acquisition_interfaces REQUIRED)
 
 add_executable(data_collect_quality_node
   src/data_collect_quality_node.cpp
@@ -22,6 +23,7 @@ ament_target_dependencies(data_collect_quality_node
   cv_bridge
   OpenCV
   weld_interface
+  acquisition_interfaces
 )
 
 install(TARGETS

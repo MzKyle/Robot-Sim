@@ -1,0 +1,182 @@
+<?xml version="1.0"?>
+<robot name="panda_arm" xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:include filename="$(find robot_sim_description)/macros/common.xacro"/>
+  <xacro:include filename="$(find robot_sim_description)/macros/sensor_mounts.xacro"/>
+  <xacro:include filename="$(find robot_sim_description)/macros/gazebo_sensors.xacro"/>
+  <xacro:include filename="$(find robot_sim_description)/macros/ros2_control.xacro"/>
+
+  <xacro:arg name="prefix" default=""/>
+  <xacro:arg name="hardware_plugin" default="mock_components/GenericSystem"/>
+  <xacro:arg name="controllers_file" default=""/>
+  <xacro:arg name="controller_manager_name" default="controller_manager"/>
+  <xacro:arg name="mesh_root" default="package://robot_sim_description/models/panda_arm/meshes"/>
+  <xacro:arg name="camera_mesh" default="package://robot_sim_description/models/rgbd_camera/meshes/3dCamera.DAE"/>
+  <xacro:arg name="use_gz_ros2_control" default="false"/>
+  <xacro:arg name="ros_namespace" default=""/>
+  <xacro:arg name="enable_camera" default="false"/>
+  <xacro:arg name="enable_depth" default="false"/>
+  <xacro:arg name="enable_lidar" default="false"/>
+  <xacro:arg name="enable_imu" default="false"/>
+
+  <xacro:property name="prefix" value="$(arg prefix)"/>
+  <xacro:property name="hardware_plugin" value="$(arg hardware_plugin)"/>
+  <xacro:property name="controllers_file" value="$(arg controllers_file)"/>
+  <xacro:property name="controller_manager_name" value="$(arg controller_manager_name)"/>
+  <xacro:property name="ros_namespace" value="$(arg ros_namespace)"/>
+  <xacro:property name="PI" value="3.141592653589793"/>
+  <xacro:property name="mesh_root" value="$(arg mesh_root)"/>
+  <xacro:property name="camera_mesh" value="$(arg camera_mesh)"/>
+
+  <link name="${prefix}world"/>
+
+  <joint name="${prefix}panda_joint_world" type="fixed">
+    <origin xyz="0.2 0 0.125" rpy="0 0 0"/>
+    <parent link="${prefix}world"/>
+    <child link="${prefix}panda_link0"/>
+  </joint>
+
+  <xacro:mesh_link prefix="${prefix}" mesh_root="${mesh_root}" name="panda_link0" visual="link0.dae" collision="link0.stl" mass="2.8"/>
+  <xacro:mesh_link prefix="${prefix}" mesh_root="${mesh_root}" name="panda_link1" visual="link1.dae" collision="link1.stl" mass="2.6"/>
+  <xacro:mesh_link prefix="${prefix}" mesh_root="${mesh_root}" name="panda_link2" visual="link2.dae" collision="link2.stl" mass="2.7"/>
+  <xacro:mesh_link prefix="${prefix}" mesh_root="${mesh_root}" name="panda_link3" visual="link3.dae" collision="link3.stl" mass="2.3"/>
+  <xacro:mesh_link prefix="${prefix}" mesh_root="${mesh_root}" name="panda_link4" visual="link4.dae" collision="link4.stl" mass="2.3"/>
+  <xacro:mesh_link prefix="${prefix}" mesh_root="${mesh_root}" name="panda_link5" visual="link5.dae" collision="link5.stl" mass="2.4"/>
+  <xacro:mesh_link prefix="${prefix}" mesh_root="${mesh_root}" name="panda_link6" visual="link6.dae" collision="link6.stl" mass="1.8"/>
+  <xacro:mesh_link prefix="${prefix}" mesh_root="${mesh_root}" name="panda_link7" visual="link7.dae" collision="link7.stl" mass="1.2"/>
+
+  <joint name="${prefix}panda_joint1" type="revolute">
+    <origin xyz="0 0 0.333" rpy="0 0 0"/>
+    <parent link="${prefix}panda_link0"/>
+    <child link="${prefix}panda_link1"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-2.897246558310587" upper="2.897246558310587" effort="87" velocity="2.617993877991494"/>
+    <dynamics damping="21.75" friction="3.48"/>
+  </joint>
+  <joint name="${prefix}panda_joint2" type="revolute">
+    <origin xyz="0 0 0" rpy="-1.570796326794897 0 0"/>
+    <parent link="${prefix}panda_link1"/>
+    <child link="${prefix}panda_link2"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-1.762782544514273" upper="1.762782544514273" effort="87" velocity="2.617993877991494"/>
+    <dynamics damping="21.75" friction="3.48"/>
+  </joint>
+  <joint name="${prefix}panda_joint3" type="revolute">
+    <origin xyz="0 -0.316 0" rpy="1.570796326794897 0 0"/>
+    <parent link="${prefix}panda_link2"/>
+    <child link="${prefix}panda_link3"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-2.897246558310587" upper="2.897246558310587" effort="87" velocity="2.617993877991494"/>
+    <dynamics damping="21.75" friction="3.48"/>
+  </joint>
+  <joint name="${prefix}panda_joint4" type="revolute">
+    <origin xyz="0.0825 0 0" rpy="1.570796326794897 0 0"/>
+    <parent link="${prefix}panda_link3"/>
+    <child link="${prefix}panda_link4"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-3.07177948351002" upper="-0.06981317007977318" effort="87" velocity="2.617993877991494"/>
+    <dynamics damping="21.75" friction="3.48"/>
+  </joint>
+  <joint name="${prefix}panda_joint5" type="revolute">
+    <origin xyz="-0.0825 0.384 0" rpy="-1.570796326794897 0 0"/>
+    <parent link="${prefix}panda_link4"/>
+    <child link="${prefix}panda_link5"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-2.897246558310587" upper="2.897246558310587" effort="12" velocity="3.141592653589793"/>
+    <dynamics damping="3.0" friction="0.48"/>
+  </joint>
+  <joint name="${prefix}panda_joint6" type="revolute">
+    <origin xyz="0 0 0" rpy="1.570796326794897 0 0"/>
+    <parent link="${prefix}panda_link5"/>
+    <child link="${prefix}panda_link6"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-0.0174532925199433" upper="3.752457891787809" effort="12" velocity="3.141592653589793"/>
+    <dynamics damping="3.0" friction="0.48"/>
+  </joint>
+  <joint name="${prefix}panda_joint7" type="revolute">
+    <origin xyz="0.088 0 0" rpy="1.570796326794897 0 0"/>
+    <parent link="${prefix}panda_link6"/>
+    <child link="${prefix}panda_link7"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-2.897246558310587" upper="2.897246558310587" effort="12" velocity="3.141592653589793"/>
+    <dynamics damping="3.0" friction="0.48"/>
+  </joint>
+
+  <xacro:mesh_link prefix="${prefix}" mesh_root="${mesh_root}" name="panda_hand" visual="hand.dae" collision="hand.stl" mass="0.14"/>
+  <joint name="${prefix}panda_hand_joint" type="fixed">
+    <origin xyz="0 0 0.107" rpy="0 0 -0.7853981633974483"/>
+    <parent link="${prefix}panda_link7"/>
+    <child link="${prefix}panda_hand"/>
+  </joint>
+
+  <link name="${prefix}panda_link8">
+    <xacro:simple_inertial mass="0.01" ixx="0.0001" iyy="0.0001" izz="0.0001"/>
+  </link>
+  <joint name="${prefix}end_effector_frame_fixed_joint" type="fixed">
+    <origin xyz="0 0 0.103" rpy="0 0 0"/>
+    <parent link="${prefix}panda_hand"/>
+    <child link="${prefix}panda_link8"/>
+  </joint>
+
+  <link name="${prefix}panda_leftfinger">
+    <visual>
+      <geometry>
+        <mesh filename="${mesh_root}/visual/finger.dae"/>
+      </geometry>
+    </visual>
+    <collision>
+      <geometry>
+        <mesh filename="${mesh_root}/collision/finger.stl"/>
+      </geometry>
+    </collision>
+    <xacro:simple_inertial mass="0.22" ixx="0.0001" iyy="0.0001" izz="0.0001"/>
+  </link>
+  <link name="${prefix}panda_rightfinger">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 ${PI}"/>
+      <geometry>
+        <mesh filename="${mesh_root}/visual/finger.dae"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 ${PI}"/>
+      <geometry>
+        <mesh filename="${mesh_root}/collision/finger.stl"/>
+      </geometry>
+    </collision>
+    <xacro:simple_inertial mass="0.22" ixx="0.0001" iyy="0.0001" izz="0.0001"/>
+  </link>
+
+  <joint name="${prefix}panda_finger_joint1" type="prismatic">
+    <origin xyz="0 0 0.0584" rpy="0 0 0"/>
+    <parent link="${prefix}panda_hand"/>
+    <child link="${prefix}panda_leftfinger"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0.0" upper="0.04" effort="20" velocity="0.2"/>
+    <dynamics damping="10" friction="0.5"/>
+  </joint>
+  <joint name="${prefix}panda_finger_joint2" type="prismatic">
+    <origin xyz="0 0 0.0584" rpy="0 0 0"/>
+    <parent link="${prefix}panda_hand"/>
+    <child link="${prefix}panda_rightfinger"/>
+    <axis xyz="0 -1 0"/>
+    <limit lower="0.0" upper="0.04" effort="20" velocity="0.2"/>
+    <dynamics damping="10" friction="0.5"/>
+  </joint>
+
+  <xacro:panda_sensor_mounts prefix="${prefix}" camera_mesh="${camera_mesh}"/>
+  <xacro:panda_gazebo_sensors
+    prefix="${prefix}"
+    enable_camera="$(arg enable_camera)"
+    enable_depth="$(arg enable_depth)"
+    enable_lidar="$(arg enable_lidar)"
+    enable_imu="$(arg enable_imu)"
+  />
+  <xacro:panda_ros2_control
+    prefix="${prefix}"
+    hardware_plugin="${hardware_plugin}"
+    controllers_file="${controllers_file}"
+    controller_manager_name="${controller_manager_name}"
+    use_gz_ros2_control="$(arg use_gz_ros2_control)"
+    ros_namespace="${ros_namespace}"
+  />
+</robot>

@@ -16,6 +16,7 @@ colcon build --symlink-install --allow-overriding gz_ros2_control --packages-sel
 
 ```bash
 colcon build --symlink-install --packages-select \
+  robot_task_interfaces acquisition_interfaces simulation_interfaces \
   weld_interface file_reader data_collect data_collect_quality data_collect_ui
 ```
 
@@ -48,6 +49,6 @@ ros2 run data_collect_ui data_collect_ui
 ## 常用说明
 
 - 当前主入口是 `robot_sim_bringup`；需要图像、点云、激光或 IMU 时使用 `sim_mode:=full` 或按组打开传感器。
-- 采集测试 UI 用于验证数据采集链路，真实后端启动后可查看采集状态、Fanuc 状态、质量评估和历史数据。
+- 采集测试 UI 用于验证数据采集链路，真实后端启动后可查看采集状态、Fanuc adapter 状态、质量评估和历史数据。
 - 如果主机未安装 RVC SDK、MVSDK 或 Fanuc 共享库，真实驱动包可能在编译或运行时失败。
 - 真实链路启动时会读取 `nodemanage.yaml`；仿真链路使用 `robot_sim_bringup` 的 launch 参数和 `robot_sim_control/config/panda_controllers.yaml`。

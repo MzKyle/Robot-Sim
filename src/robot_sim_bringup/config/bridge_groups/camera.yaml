@@ -1,0 +1,7 @@
+schema: 1
+name: camera
+node_name: camera_bridge
+namespace: sensors
+config:
+  package: robot_sim_bringup
+  path: config/ros_gz_bridge_camera.yaml

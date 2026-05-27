@@ -40,7 +40,7 @@ ros2 launch data_collect_bringup data_collect.launch.py \
   enable_camera_2d:=false
 ```
 
-仿真启动时常用的开关是 `sim_mode`、`enable_camera`、`enable_depth`、`enable_lidar`、`enable_imu`、`use_moveit`、`rviz`、`headless` 和 `use_sim_time`。
+仿真启动时常用的开关是 `sim_profile`、`sim_profile_file`、`sim_mode`、`sensor_overrides`、`use_moveit`、`rviz`、`headless` 和 `use_sim_time`。
 
 ## 脚本启动
 

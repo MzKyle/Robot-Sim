@@ -1,0 +1,29 @@
+schema: 1
+name: sensor_test
+world_name: robot_lab
+description: Perception scene with simple colored targets.
+
+base:
+  package: robot_sim_scenarios
+  path: worlds/base/lab.world.sdf
+
+scenario:
+  type: sensor_test
+  task_family: perception
+
+assets:
+  - name: work_table
+    package: robot_sim_scenarios
+    path: assets/work_table/model.sdf
+    pose: [0.95, 0, 0.04, 0, 0, 0]
+    tags: [table]
+  - name: target_red_box
+    package: robot_sim_scenarios
+    path: assets/target_red_box/model.sdf
+    pose: [0.86, -0.16, 0.18, 0, 0, 0]
+    tags: [target, camera]
+  - name: target_green_cylinder
+    package: robot_sim_scenarios
+    path: assets/target_green_cylinder/model.sdf
+    pose: [1.08, 0.17, 0.19, 0, 0, 0]
+    tags: [target, lidar]

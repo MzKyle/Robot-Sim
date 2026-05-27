@@ -1,0 +1,4 @@
+robot_task_interfaces/TaskContext context
+---
+bool success
+string message

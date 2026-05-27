@@ -3,6 +3,7 @@
 //
 #include <rclcpp/rclcpp.hpp>
 #include <rcl_interfaces/msg/set_parameters_result.hpp>
+#include <std_msgs/msg/header.hpp>
 #include <std_msgs/msg/int32.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
@@ -40,6 +41,10 @@
 #include "weld_interface/msg/collection_quality.hpp"
 #include "weld_interface/msg/weld_register_info.hpp"
 #include "weld_interface/srv/set_collection_task.hpp"
+#include "acquisition_interfaces/msg/acquisition_status.hpp"
+#include "acquisition_interfaces/srv/set_acquisition_task.hpp"
+#include "robot_task_interfaces/msg/task_context.hpp"
+#include "robot_task_interfaces/srv/set_task_context.hpp"
 
 #include "weld_interface/topic_configs.h"
 #include "weld_interface/service_configs.h"
@@ -210,6 +215,8 @@ public:
 
         status_pub_ = this->create_publisher<weld_interface::msg::DataCollectStatus>(
                 DATA_COLLECT_STATUS_TOPIC_NAME, rclcpp::QoS(1).transient_local());
+        acquisition_status_pub_ = this->create_publisher<acquisition_interfaces::msg::AcquisitionStatus>(
+                "/acquisition/status", rclcpp::QoS(1).transient_local());
         status_timer_ = this->create_wall_timer(
                 std::chrono::seconds(1), std::bind(&DataCollectNode::publish_status, this));
 
@@ -225,6 +232,12 @@ public:
         srv_set_task_ = this->create_service<weld_interface::srv::SetCollectionTask>(
                 DATA_COLLECT_SET_TASK_SRV_NAME, std::bind(&DataCollectNode::set_collection_task,
                                                      this, std::placeholders::_1, std::placeholders::_2));
+        srv_set_task_context_ = this->create_service<robot_task_interfaces::srv::SetTaskContext>(
+                "/task/set_context", std::bind(&DataCollectNode::set_task_context,
+                                             this, std::placeholders::_1, std::placeholders::_2));
+        srv_set_acquisition_task_ = this->create_service<acquisition_interfaces::srv::SetAcquisitionTask>(
+                "/acquisition/set_task", std::bind(&DataCollectNode::set_acquisition_task,
+                                                this, std::placeholders::_1, std::placeholders::_2));
 
         parameter_callback_handle_ = this->add_on_set_parameters_callback(
                 std::bind(&DataCollectNode::update_runtime_parameters, this, std::placeholders::_1));
@@ -395,12 +408,14 @@ public:
             const std::shared_ptr<weld_interface::srv::SetCollectionTask::Request> req,
             std::shared_ptr<weld_interface::srv::SetCollectionTask::Response> res) {
         std::lock_guard<std::mutex> lock(run_mutex_);
-        task_id_ = req->task_id;
-        workpiece_id_ = req->workpiece_id;
+        robot_task_interfaces::msg::TaskContext context;
+        context.task_id = req->task_id;
+        context.workpiece_id = req->workpiece_id;
+        context.operator_name = req->operator_name;
+        context.shift = req->shift;
+        context.notes = req->notes;
+        apply_task_context_locked(context);
         weld_seam_id_ = req->weld_seam_id;
-        operator_name_ = req->operator_name;
-        shift_ = req->shift;
-        notes_ = req->notes;
 
         if (!current_save_dir_.empty()) {
             write_collection_manifest(run_mode_.load() ? "running" : "completed");
@@ -410,6 +425,34 @@ public:
         res->message = "collection task updated";
         RCLCPP_INFO(this->get_logger(), "[DataCollect] Collection task updated: task_id=%s, workpiece_id=%s, weld_seam_id=%s.",
                     task_id_.c_str(), workpiece_id_.c_str(), weld_seam_id_.c_str());
+    }
+
+    void set_task_context(
+            const std::shared_ptr<robot_task_interfaces::srv::SetTaskContext::Request> req,
+            std::shared_ptr<robot_task_interfaces::srv::SetTaskContext::Response> res) {
+        std::lock_guard<std::mutex> lock(run_mutex_);
+        apply_task_context_locked(req->context);
+        if (!current_save_dir_.empty()) {
+            write_collection_manifest(run_mode_.load() ? "running" : "completed");
+        }
+        res->success = true;
+        res->message = "task context updated";
+        RCLCPP_INFO(this->get_logger(), "[DataCollect] Task context updated: task_id=%s, workpiece_id=%s.",
+                    task_id_.c_str(), workpiece_id_.c_str());
+    }
+
+    void set_acquisition_task(
+            const std::shared_ptr<acquisition_interfaces::srv::SetAcquisitionTask::Request> req,
+            std::shared_ptr<acquisition_interfaces::srv::SetAcquisitionTask::Response> res) {
+        std::lock_guard<std::mutex> lock(run_mutex_);
+        apply_task_context_locked(req->context);
+        if (!current_save_dir_.empty()) {
+            write_collection_manifest(run_mode_.load() ? "running" : "completed");
+        }
+        res->success = true;
+        res->message = "acquisition task updated";
+        RCLCPP_INFO(this->get_logger(), "[DataCollect] Acquisition task updated: task_id=%s, workpiece_id=%s.",
+                    task_id_.c_str(), workpiece_id_.c_str());
     }
 
     //判断开始采集数据
@@ -703,6 +746,32 @@ public:
         status.quality_reason = quality_reason_;
         status_pub_->publish(status);
 
+        acquisition_interfaces::msg::AcquisitionStatus generic_status;
+        generic_status.header = status.header;
+        generic_status.running = status.running;
+        generic_status.auto_save = status.auto_save;
+        generic_status.current_save_dir = status.current_save_dir;
+        generic_status.target_source = "fanuc_register";
+        generic_status.target_index = status.target_register_index;
+        generic_status.target_value = status.target_register_value;
+        generic_status.has_target_value = status.has_target_register_value;
+        generic_status.image_count = status.image_count;
+        generic_status.image_log_count = status.image_log_count;
+        generic_status.height_log_count = status.height_log_count;
+        generic_status.point_cloud_count = status.point_cloud_count;
+        generic_status.tool_pose_count = status.tool_pose_count;
+        generic_status.estimated_line_count = status.estimated_line_count;
+        generic_status.device_state_count = status.fanuc_info_count;
+        generic_status.task = build_task_context_locked(status.header);
+        generic_status.quality_available = status.quality_available;
+        generic_status.quality_sync_error_ms = status.quality_sync_error_ms;
+        generic_status.quality_frame_loss_rate = status.quality_frame_loss_rate;
+        generic_status.quality_blur_score = status.quality_blur_score;
+        generic_status.quality_point_cloud_completeness = status.quality_point_cloud_completeness;
+        generic_status.quality_reason = status.quality_reason;
+        generic_status.last_error = status.last_error;
+        acquisition_status_pub_->publish(generic_status);
+
         if (status.running && ++manifest_update_counter_ >= 5) {
             manifest_update_counter_ = 0;
             write_collection_manifest("running");
@@ -712,6 +781,39 @@ public:
     void set_last_error(const std::string& message) {
         last_error_ = message;
         RCLCPP_WARN(this->get_logger(), "[DataCollect] %s", message.c_str());
+    }
+
+    void apply_task_context_locked(const robot_task_interfaces::msg::TaskContext& context) {
+        task_id_ = context.task_id;
+        workpiece_id_ = context.workpiece_id;
+        operator_name_ = context.operator_name;
+        shift_ = context.shift;
+        notes_ = context.notes;
+        weld_seam_id_ = extension_value(context, "weld_seam_id");
+    }
+
+    robot_task_interfaces::msg::TaskContext build_task_context_locked(const std_msgs::msg::Header& header) const {
+        robot_task_interfaces::msg::TaskContext context;
+        context.header = header;
+        context.task_id = task_id_;
+        context.workpiece_id = workpiece_id_;
+        context.operator_name = operator_name_;
+        context.shift = shift_;
+        context.notes = notes_;
+        if (!weld_seam_id_.empty()) {
+            context.extension_keys.push_back("weld_seam_id");
+            context.extension_values.push_back(weld_seam_id_);
+        }
+        return context;
+    }
+
+    std::string extension_value(const robot_task_interfaces::msg::TaskContext& context, const std::string& key) const {
+        for (size_t i = 0; i < context.extension_keys.size() && i < context.extension_values.size(); ++i) {
+            if (context.extension_keys[i] == key) {
+                return context.extension_values[i];
+            }
+        }
+        return "";
     }
 
     // 回调：保存场景图像
@@ -1028,12 +1130,15 @@ private:
     rclcpp::Subscription<weld_interface::msg::WeldRegisterInfo>::SharedPtr sub_weld_register_info_;
     rclcpp::Subscription<weld_interface::msg::CollectionQuality>::SharedPtr sub_collection_quality_;
     rclcpp::Publisher<weld_interface::msg::DataCollectStatus>::SharedPtr status_pub_;
+    rclcpp::Publisher<acquisition_interfaces::msg::AcquisitionStatus>::SharedPtr acquisition_status_pub_;
     rclcpp::TimerBase::SharedPtr status_timer_;
 
     // 服务端
     rclcpp::Service<std_srvs::srv::Empty>::SharedPtr srv_mode_activate_;
     rclcpp::Service<std_srvs::srv::Empty>::SharedPtr srv_mode_deactivate_;
     rclcpp::Service<weld_interface::srv::SetCollectionTask>::SharedPtr srv_set_task_;
+    rclcpp::Service<robot_task_interfaces::srv::SetTaskContext>::SharedPtr srv_set_task_context_;
+    rclcpp::Service<acquisition_interfaces::srv::SetAcquisitionTask>::SharedPtr srv_set_acquisition_task_;
     rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr parameter_callback_handle_;
     std::thread timer_thread_;
     std::atomic_bool timer_thread_stop_;

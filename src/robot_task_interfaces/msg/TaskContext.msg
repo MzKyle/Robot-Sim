@@ -1,0 +1,9 @@
+std_msgs/Header header
+string task_id
+string workpiece_id
+string operator_name
+string shift
+string notes
+string[] tags
+string[] extension_keys
+string[] extension_values

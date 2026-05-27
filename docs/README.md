@@ -63,9 +63,12 @@ flowchart LR
 | `src/robot_sim_bringup/` | 仿真总入口、三档模式、传感器桥接和本机分布式启动 |
 | `src/robot_sim_description/` | Panda 模型、传感器挂载、Gazebo 插件和 mesh 资源 |
 | `src/robot_sim_control/` | ros2_control 控制器配置 |
-| `src/robot_sim_scenarios/` | Gazebo world 场景 |
+| `src/robot_sim_scenarios/` | base world、assets 和 scenario 场景 |
 | `src/robot_sim_moveit_config/` | MoveIt2 规划和执行配置 |
 | `src/gz_ros2_control/` | Humble + gz sim 8/Harmonic 的源码 overlay |
+| `src/simulation_interfaces/` | 通用仿真 scenario 接口 |
+| `src/robot_task_interfaces/` | 通用任务上下文接口 |
+| `src/acquisition_interfaces/` | 通用采集状态、质量和任务接口 |
 | `src/data_collect*` | 数据采集链路测试辅助 |
 | `src/camera_*`、`src/fanuc_robot/` | 真实设备接入测试辅助 |
 

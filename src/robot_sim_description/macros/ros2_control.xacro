@@ -1,0 +1,47 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:macro name="ros2_control_joint" params="prefix name initial lower_limit upper_limit">
+    <joint name="${prefix}${name}">
+      <command_interface name="position">
+        <param name="min">${lower_limit}</param>
+        <param name="max">${upper_limit}</param>
+      </command_interface>
+      <state_interface name="position">
+        <param name="initial_value">${initial}</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:macro name="panda_ros2_control" params="prefix hardware_plugin controllers_file controller_manager_name use_gz_ros2_control ros_namespace">
+    <xacro:if value="${use_gz_ros2_control}">
+      <gazebo>
+        <plugin filename="libgz_ros2_control-system.so" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+          <parameters>${controllers_file}</parameters>
+          <robot_param>robot_description</robot_param>
+          <robot_param_node>robot_state_publisher</robot_param_node>
+          <controller_manager_name>${controller_manager_name}</controller_manager_name>
+          <ros>
+            <namespace>${ros_namespace}</namespace>
+          </ros>
+        </plugin>
+      </gazebo>
+    </xacro:if>
+
+    <ros2_control name="${prefix}PandaSystem" type="system">
+      <hardware>
+        <plugin>${hardware_plugin}</plugin>
+      </hardware>
+      <xacro:ros2_control_joint prefix="${prefix}" name="panda_joint1" initial="0.0" lower_limit="-2.897246558310587" upper_limit="2.897246558310587"/>
+      <xacro:ros2_control_joint prefix="${prefix}" name="panda_joint2" initial="-0.7853981633974483" lower_limit="-1.762782544514273" upper_limit="1.762782544514273"/>
+      <xacro:ros2_control_joint prefix="${prefix}" name="panda_joint3" initial="0.0" lower_limit="-2.897246558310587" upper_limit="2.897246558310587"/>
+      <xacro:ros2_control_joint prefix="${prefix}" name="panda_joint4" initial="-2.356194490192345" lower_limit="-3.07177948351002" upper_limit="-0.06981317007977318"/>
+      <xacro:ros2_control_joint prefix="${prefix}" name="panda_joint5" initial="0.0" lower_limit="-2.897246558310587" upper_limit="2.897246558310587"/>
+      <xacro:ros2_control_joint prefix="${prefix}" name="panda_joint6" initial="1.5707963267948966" lower_limit="-0.0174532925199433" upper_limit="3.752457891787809"/>
+      <xacro:ros2_control_joint prefix="${prefix}" name="panda_joint7" initial="0.7853981633974483" lower_limit="-2.897246558310587" upper_limit="2.897246558310587"/>
+      <xacro:ros2_control_joint prefix="${prefix}" name="panda_finger_joint1" initial="0.02" lower_limit="0.0" upper_limit="0.04"/>
+      <xacro:ros2_control_joint prefix="${prefix}" name="panda_finger_joint2" initial="0.02" lower_limit="0.0" upper_limit="0.04"/>
+    </ros2_control>
+  </xacro:macro>
+</robot>

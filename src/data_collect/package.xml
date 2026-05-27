@@ -18,6 +18,8 @@
   <depend>pcl_ros</depend>
   <depend>std_srvs</depend>
   <depend>weld_interface</depend>
+  <depend>acquisition_interfaces</depend>
+  <depend>robot_task_interfaces</depend>
   <depend>file_reader</depend>
   <depend>ament_index_cpp</depend>
 
