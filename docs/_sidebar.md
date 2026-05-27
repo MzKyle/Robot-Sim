@@ -3,6 +3,7 @@
 
 - **仿真运控**
   - [仿真方案](guide/simulation.md)
+  - [ROS 2 录包](guide/rosbag-recording.md)
   - [开发运行](guide/run-app.md)
   - [环境依赖](guide/prerequisites.md)
   - [安装与打包](guide/package-install.md)

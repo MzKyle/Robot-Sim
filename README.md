@@ -145,6 +145,41 @@ ros2 topic list | grep -E '^/(robot|sensors|supervisor)'
 ros2 control list_controllers -c /robot/controller_manager
 ```
 
+## ROS 2 录包辅助
+
+仓库提供 `record_bag.launch.py`，用于在仿真或本机分布式运行时快速录制关键 topic。建议先启动仿真，再另开终端录包：
+
+```bash
+cd /home/kyle/sany/robot_sim
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+
+ros2 launch robot_sim_bringup record_bag.launch.py topic_group:=all
+```
+
+默认输出到 `~/robot_sim_bags/robot_sim_<topic_group>_<timestamp>`。常用组：
+
+| 组 | 录制内容 |
+| --- | --- |
+| `control` | `/clock`、TF、`/joint_states`、arm/gripper controller 状态和轨迹 topic |
+| `sensors` | `/clock`、TF、RGB、深度、点云、LaserScan、lidar 点云和 IMU |
+| `all` | 单机仿真的控制和传感器 topic |
+| `distributed` | `distributed_local.launch.py` 下的 `/robot`、`/sensors` 命名空间 topic |
+| `custom` | 只录制 `extra_topics` 中指定的 topic |
+
+示例：
+
+```bash
+ros2 launch robot_sim_bringup record_bag.launch.py \
+  topic_group:=sensors \
+  bag_name:=camera_lidar_test \
+  compression:=true
+
+ros2 launch robot_sim_bringup record_bag.launch.py \
+  topic_group:=custom \
+  extra_topics:="/joint_states /camera/points /tf /tf_static"
+```
+
 ## 文档站
 
 当前仓库已经提供 docsify 文档站，入口在 `docs/index.html`。本地预览：
@@ -163,6 +198,7 @@ http://localhost:3000
 优先阅读：
 
 - `docs/guide/simulation.md`：仿真模式、传感器开关和控制链说明。
+- `docs/guide/rosbag-recording.md`：ROS 2 录包辅助入口和参数说明。
 - `docs/guide/run-app.md`：开发编译和运行入口。
 - `docs/modules/README.md`：包职责索引。
 - `docs/workflow/testing.md`：验收检查项。

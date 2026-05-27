@@ -4,6 +4,8 @@ install/
 log/
 dist/
 *.deb
+bags/
+robot_sim_bags/
 
 # IDE and local history
 .vscode/

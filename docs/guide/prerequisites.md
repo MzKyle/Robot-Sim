@@ -5,7 +5,7 @@
 - Ubuntu 22.04
 - ROS 2 Humble
 - `colcon`
-- OpenCV、PCL、cv_bridge、ros_gz_bridge、ros_gz_sim 等 ROS 依赖
+- OpenCV、PCL、cv_bridge、ros_gz_bridge、ros_gz_sim、rosbag2 等 ROS 依赖
 
 ## 桌面界面依赖
 

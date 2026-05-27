@@ -30,6 +30,7 @@
 - 提供 `joint_state_broadcaster`、`arm_controller` 和可选 `gripper_controller`。
 - 支持 MoveIt2 规划执行和 RViz2 可视化。
 - 支持 RGB、深度、点云、2D LaserScan、3D lidar 点云和 IMU 话题桥接。
+- 提供 ROS 2 录包辅助入口，可按运控、传感器、全量和分布式话题组录制 rosbag2。
 - 提供本机分布式 launch，用于模拟 robot、sensors、supervisor 进程拆分。
 - 保留数据采集测试包，可用于验证仿真传感器话题和后续采集流程。
 
@@ -71,6 +72,7 @@ flowchart LR
 ## 快速导航
 
 - [仿真方案](guide/simulation.md) - 三档模式、传感器开关和控制链说明。
+- [ROS 2 录包辅助](guide/rosbag-recording.md) - 按预设话题组录制仿真和运控数据。
 - [开发运行](guide/run-app.md) - 编译工作空间并启动主要入口。
 - [环境依赖与准备](guide/prerequisites.md) - ROS、Gazebo、SDK 和系统依赖。
 - [模块总览](modules/README.md) - 快速找到每个包的职责。
