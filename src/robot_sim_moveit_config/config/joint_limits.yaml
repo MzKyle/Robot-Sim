@@ -2,36 +2,36 @@ robot_description_planning:
   joint_limits:
     panda_joint1:
       has_velocity_limits: true
-      max_velocity: 2.175
+      max_velocity: 1.0
       has_acceleration_limits: true
-      max_acceleration: 3.75
+      max_acceleration: 1.5
     panda_joint2:
       has_velocity_limits: true
-      max_velocity: 2.175
+      max_velocity: 1.0
       has_acceleration_limits: true
-      max_acceleration: 1.875
+      max_acceleration: 1.5
     panda_joint3:
       has_velocity_limits: true
-      max_velocity: 2.175
+      max_velocity: 1.0
       has_acceleration_limits: true
-      max_acceleration: 2.5
+      max_acceleration: 1.5
     panda_joint4:
       has_velocity_limits: true
-      max_velocity: 2.175
+      max_velocity: 1.0
       has_acceleration_limits: true
-      max_acceleration: 3.125
+      max_acceleration: 1.5
     panda_joint5:
       has_velocity_limits: true
-      max_velocity: 2.61
+      max_velocity: 1.2
       has_acceleration_limits: true
-      max_acceleration: 3.75
+      max_acceleration: 1.8
     panda_joint6:
       has_velocity_limits: true
-      max_velocity: 2.61
+      max_velocity: 1.2
       has_acceleration_limits: true
-      max_acceleration: 5.0
+      max_acceleration: 1.8
     panda_joint7:
       has_velocity_limits: true
-      max_velocity: 2.61
+      max_velocity: 1.2
       has_acceleration_limits: true
-      max_acceleration: 5.0
+      max_acceleration: 1.8

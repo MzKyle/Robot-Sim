@@ -11,6 +11,10 @@
 
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
+  <exec_depend>fanuc_robot</exec_depend>
+  <exec_depend>camera_3d_driver</exec_depend>
+  <exec_depend>camera_pool_driver</exec_depend>
+  <exec_depend>data_collect</exec_depend>
   <exec_depend>data_collect_quality</exec_depend>
 
   <export>

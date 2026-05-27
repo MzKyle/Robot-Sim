@@ -28,6 +28,9 @@ def generate_launch_description():
     namespace = LaunchConfiguration("namespace")
     use_sim_time = LaunchConfiguration("use_sim_time")
     use_rviz = LaunchConfiguration("rviz")
+    monitored_planning_scene_topic = LaunchConfiguration("monitored_planning_scene_topic")
+    camera_points_topic = LaunchConfiguration("camera_points_topic")
+    scan_topic = LaunchConfiguration("scan_topic")
 
     robot_xacro = PathJoinSubstitution([
         FindPackageShare("robot_sim_description"),
@@ -98,6 +101,11 @@ def generate_launch_description():
         output="log",
         arguments=["-d", rviz_config],
         parameters=moveit_parameters,
+        remappings=[
+            ("/monitored_planning_scene", monitored_planning_scene_topic),
+            ("/camera/points", camera_points_topic),
+            ("/scan", scan_topic),
+        ],
         condition=IfCondition(use_rviz),
     )
 
@@ -111,5 +119,11 @@ def generate_launch_description():
         DeclareLaunchArgument("namespace", default_value=""),
         DeclareLaunchArgument("use_sim_time", default_value="true"),
         DeclareLaunchArgument("rviz", default_value="true"),
+        DeclareLaunchArgument(
+            "monitored_planning_scene_topic",
+            default_value="/monitored_planning_scene",
+        ),
+        DeclareLaunchArgument("camera_points_topic", default_value="/camera/points"),
+        DeclareLaunchArgument("scan_topic", default_value="/scan"),
         moveit_group,
     ])

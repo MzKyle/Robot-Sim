@@ -1,6 +1,3 @@
-//
-// Created by huang on 2026/1/12.
-//
 #include "CameraApi.h" //相机SDK的API头文件
 
 #include <opencv2/core/core.hpp>

@@ -20,6 +20,7 @@ ENABLE_FANUC="${ENABLE_FANUC:-1}"
 ENABLE_CAMERA_3D="${ENABLE_CAMERA_3D:-1}"
 ENABLE_CAMERA_2D="${ENABLE_CAMERA_2D:-1}"
 ENABLE_DATA_COLLECT="${ENABLE_DATA_COLLECT:-1}"
+ENABLE_DATA_COLLECT_QUALITY="${ENABLE_DATA_COLLECT_QUALITY:-1}"
 AUTO_START_FIX_SCAN="${AUTO_START_FIX_SCAN:-1}"
 AUTO_ACTIVATE_COLLECT="${AUTO_ACTIVATE_COLLECT:-1}"
 PUBLISH_TF="${PUBLISH_TF:-true}"
@@ -60,6 +61,7 @@ Optional environment overrides:
   ENABLE_CAMERA_3D=0
   ENABLE_CAMERA_2D=0
   ENABLE_DATA_COLLECT=0
+  ENABLE_DATA_COLLECT_QUALITY=0
   AUTO_START_FIX_SCAN=0
   AUTO_ACTIVATE_COLLECT=0
   PUBLISH_TF=false
@@ -252,6 +254,12 @@ start_camera_3d_node() {
     local -a cmd=(
         ros2 run camera_3d_driver camera_3d_driver
         --ros-args
+    )
+
+    if [ -f "$AUTOCOVER_NODEMANAGE_YAML" ]; then
+        cmd+=(--params-file "$AUTOCOVER_NODEMANAGE_YAML")
+    fi
+    cmd+=(
         -p "publish_tf:=${PUBLISH_TF}"
     )
 
@@ -259,11 +267,30 @@ start_camera_3d_node() {
 }
 
 start_camera_2d_node() {
-    start_node "camera_pool_driver" ros2 run camera_pool_driver camera_pool_driver
+    local -a cmd=(ros2 run camera_pool_driver camera_pool_driver)
+    if [ -f "$AUTOCOVER_NODEMANAGE_YAML" ]; then
+        cmd+=(--ros-args --params-file "$AUTOCOVER_NODEMANAGE_YAML")
+    fi
+
+    start_node "camera_pool_driver" "${cmd[@]}"
 }
 
 start_data_collect_node() {
-    start_node "data_collect_node" ros2 run data_collect data_collect_node
+    local -a cmd=(ros2 run data_collect data_collect_node)
+    if [ -f "$AUTOCOVER_NODEMANAGE_YAML" ]; then
+        cmd+=(--ros-args --params-file "$AUTOCOVER_NODEMANAGE_YAML")
+    fi
+
+    start_node "data_collect_node" "${cmd[@]}"
+}
+
+start_data_collect_quality_node() {
+    local -a cmd=(ros2 run data_collect_quality data_collect_quality_node)
+    if [ -f "$AUTOCOVER_NODEMANAGE_YAML" ]; then
+        cmd+=(--ros-args --params-file "$AUTOCOVER_NODEMANAGE_YAML")
+    fi
+
+    start_node "data_collect_quality_node" "${cmd[@]}"
 }
 
 main() {
@@ -291,6 +318,10 @@ main() {
 
     if [ "$ENABLE_DATA_COLLECT" = "1" ]; then
         start_data_collect_node
+    fi
+
+    if [ "$ENABLE_DATA_COLLECT_QUALITY" = "1" ]; then
+        start_data_collect_quality_node
     fi
 
     if [ "$AUTO_START_FIX_SCAN" = "1" ] && [ "$ENABLE_CAMERA_3D" = "1" ]; then

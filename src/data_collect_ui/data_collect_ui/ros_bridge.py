@@ -48,6 +48,8 @@ class RosBridge(QThread):
         self._running = True
         self._node = None
         self._clients = {}
+        self._request_factories = {}
+        self._pending_services = set()
         self._last_service_emit = 0.0
         self._last_image_emit = 0.0
         self._last_cloud_emit = 0.0
@@ -58,8 +60,8 @@ class RosBridge(QThread):
         self._commands.put(("stop", None))
 
     def call_service(self, service_name):
-        """Call an empty service."""
-        self._commands.put(("call_empty_service", service_name))
+        """Call a service without UI-provided request data."""
+        self._commands.put(("call_service", service_name))
 
     def set_task(self, task):
         """Set collection task."""
@@ -87,6 +89,13 @@ class RosBridge(QThread):
             "/camera_driver_3d/set_parameters": self._node.create_client(SetParameters, "/camera_driver_3d/set_parameters"),
             "/data_collect_node/set_parameters": self._node.create_client(SetParameters, "/data_collect_node/set_parameters"),
             "/robot_driver_fanuc/set_parameters": self._node.create_client(SetParameters, "/robot_driver_fanuc/set_parameters"),
+        }
+        self._request_factories = {
+            DATA_COLLECT_ACTIVATE: Empty.Request,
+            DATA_COLLECT_DEACTIVATE: Empty.Request,
+            START_FIX_SCAN: Empty.Request,
+            STOP_FIX_SCAN: Empty.Request,
+            RELOAD_CAMERA_3D_CONFIG: Trigger.Request,
         }
         self._node.create_subscription(
             DataCollectStatus,
@@ -137,25 +146,33 @@ class RosBridge(QThread):
 
             if command == "stop":
                 return
-            if command == "call_empty_service":
-                self._call_empty_service(payload)
+            if command == "call_service":
+                self._call_service(payload)
             if command == "set_task":
                 self._call_set_task(payload)
             if command == "set_parameters":
                 self._call_set_parameters(payload)
 
-    def _call_empty_service(self, service_name):
-        """Call an empty service (no request/response data)."""
+    def _call_service(self, service_name):
+        """Call a service that does not need UI-provided request data."""
         client = self._clients.get(service_name)
         if client is None:
             self.log_received.emit(f"未知服务：{service_name}")
+            return
+        request_factory = self._request_factories.get(service_name)
+        if request_factory is None:
+            self.log_received.emit(f"不支持的服务请求类型：{service_name}")
             return
 
         if not client.service_is_ready():
             self.log_received.emit(f"服务不可用：{service_name}")
             return
+        if service_name in self._pending_services:
+            self.log_received.emit(f"服务请求进行中：{service_name}")
+            return
 
-        future = client.call_async(Empty.Request())
+        self._pending_services.add(service_name)
+        future = client.call_async(request_factory())
         future.add_done_callback(lambda done: self._on_service_done(service_name, done))
         self.log_received.emit(f"已发送服务请求：{service_name}")
 
@@ -216,6 +233,9 @@ class RosBridge(QThread):
         if client is None or not client.service_is_ready():
             self.log_received.emit(f"服务不可用：{DATA_COLLECT_SET_TASK}")
             return
+        if DATA_COLLECT_SET_TASK in self._pending_services:
+            self.log_received.emit("采集任务请求进行中")
+            return
 
         request = SetCollectionTask.Request()
         request.task_id = task["task_id"]
@@ -224,6 +244,7 @@ class RosBridge(QThread):
         request.operator_name = task["operator_name"]
         request.shift = task["shift"]
         request.notes = task["notes"]
+        self._pending_services.add(DATA_COLLECT_SET_TASK)
         future = client.call_async(request)
         future.add_done_callback(lambda done: self._on_service_done(DATA_COLLECT_SET_TASK, done))
         self.log_received.emit("已发送采集任务信息")
@@ -234,7 +255,9 @@ class RosBridge(QThread):
             response = future.result()
         except Exception as exc:
             self.log_received.emit(f"服务调用失败：{service_name}，{exc}")
+            self._pending_services.discard(service_name)
             return
+        self._pending_services.discard(service_name)
         message = getattr(response, "message", "")
         if message:
             self.log_received.emit(f"服务调用完成：{service_name}，{message}")

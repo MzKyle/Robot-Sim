@@ -73,12 +73,14 @@ def _node_actions(context):
             package="data_collect",
             executable="data_collect_node",
             output="screen",
+            parameters=[nodemanage_yaml],
             condition=IfCondition(LaunchConfiguration("enable_data_collect")),
         ),
         Node(
             package="data_collect_quality",
             executable="data_collect_quality_node",
             output="screen",
+            parameters=[nodemanage_yaml],
             condition=IfCondition(LaunchConfiguration("enable_data_collect_quality")),
         ),
     ]

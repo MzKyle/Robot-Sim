@@ -56,6 +56,57 @@ def _bridge_node(config_dir, group):
     )
 
 
+def _sensor_frame_tf_node(name, parent_frame, child_frame):
+    return Node(
+        package="tf2_ros",
+        executable="static_transform_publisher",
+        name=f"{name}_frame_tf",
+        output="log",
+        arguments=[
+            "--x", "0", "--y", "0", "--z", "0",
+            "--roll", "0", "--pitch", "0", "--yaw", "0",
+            "--frame-id", parent_frame,
+            "--child-frame-id", child_frame,
+        ],
+    )
+
+
+def _sensor_frame_tf_nodes(enable_camera, enable_depth, enable_lidar, enable_imu):
+    nodes = []
+    if enable_camera:
+        nodes.append(_sensor_frame_tf_node(
+            "color_camera",
+            "camera_color_frame",
+            "panda/panda_link7/color_camera",
+        ))
+    if enable_depth:
+        nodes.append(_sensor_frame_tf_node(
+            "rgbd_camera",
+            "rgbd_camera_frame",
+            "panda/panda_link7/rgbd_camera",
+        ))
+    if enable_lidar:
+        nodes.extend([
+            _sensor_frame_tf_node(
+                "lidar_2d",
+                "lidar_2d_frame",
+                "panda/panda_link7/lidar_2d",
+            ),
+            _sensor_frame_tf_node(
+                "lidar_3d",
+                "lidar_3d_frame",
+                "panda/panda_link7/lidar_3d",
+            ),
+        ])
+    if enable_imu:
+        nodes.append(_sensor_frame_tf_node(
+            "imu",
+            "imu_link",
+            "panda/panda_link7/imu",
+        ))
+    return nodes
+
+
 def _launch_setup(context, *args, **kwargs):
     sim_mode = _normalized(context, "sim_mode")
     if sim_mode not in ("mock", "light", "full"):
@@ -162,6 +213,13 @@ def _launch_setup(context, *args, **kwargs):
             }],
         )
     ]
+    if use_gazebo:
+        robot_stack_actions.extend(_sensor_frame_tf_nodes(
+            enable_camera,
+            enable_depth,
+            enable_lidar,
+            enable_imu,
+        ))
     if not use_gazebo:
         robot_stack_actions.append(
             Node(
@@ -333,6 +391,9 @@ def _launch_setup(context, *args, **kwargs):
                             "namespace": ROBOT_NAMESPACE,
                             "use_sim_time": _bool_text(use_sim_time),
                             "rviz": _bool_text(use_rviz),
+                            "monitored_planning_scene_topic": f"/{ROBOT_NAMESPACE}/monitored_planning_scene",
+                            "camera_points_topic": f"/{SENSOR_NAMESPACE}/camera/points",
+                            "scan_topic": f"/{SENSOR_NAMESPACE}/scan",
                         }.items(),
                     )
                 ],

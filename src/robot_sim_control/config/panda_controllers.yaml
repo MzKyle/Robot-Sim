@@ -32,30 +32,31 @@ arm_controller:
       - velocity
     allow_partial_joints_goal: false
     open_loop_control: false
+    allow_nonzero_velocity_at_trajectory_end: false
     constraints:
-      goal_time: 1.0
-      stopped_velocity_tolerance: 0.02
+      goal_time: 2.0
+      stopped_velocity_tolerance: 0.05
       panda_joint1:
-        trajectory: 0.2
-        goal: 0.05
+        trajectory: 0.35
+        goal: 0.08
       panda_joint2:
-        trajectory: 0.2
-        goal: 0.05
+        trajectory: 0.35
+        goal: 0.08
       panda_joint3:
-        trajectory: 0.2
-        goal: 0.05
+        trajectory: 0.35
+        goal: 0.08
       panda_joint4:
-        trajectory: 0.2
-        goal: 0.05
+        trajectory: 0.35
+        goal: 0.08
       panda_joint5:
-        trajectory: 0.2
-        goal: 0.05
+        trajectory: 0.35
+        goal: 0.08
       panda_joint6:
-        trajectory: 0.2
-        goal: 0.05
+        trajectory: 0.35
+        goal: 0.08
       panda_joint7:
-        trajectory: 0.2
-        goal: 0.05
+        trajectory: 0.35
+        goal: 0.08
 
 gripper_controller:
   ros__parameters:

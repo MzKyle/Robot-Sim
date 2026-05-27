@@ -146,7 +146,7 @@ public:
         if (image_log_save_interval_ <= 0) image_log_save_interval_ = 1;
         if (height_log_save_interval_ <= 0) height_log_save_interval_ = 1;
         if (fix_scan_interval_ <= 0) fix_scan_interval_ = 1;
-        auto_save_flag_ = params.auto_save_flag == 0?false:true;
+        auto_save_flag_.store(params.auto_save_flag != 0);
         target_register_index_ = params.target_register_index;
         weld_type_mapping_ = params.weld_type_mapping;
         current_target_register_value_ = 0;
@@ -163,7 +163,8 @@ public:
         image_log_save_interval_ = this->declare_parameter<int>("image_log_save_interval", image_log_save_interval_);
         height_log_save_interval_ = this->declare_parameter<int>("height_log_save_interval", height_log_save_interval_);
         fix_scan_interval_ = this->declare_parameter<int>("fix_scan_interval", fix_scan_interval_);
-        auto_save_flag_ = this->declare_parameter<int>("auto_save_flag", auto_save_flag_ ? 1 : 0) != 0;
+        auto_save_flag_.store(
+                this->declare_parameter<int>("auto_save_flag", auto_save_flag_.load() ? 1 : 0) != 0);
         target_register_index_ = this->declare_parameter<int>("target_register_index", target_register_index_);
         normalize_runtime_settings();
 
@@ -347,7 +348,7 @@ public:
                 }
                 fix_scan_interval_ = static_cast<int>(parameter.as_int());
             } else if (name == "auto_save_flag") {
-                auto_save_flag_ = parameter.as_int() != 0;
+                auto_save_flag_.store(parameter.as_int() != 0);
             } else if (name == "target_register_index") {
                 target_register_index_ = static_cast<int>(parameter.as_int());
                 has_target_register_value_ = false;
@@ -439,11 +440,11 @@ public:
     void timerThreadLoop() {
         // 循环条件：ROS2未退出 + 线程运行标志为true
         while (rclcpp::ok() && !timer_thread_stop_.load()) {
-            if(auto_save_flag_== false){
-                break;
+            if (auto_save_flag_.load()) {
+                this->timerCallback();
+            } else {
+                arc_lost_ticks_.store(0);
             }
-            // ========== 调用原有timerCallback逻辑 ==========
-            this->timerCallback();
             std::this_thread::sleep_for(std::chrono::milliseconds(20));
         }
         // 线程退出日志
@@ -619,7 +620,7 @@ public:
         manifest["ended_at"] = collection_ended_at_.empty() ? nlohmann::json(nullptr) : nlohmann::json(collection_ended_at_);
         manifest["save_dir"] = current_save_dir_;
         manifest["save_dir_root"] = save_dir_root_;
-        manifest["auto_save"] = auto_save_flag_;
+        manifest["auto_save"] = auto_save_flag_.load();
         manifest["task"]["task_id"] = task_id_;
         manifest["task"]["workpiece_id"] = workpiece_id_;
         manifest["task"]["weld_seam_id"] = weld_seam_id_;
@@ -675,7 +676,7 @@ public:
         status.header.stamp = this->now();
         status.header.frame_id = "data_collect_node";
         status.running = run_mode_.load();
-        status.auto_save = auto_save_flag_;
+        status.auto_save = auto_save_flag_.load();
         status.current_save_dir = current_save_dir_;
         status.target_register_index = target_register_index_;
         status.target_register_value = current_target_register_value_;
@@ -969,7 +970,7 @@ private:
     int image_log_save_interval_;
     int height_log_save_interval_;
     int fix_scan_interval_;
-    bool auto_save_flag_;
+    std::atomic_bool auto_save_flag_{false};
     int target_register_index_;
     int current_target_register_value_;
     bool has_target_register_value_;

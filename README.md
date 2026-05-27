@@ -18,10 +18,15 @@ cd /home/kyle/sany/robot_sim
 source /opt/ros/humble/setup.bash
 export GZ_VERSION=harmonic
 
-colcon build --symlink-install --allow-overriding gz_ros2_control --packages-select \
-  gz_ros2_control \
-  robot_sim_description robot_sim_control robot_sim_scenarios \
-  robot_sim_moveit_config robot_sim_bringup
+# 如果之前在未设置 GZ_VERSION 时编译过，先清掉旧的 Fortress ABI 缓存。
+rm -rf build/gz_ros2_control install/gz_ros2_control
+
+colcon build --symlink-install \
+  --allow-overriding gz_ros2_control \
+  --packages-select \
+    gz_ros2_control \
+    robot_sim_description robot_sim_control robot_sim_scenarios \
+    robot_sim_moveit_config robot_sim_bringup
 
 source install/setup.bash
 ros2 launch robot_sim_bringup sim.launch.py

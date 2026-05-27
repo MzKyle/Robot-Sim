@@ -1,7 +1,3 @@
-//
-// Created by huang on 2026/1/14.
-//
-
 #include <RVC/RVC.h>
 #include <rclcpp/rclcpp.hpp>
 #include <rcl_interfaces/msg/set_parameters_result.hpp>
