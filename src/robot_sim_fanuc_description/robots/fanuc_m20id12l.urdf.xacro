@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
-<robot name="fanuc_m20ia10l" xmlns:xacro="http://www.ros.org/wiki/xacro">
+<robot name="fanuc_m20id12l" xmlns:xacro="http://www.ros.org/wiki/xacro">
   <xacro:arg name="prefix" default=""/>
-  <xacro:arg name="mesh_root" default="package://robot_sim_fanuc_description/models/m20ia10l/meshes"/>
+  <xacro:arg name="mesh_root" default="package://robot_sim_fanuc_description/models/m20id12l/meshes"/>
   <xacro:arg name="hardware_plugin" default="mock_components/GenericSystem"/>
   <xacro:arg name="controllers_file" default=""/>
   <xacro:arg name="controller_manager_name" default="controller_manager"/>
@@ -20,12 +20,6 @@
   <xacro:property name="ros_namespace" value="$(arg ros_namespace)"/>
   <xacro:property name="PI" value="3.141592653589793"/>
 
-  <material name="fanuc_yellow">
-    <color rgba="1.0 0.77 0.05 1.0"/>
-  </material>
-  <material name="fanuc_gray">
-    <color rgba="0.34 0.34 0.34 1.0"/>
-  </material>
   <material name="fanuc_black">
     <color rgba="0.02 0.02 0.02 1.0"/>
   </material>
@@ -38,14 +32,21 @@
     </inertial>
   </xacro:macro>
 
-  <xacro:macro name="mesh_link" params="name visual collision material mass:=10.0">
+  <xacro:macro name="fanuc_inertial" params="mass xyz ixx ixy ixz iyy iyz izz">
+    <inertial>
+      <origin xyz="${xyz}" rpy="0 0 0"/>
+      <mass value="${mass}"/>
+      <inertia ixx="${ixx}" ixy="${ixy}" ixz="${ixz}" iyy="${iyy}" iyz="${iyz}" izz="${izz}"/>
+    </inertial>
+  </xacro:macro>
+
+  <xacro:macro name="mesh_link" params="name visual collision mass inertial_xyz ixx ixy ixz iyy iyz izz">
     <link name="${prefix}${name}">
       <visual>
         <origin xyz="0 0 0" rpy="0 0 0"/>
         <geometry>
           <mesh filename="${mesh_root}/visual/${visual}"/>
         </geometry>
-        <material name="${material}"/>
       </visual>
       <collision>
         <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -53,7 +54,16 @@
           <mesh filename="${mesh_root}/collision/${collision}"/>
         </geometry>
       </collision>
-      <xacro:simple_inertial mass="${mass}" ixx="0.08" iyy="0.08" izz="0.08"/>
+      <xacro:fanuc_inertial
+        mass="${mass}"
+        xyz="${inertial_xyz}"
+        ixx="${ixx}"
+        ixy="${ixy}"
+        ixz="${ixz}"
+        iyy="${iyy}"
+        iyz="${iyz}"
+        izz="${izz}"
+      />
     </link>
   </xacro:macro>
 
@@ -79,60 +89,60 @@
     <child link="${prefix}base_link"/>
   </joint>
 
-  <xacro:mesh_link name="base_link" visual="base_link.stl" collision="base_link.stl" material="fanuc_gray" mass="80.0"/>
-  <xacro:mesh_link name="link_1" visual="link_1.stl" collision="link_1.stl" material="fanuc_yellow" mass="65.0"/>
-  <xacro:mesh_link name="link_2" visual="link_2.stl" collision="link_2.stl" material="fanuc_yellow" mass="55.0"/>
-  <xacro:mesh_link name="link_3" visual="link_3.stl" collision="link_3.stl" material="fanuc_yellow" mass="45.0"/>
-  <xacro:mesh_link name="link_4" visual="link_4.stl" collision="link_4.stl" material="fanuc_yellow" mass="28.0"/>
-  <xacro:mesh_link name="link_5" visual="link_5.stl" collision="link_5.stl" material="fanuc_yellow" mass="18.0"/>
-  <xacro:mesh_link name="link_6" visual="link_6.stl" collision="link_6.stl" material="fanuc_black" mass="12.0"/>
+  <xacro:mesh_link name="base_link" visual="base.dae" collision="base.stl" mass="45.3" inertial_xyz="-0.0767 0.00288 0.109" ixx="0.492" ixy="0.0288" ixz="0.0135" iyy="1.09" iyz="0.0000531" izz="1.15"/>
+  <xacro:mesh_link name="link_1" visual="j1.dae" collision="j1.stl" mass="62.2" inertial_xyz="0.0158 -0.0106 -0.0831" ixx="1.33" ixy="0.132" ixz="-0.0412" iyy="1.1" iyz="-0.107" izz="1.29"/>
+  <xacro:mesh_link name="link_2" visual="j2.dae" collision="j2.stl" mass="65.1" inertial_xyz="-0.0343 -0.172 0.38" ixx="4.81" ixy="-0.0801" ixz="0.0448" iyy="4.93" iyz="-0.117" izz="0.53"/>
+  <xacro:mesh_link name="link_3" visual="j3.dae" collision="j3.stl" mass="52.3" inertial_xyz="0.134 0.00796 0.103" ixx="0.892" ixy="-0.0776" ixz="-0.291" iyy="1.12" iyz="-0.0381" izz="1.05"/>
+  <xacro:mesh_link name="link_4" visual="j4.dae" collision="j4.stl" mass="23.5" inertial_xyz="0.827 -0.0285 -0.00109" ixx="0.0677" ixy="0.112" ixz="0.00237" iyy="1.86" iyz="-0.000766" izz="1.88"/>
+  <xacro:mesh_link name="link_5" visual="j5.dae" collision="j5.stl" mass="1.26" inertial_xyz="0.0214 -0.015 0.0000000000494" ixx="0.00187" ixy="-0.000425" ixz="0.00000000000169" iyy="0.00207" iyz="0.00000000000153" izz="0.00205"/>
+  <xacro:mesh_link name="link_6" visual="j6.dae" collision="j6.stl" mass="0.243" inertial_xyz="0.0537 0.000000457 0.00000541" ixx="0.000142" ixy="-0.000000000125" ixz="-0.00000000866" iyy="0.00011" iyz="-0.00000000000431" izz="0.00011"/>
 
   <joint name="${prefix}joint_1" type="revolute">
-    <origin xyz="0 0 0.525" rpy="0 0 0"/>
+    <origin xyz="0 0 0.425" rpy="0 0 0"/>
     <parent link="${prefix}base_link"/>
     <child link="${prefix}link_1"/>
     <axis xyz="0 0 1"/>
-    <limit lower="-3.228859" upper="3.228859" effort="300" velocity="3.403392"/>
+    <limit lower="-3.228859" upper="3.228859" effort="7000" velocity="3.665191"/>
     <dynamics damping="18.0" friction="2.0"/>
   </joint>
   <joint name="${prefix}joint_2" type="revolute">
-    <origin xyz="0.150 0 0" rpy="0 0 0"/>
+    <origin xyz="0.075 0 0" rpy="0 0 0"/>
     <parent link="${prefix}link_1"/>
     <child link="${prefix}link_2"/>
     <axis xyz="0 1 0"/>
-    <limit lower="-1.745329" upper="2.792527" effort="300" velocity="3.054326"/>
+    <limit lower="-1.745329" upper="2.792527" effort="8000" velocity="3.665191"/>
     <dynamics damping="18.0" friction="2.0"/>
   </joint>
   <joint name="${prefix}joint_3" type="revolute">
-    <origin xyz="0 0 0.790" rpy="0 0 0"/>
+    <origin xyz="0 0 0.840" rpy="0 0 0"/>
     <parent link="${prefix}link_2"/>
     <child link="${prefix}link_3"/>
     <axis xyz="0 -1 0"/>
-    <limit lower="-3.228859" upper="4.810826" effort="260" velocity="3.141593"/>
+    <limit lower="-1.570796" upper="3.839724" effort="4000" velocity="4.625123"/>
     <dynamics damping="15.0" friction="1.6"/>
   </joint>
   <joint name="${prefix}joint_4" type="revolute">
-    <origin xyz="0 0 0.250" rpy="0 0 0"/>
+    <origin xyz="0 0 0.215" rpy="0 0 0"/>
     <parent link="${prefix}link_3"/>
     <child link="${prefix}link_4"/>
     <axis xyz="-1 0 0"/>
-    <limit lower="-3.490658" upper="3.490658" effort="150" velocity="6.981317"/>
+    <limit lower="-3.490659" upper="3.490659" effort="100" velocity="7.330383"/>
     <dynamics damping="8.0" friction="1.0"/>
   </joint>
   <joint name="${prefix}joint_5" type="revolute">
-    <origin xyz="1.040 0 0" rpy="0 0 0"/>
+    <origin xyz="1.340 0 0" rpy="0 0 0"/>
     <parent link="${prefix}link_4"/>
     <child link="${prefix}link_5"/>
     <axis xyz="0 -1 0"/>
-    <limit lower="-2.443461" upper="2.443461" effort="120" velocity="6.981317"/>
+    <limit lower="-3.141575" upper="3.141575" effort="100" velocity="7.853982"/>
     <dynamics damping="6.0" friction="0.8"/>
   </joint>
   <joint name="${prefix}joint_6" type="revolute">
-    <origin xyz="0.100 0 0" rpy="0 0 0"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
     <parent link="${prefix}link_5"/>
     <child link="${prefix}link_6"/>
     <axis xyz="-1 0 0"/>
-    <limit lower="-4.712389" upper="4.712389" effort="80" velocity="10.471980"/>
+    <limit lower="-7.853982" upper="7.853982" effort="50" velocity="12.566371"/>
     <dynamics damping="4.0" friction="0.6"/>
   </joint>
 
@@ -140,7 +150,7 @@
     <xacro:simple_inertial mass="0.01" ixx="0.0001" iyy="0.0001" izz="0.0001"/>
   </link>
   <joint name="${prefix}base_link_to_base" type="fixed">
-    <origin xyz="0 0 0.525" rpy="0 0 0"/>
+    <origin xyz="0 0 0.425" rpy="0 0 0"/>
     <parent link="${prefix}base_link"/>
     <child link="${prefix}base"/>
   </joint>
@@ -149,7 +159,7 @@
     <xacro:simple_inertial mass="0.01" ixx="0.0001" iyy="0.0001" izz="0.0001"/>
   </link>
   <joint name="${prefix}joint_6_to_flange" type="fixed">
-    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <origin xyz="0.075 0 0" rpy="0 0 0"/>
     <parent link="${prefix}link_6"/>
     <child link="${prefix}flange"/>
   </joint>
@@ -346,15 +356,15 @@
     </gazebo>
   </xacro:if>
 
-  <ros2_control name="${prefix}FanucM20iA10LSystem" type="system">
+  <ros2_control name="${prefix}FanucM20iD12LSystem" type="system">
     <hardware>
       <plugin>${hardware_plugin}</plugin>
     </hardware>
     <xacro:control_joint name="joint_1" initial="0.0" lower="-3.228859" upper="3.228859"/>
     <xacro:control_joint name="joint_2" initial="-0.45" lower="-1.745329" upper="2.792527"/>
-    <xacro:control_joint name="joint_3" initial="0.75" lower="-3.228859" upper="4.810826"/>
-    <xacro:control_joint name="joint_4" initial="0.0" lower="-3.490658" upper="3.490658"/>
-    <xacro:control_joint name="joint_5" initial="-0.35" lower="-2.443461" upper="2.443461"/>
-    <xacro:control_joint name="joint_6" initial="0.0" lower="-4.712389" upper="4.712389"/>
+    <xacro:control_joint name="joint_3" initial="0.75" lower="-1.570796" upper="3.839724"/>
+    <xacro:control_joint name="joint_4" initial="0.0" lower="-3.490659" upper="3.490659"/>
+    <xacro:control_joint name="joint_5" initial="-0.35" lower="-3.141575" upper="3.141575"/>
+    <xacro:control_joint name="joint_6" initial="0.0" lower="-7.853982" upper="7.853982"/>
   </ros2_control>
 </robot>

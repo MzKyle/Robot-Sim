@@ -64,9 +64,9 @@ flowchart LR
 | `src/robot_sim_bringup/` | 仿真总入口、三档模式、传感器桥接和本机分布式启动 |
 | `src/robot_sim_description/` | Panda 模型、传感器挂载、Gazebo 插件和 mesh 资源 |
 | `src/robot_sim_control/` | ros2_control 控制器配置 |
-| `src/robot_sim_fanuc_description/` | Fanuc M-20iA/10L Gazebo 描述和 mesh 资源 |
-| `src/robot_sim_fanuc_control/` | Fanuc M-20iA/10L controller 配置 |
-| `src/robot_sim_fanuc_moveit_config/` | Fanuc M-20iA/10L MoveIt2 配置 |
+| `src/robot_sim_fanuc_description/` | Fanuc M-20iD/12L Gazebo 描述和官方 DAE/STL mesh 资源 |
+| `src/robot_sim_fanuc_control/` | Fanuc M-20iD/12L controller 配置 |
+| `src/robot_sim_fanuc_moveit_config/` | Fanuc M-20iD/12L MoveIt2 配置 |
 | `src/robot_sim_sensors/` | camera、depth、lidar、imu 仿真传感器接收包 |
 | `src/robot_sim_scenarios/` | base world、assets 和 scenario 场景 |
 | `src/robot_sim_moveit_config/` | MoveIt2 规划和执行配置 |

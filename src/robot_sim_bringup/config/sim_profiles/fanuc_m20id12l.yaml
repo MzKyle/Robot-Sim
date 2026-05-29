@@ -1,5 +1,5 @@
 schema: 1
-name: fanuc_m20ia10l
+name: fanuc_m20id12l
 
 layouts:
   single:
@@ -31,9 +31,9 @@ layouts:
 robot:
   xacro:
     package: robot_sim_fanuc_description
-    path: robots/fanuc_m20ia10l.urdf.xacro
-  spawn_name: fanuc_m20ia10l
-  spawn_node_name: spawn_fanuc_m20ia10l
+    path: robots/fanuc_m20id12l.urdf.xacro
+  spawn_name: fanuc_m20id12l
+  spawn_node_name: spawn_fanuc_m20id12l
   allow_renaming: false
   spawn_pose:
     x: 0.0
@@ -42,7 +42,7 @@ robot:
   xacro_args:
     mesh_root:
       package: robot_sim_fanuc_description
-      path: models/m20ia10l/meshes
+      path: models/m20id12l/meshes
       uri: file
 
 worlds:
@@ -78,7 +78,7 @@ gazebo:
 control:
   controllers_file:
     package: robot_sim_fanuc_control
-    path: config/fanuc_m20ia10l_controllers.yaml
+    path: config/fanuc_m20id12l_controllers.yaml
   controller_manager_name: controller_manager
   hardware_plugins:
     gazebo: gz_ros2_control/GazeboSimSystem
@@ -97,10 +97,10 @@ moveit:
     path: launch/moveit.launch.py
   robot_xacro:
     package: robot_sim_fanuc_description
-    path: robots/fanuc_m20ia10l.urdf.xacro
+    path: robots/fanuc_m20id12l.urdf.xacro
   srdf_file:
     package: robot_sim_fanuc_moveit_config
-    path: config/fanuc_m20ia10l.srdf
+    path: config/fanuc_m20id12l.srdf
   kinematics_yaml:
     package: robot_sim_fanuc_moveit_config
     path: config/kinematics.yaml
@@ -115,7 +115,7 @@ moveit:
     path: config/ompl_planning.yaml
   rviz_config:
     package: robot_sim_fanuc_moveit_config
-    path: rviz/fanuc_m20ia10l_moveit.rviz
+    path: rviz/fanuc_m20id12l_moveit.rviz
 
 bridges:
   - clock
@@ -201,7 +201,7 @@ sensors:
     static_tfs:
       - name: color_camera
         parent_frame: camera_color_frame
-        child_frame: fanuc_m20ia10l/camera_mount/color_camera
+        child_frame: fanuc_m20id12l/camera_mount/color_camera
   depth:
     xacro_arg: enable_depth
     default_enabled: true
@@ -215,7 +215,7 @@ sensors:
     static_tfs:
       - name: rgbd_camera
         parent_frame: rgbd_camera_frame
-        child_frame: fanuc_m20ia10l/camera_mount/rgbd_camera
+        child_frame: fanuc_m20id12l/camera_mount/rgbd_camera
   lidar:
     xacro_arg: enable_lidar
     default_enabled: true
@@ -229,10 +229,10 @@ sensors:
     static_tfs:
       - name: lidar_2d
         parent_frame: lidar_2d_frame
-        child_frame: fanuc_m20ia10l/camera_mount/lidar_2d
+        child_frame: fanuc_m20id12l/camera_mount/lidar_2d
       - name: lidar_3d
         parent_frame: lidar_3d_frame
-        child_frame: fanuc_m20ia10l/camera_mount/lidar_3d
+        child_frame: fanuc_m20id12l/camera_mount/lidar_3d
   imu:
     xacro_arg: enable_imu
     default_enabled: true
@@ -246,7 +246,7 @@ sensors:
     static_tfs:
       - name: imu
         parent_frame: imu_link
-        child_frame: fanuc_m20ia10l/camera_mount/imu
+        child_frame: fanuc_m20id12l/camera_mount/imu
 
 smoke:
   controllers:

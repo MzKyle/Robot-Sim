@@ -1,15 +1,16 @@
 # robot_sim_fanuc_description
 
-ROS 2 simulation wrapper for a FANUC M-20iA/10L industrial robot.
+ROS 2 simulation wrapper for a FANUC M-20iD/12L industrial robot.
 
-The STL visual and collision meshes under `models/m20ia10l/meshes` were downloaded
-from the ROS-Industrial `ros-industrial/fanuc` repository, `noetic-devel` branch:
+The DAE visual meshes and STL collision meshes under `models/m20id12l/meshes`
+were downloaded from FANUC Corporation's official `fanuc_description` repository:
 
 ```text
-fanuc_m20ia_support/meshes/m20ia10l/
+fanuc_m20_description/meshes/m20_12-23d/
 ```
 
-The upstream BSD license text is preserved in `upstream/ROS_INDUSTRIAL_FANUC_LICENSE`.
-The xacro in this package is ROS 2/Gazebo specific and preserves the joint geometry
-and limits from the upstream support package while adding inertials, ros2_control,
-Gazebo sensors, and profile-driven arguments.
+The upstream Apache-2.0 license text is preserved in
+`upstream/FANUC_DESCRIPTION_APACHE_2_0_LICENSE`. The xacro in this package is
+ROS 2/Gazebo specific and preserves the official M-20iD/12L mesh geometry,
+inertials, and joint limits while adding ros2_control, Gazebo sensors, and
+profile-driven arguments.

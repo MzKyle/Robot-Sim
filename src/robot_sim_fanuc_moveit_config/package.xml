@@ -3,7 +3,7 @@
 <package format="3">
   <name>robot_sim_fanuc_moveit_config</name>
   <version>0.1.0</version>
-  <description>MoveIt2 configuration for the FANUC M-20iA/10L simulation profile.</description>
+  <description>MoveIt2 configuration for the FANUC M-20iD/12L simulation profile.</description>
   <maintainer email="2972689924@qq.com">huang</maintainer>
   <license>Apache-2.0</license>
   <license>BSD-3-Clause</license>
