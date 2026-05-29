@@ -1,0 +1,607 @@
+schema: 1
+name: industrial_cell
+description: Industrial robot cell with safety fencing, fixed obstacles, fixtures, pallets, and planning targets.
+
+world:
+  name: industrial_cell
+  sdf_version: "1.7"
+  gravity: [0.0, 0.0, -9.8]
+  magnetic_field: [0.0, 0.0, 0.0]
+  atmosphere:
+    type: adiabatic
+  physics:
+    name: physics
+    type: dart
+    max_step_size: 0.001
+    real_time_factor: 1.0
+  plugins:
+    - filename: gz-sim-physics-system
+      name: gz::sim::systems::Physics
+    - filename: gz-sim-sensors-system
+      name: gz::sim::systems::Sensors
+      render_engine: ogre2
+    - filename: gz-sim-imu-system
+      name: gz::sim::systems::Imu
+    - filename: gz-sim-user-commands-system
+      name: gz::sim::systems::UserCommands
+    - filename: gz-sim-scene-broadcaster-system
+      name: gz::sim::systems::SceneBroadcaster
+  scene:
+    ambient: [0.62, 0.64, 0.64]
+    background: [0.72, 0.75, 0.77]
+    grid: true
+  gui:
+    fullscreen: 0
+    camera:
+      plugin_filename: MinimalScene
+      plugin_name: 3D View
+      gz-gui:
+        title: 3D View
+        properties:
+          - type: bool
+            key: showTitleBar
+            value: false
+          - type: string
+            key: state
+            value: docked
+      engine: ogre2
+      scene: scene
+      ambient_light: [0.50, 0.50, 0.48]
+      background_color: [0.72, 0.75, 0.77]
+      pose: [-4.6, -3.4, 2.8, 0.0, 0.44, 0.58]
+      clip:
+        near: 0.05
+        far: 25000.0
+    plugins:
+      - filename: EntityContextMenuPlugin
+        name: Entity context menu
+        gz-gui:
+          properties:
+            - type: bool
+              key: showTitleBar
+              value: false
+            - type: bool
+              key: resizable
+              value: false
+            - type: double
+              key: width
+              value: 5
+            - type: double
+              key: height
+              value: 5
+            - type: string
+              key: state
+              value: floating
+      - filename: GzSceneManager
+        name: Scene Manager
+        gz-gui:
+          properties:
+            - type: bool
+              key: showTitleBar
+              value: false
+            - type: bool
+              key: resizable
+              value: false
+            - type: double
+              key: width
+              value: 5
+            - type: double
+              key: height
+              value: 5
+            - type: string
+              key: state
+              value: floating
+      - filename: InteractiveViewControl
+        name: Interactive view control
+        gz-gui:
+          properties:
+            - type: bool
+              key: showTitleBar
+              value: false
+            - type: bool
+              key: resizable
+              value: false
+            - type: double
+              key: width
+              value: 5
+            - type: double
+              key: height
+              value: 5
+            - type: string
+              key: state
+              value: floating
+      - filename: CameraTracking
+        name: Camera Tracking
+        gz-gui:
+          properties:
+            - type: bool
+              key: showTitleBar
+              value: false
+            - type: bool
+              key: resizable
+              value: false
+            - type: double
+              key: width
+              value: 5
+            - type: double
+              key: height
+              value: 5
+            - type: string
+              key: state
+              value: floating
+      - filename: MarkerManager
+        name: Marker manager
+        gz-gui:
+          properties:
+            - type: bool
+              key: showTitleBar
+              value: false
+            - type: bool
+              key: resizable
+              value: false
+            - type: double
+              key: width
+              value: 5
+            - type: double
+              key: height
+              value: 5
+            - type: string
+              key: state
+              value: floating
+      - filename: EntityTree
+        name: Entity tree
+        gz-gui:
+          properties:
+            - type: string
+              key: state
+              value: docked
+      - filename: ComponentInspector
+        name: Component inspector
+        gz-gui:
+          properties:
+            - type: string
+              key: state
+              value: docked
+      - filename: WorldControl
+        name: World control
+        gz-gui:
+          title: World control
+          properties:
+            - type: bool
+              key: showTitleBar
+              value: false
+            - type: double
+              key: height
+              value: 72
+            - type: double
+              key: width
+              value: 121
+            - type: string
+              key: state
+              value: floating
+        children:
+          play_pause: true
+          step: true
+          start_paused: false
+          use_event: true
+      - filename: WorldStats
+        name: World stats
+        gz-gui:
+          title: World stats
+          properties:
+            - type: bool
+              key: showTitleBar
+              value: false
+            - type: double
+              key: height
+              value: 110
+            - type: double
+              key: width
+              value: 290
+            - type: string
+              key: state
+              value: floating
+        children:
+          sim_time: true
+          real_time: true
+          real_time_factor: true
+          iterations: true
+
+ground:
+  name: ground_plane
+  type: model
+  static: true
+  collision: true
+  visual_only: false
+  pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  geometry:
+    type: plane
+    normal: [0.0, 0.0, 1.0]
+    size: [18.0, 14.0]
+  material:
+    ambient: [0.50, 0.52, 0.52, 1.0]
+    diffuse: [0.50, 0.52, 0.52, 1.0]
+    specular: [0.05, 0.05, 0.05, 1.0]
+  tags: [ground]
+
+lights:
+  - name: sun
+    type: directional
+    cast_shadows: true
+    pose: [0.0, 0.0, 8.0, 0.0, 0.0, 0.0]
+    diffuse: [0.84, 0.83, 0.78, 1.0]
+    specular: [0.18, 0.18, 0.16, 1.0]
+    attenuation:
+      range: 1000.0
+      constant: 0.9
+      linear: 0.01
+      quadratic: 0.001
+    direction: [-0.42, 0.28, -0.86]
+  - name: overhead_area_light
+    type: point
+    cast_shadows: false
+    pose: [1.0, 0.0, 4.2, 0.0, 0.0, 0.0]
+    diffuse: [0.45, 0.48, 0.50, 1.0]
+    specular: [0.12, 0.12, 0.12, 1.0]
+    attenuation:
+      range: 8.0
+      constant: 0.55
+      linear: 0.10
+      quadratic: 0.02
+    direction: [0.0, 0.0, -1.0]
+
+robot_mount_pose: [0.0, 0.0, 0.18, 0.0, 0.0, 0.0]
+
+workspace:
+  frame: world
+  bounds:
+    min: [-0.25, -1.35, 0.35]
+    max: [1.95, 1.35, 1.90]
+
+objects:
+  - name: robot_mount_pedestal
+    type: model
+    static: true
+    collision: true
+    visual_only: false
+    pose: [0.0, 0.0, 0.09, 0.0, 0.0, 0.0]
+    geometry:
+      type: cylinder
+      radius: 0.34
+      length: 0.18
+    material:
+      ambient: [0.12, 0.13, 0.14, 1.0]
+      diffuse: [0.24, 0.25, 0.26, 1.0]
+      specular: [0.08, 0.08, 0.08, 1.0]
+    tags: [robot_mount, pedestal]
+
+  - name: safety_fence
+    type: model
+    static: true
+    pose: [0.6, 0.0, 0.0, 0.0, 0.0, 0.0]
+    tags: [fence, safety, boundary]
+    links:
+      - name: north_panel
+        pose: [0.0, 2.15, 0.82, 0.0, 0.0, 0.0]
+        collisions:
+          - name: collision
+            pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            geometry: {type: box, size: [4.6, 0.04, 1.50]}
+        visuals:
+          - name: mesh_panel
+            pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            geometry: {type: box, size: [4.6, 0.035, 1.50]}
+            material:
+              ambient: [0.95, 0.72, 0.08, 0.42]
+              diffuse: [0.95, 0.72, 0.08, 0.42]
+              specular: [0.10, 0.08, 0.02, 0.42]
+      - name: south_panel
+        pose: [0.0, -2.15, 0.82, 0.0, 0.0, 0.0]
+        collisions:
+          - name: collision
+            pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            geometry: {type: box, size: [4.6, 0.04, 1.50]}
+        visuals:
+          - name: mesh_panel
+            pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            geometry: {type: box, size: [4.6, 0.035, 1.50]}
+            material:
+              ambient: [0.95, 0.72, 0.08, 0.42]
+              diffuse: [0.95, 0.72, 0.08, 0.42]
+              specular: [0.10, 0.08, 0.02, 0.42]
+      - name: west_panel
+        pose: [-2.30, 0.0, 0.82, 0.0, 0.0, 0.0]
+        collisions:
+          - name: collision
+            pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            geometry: {type: box, size: [0.04, 4.3, 1.50]}
+        visuals:
+          - name: mesh_panel
+            pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            geometry: {type: box, size: [0.035, 4.3, 1.50]}
+            material:
+              ambient: [0.95, 0.72, 0.08, 0.42]
+              diffuse: [0.95, 0.72, 0.08, 0.42]
+              specular: [0.10, 0.08, 0.02, 0.42]
+      - name: east_gate
+        pose: [2.30, 0.78, 0.82, 0.0, 0.0, 0.0]
+        collisions:
+          - name: collision
+            pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            geometry: {type: box, size: [0.04, 2.6, 1.50]}
+        visuals:
+          - name: sliding_panel
+            pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            geometry: {type: box, size: [0.035, 2.6, 1.50]}
+            material:
+              ambient: [0.12, 0.16, 0.20, 0.55]
+              diffuse: [0.16, 0.22, 0.28, 0.55]
+              specular: [0.05, 0.07, 0.09, 0.55]
+      - name: post_a
+        pose: [-2.30, -2.15, 0.85, 0.0, 0.0, 0.0]
+        geometry: {type: cylinder, radius: 0.055, length: 1.70}
+        collision: true
+        visual_only: false
+        material:
+          ambient: [0.10, 0.10, 0.10, 1.0]
+          diffuse: [0.18, 0.18, 0.18, 1.0]
+      - name: post_b
+        pose: [-2.30, 2.15, 0.85, 0.0, 0.0, 0.0]
+        geometry: {type: cylinder, radius: 0.055, length: 1.70}
+        collision: true
+        visual_only: false
+        material:
+          ambient: [0.10, 0.10, 0.10, 1.0]
+          diffuse: [0.18, 0.18, 0.18, 1.0]
+      - name: post_c
+        pose: [2.30, -2.15, 0.85, 0.0, 0.0, 0.0]
+        geometry: {type: cylinder, radius: 0.055, length: 1.70}
+        collision: true
+        visual_only: false
+        material:
+          ambient: [0.10, 0.10, 0.10, 1.0]
+          diffuse: [0.18, 0.18, 0.18, 1.0]
+      - name: post_d
+        pose: [2.30, 2.15, 0.85, 0.0, 0.0, 0.0]
+        geometry: {type: cylinder, radius: 0.055, length: 1.70}
+        collision: true
+        visual_only: false
+        material:
+          ambient: [0.10, 0.10, 0.10, 1.0]
+          diffuse: [0.18, 0.18, 0.18, 1.0]
+
+  - name: fixture_station
+    type: model
+    static: true
+    pose: [1.20, -0.95, 0.0, 0.0, 0.0, 0.0]
+    tags: [fixture, table, obstacle]
+    links:
+      - name: tabletop
+        pose: [0.0, 0.0, 0.78, 0.0, 0.0, 0.0]
+        geometry: {type: box, size: [1.25, 0.75, 0.08]}
+        collision: true
+        visual_only: false
+        material:
+          ambient: [0.20, 0.21, 0.22, 1.0]
+          diffuse: [0.36, 0.37, 0.38, 1.0]
+          specular: [0.08, 0.08, 0.08, 1.0]
+      - name: front_left_leg
+        pose: [-0.52, -0.28, 0.38, 0.0, 0.0, 0.0]
+        geometry: {type: box, size: [0.08, 0.08, 0.76]}
+        collision: true
+        visual_only: false
+        material:
+          ambient: [0.08, 0.09, 0.10, 1.0]
+          diffuse: [0.16, 0.17, 0.18, 1.0]
+      - name: front_right_leg
+        pose: [0.52, -0.28, 0.38, 0.0, 0.0, 0.0]
+        geometry: {type: box, size: [0.08, 0.08, 0.76]}
+        collision: true
+        visual_only: false
+        material:
+          ambient: [0.08, 0.09, 0.10, 1.0]
+          diffuse: [0.16, 0.17, 0.18, 1.0]
+      - name: rear_left_leg
+        pose: [-0.52, 0.28, 0.38, 0.0, 0.0, 0.0]
+        geometry: {type: box, size: [0.08, 0.08, 0.76]}
+        collision: true
+        visual_only: false
+        material:
+          ambient: [0.08, 0.09, 0.10, 1.0]
+          diffuse: [0.16, 0.17, 0.18, 1.0]
+      - name: rear_right_leg
+        pose: [0.52, 0.28, 0.38, 0.0, 0.0, 0.0]
+        geometry: {type: box, size: [0.08, 0.08, 0.76]}
+        collision: true
+        visual_only: false
+        material:
+          ambient: [0.08, 0.09, 0.10, 1.0]
+          diffuse: [0.16, 0.17, 0.18, 1.0]
+      - name: clamp_left
+        pose: [-0.22, 0.0, 0.86, 0.0, 0.0, 0.0]
+        geometry: {type: box, size: [0.10, 0.52, 0.08]}
+        collision: true
+        visual_only: false
+        material:
+          ambient: [0.03, 0.08, 0.18, 1.0]
+          diffuse: [0.05, 0.14, 0.32, 1.0]
+      - name: clamp_right
+        pose: [0.22, 0.0, 0.86, 0.0, 0.0, 0.0]
+        geometry: {type: box, size: [0.10, 0.52, 0.08]}
+        collision: true
+        visual_only: false
+        material:
+          ambient: [0.03, 0.08, 0.18, 1.0]
+          diffuse: [0.05, 0.14, 0.32, 1.0]
+
+  - name: planning_columns
+    type: model
+    static: true
+    pose: [0.95, 0.82, 0.0, 0.0, 0.0, 0.0]
+    tags: [obstacle, planning]
+    links:
+      - name: near_column
+        pose: [0.0, 0.0, 0.36, 0.0, 0.0, 0.0]
+        geometry: {type: cylinder, radius: 0.12, length: 0.72}
+        collision: true
+        visual_only: false
+        material:
+          ambient: [0.16, 0.18, 0.22, 1.0]
+          diffuse: [0.26, 0.30, 0.36, 1.0]
+      - name: far_column
+        pose: [0.58, 0.42, 0.52, 0.0, 0.0, 0.0]
+        geometry: {type: cylinder, radius: 0.09, length: 1.04}
+        collision: true
+        visual_only: false
+        material:
+          ambient: [0.32, 0.18, 0.10, 1.0]
+          diffuse: [0.58, 0.32, 0.18, 1.0]
+
+  - name: pallet_and_parts
+    type: model
+    static: true
+    pose: [-1.20, 1.10, 0.0, 0.0, 0.0, 0.18]
+    tags: [pallet, parts, obstacle]
+    links:
+      - name: pallet_base
+        pose: [0.0, 0.0, 0.08, 0.0, 0.0, 0.0]
+        geometry: {type: box, size: [0.95, 0.70, 0.16]}
+        collision: true
+        visual_only: false
+        material:
+          ambient: [0.24, 0.16, 0.08, 1.0]
+          diffuse: [0.45, 0.30, 0.14, 1.0]
+      - name: crate_a
+        pose: [-0.18, -0.12, 0.34, 0.0, 0.0, 0.0]
+        geometry: {type: box, size: [0.36, 0.28, 0.36]}
+        collision: true
+        visual_only: false
+        material:
+          ambient: [0.11, 0.24, 0.30, 1.0]
+          diffuse: [0.18, 0.42, 0.52, 1.0]
+      - name: crate_b
+        pose: [0.22, 0.12, 0.31, 0.0, 0.0, 0.0]
+        geometry: {type: box, size: [0.30, 0.34, 0.30]}
+        collision: true
+        visual_only: false
+        material:
+          ambient: [0.28, 0.20, 0.08, 1.0]
+          diffuse: [0.54, 0.38, 0.14, 1.0]
+
+  - name: inspection_camera_rig
+    type: model
+    static: true
+    pose: [1.65, 1.45, 0.0, 0.0, 0.0, -0.45]
+    tags: [camera, perception, rig]
+    links:
+      - name: mast
+        pose: [0.0, 0.0, 1.05, 0.0, 0.0, 0.0]
+        geometry: {type: cylinder, radius: 0.035, length: 2.10}
+        collision: true
+        visual_only: false
+        material:
+          ambient: [0.08, 0.08, 0.08, 1.0]
+          diffuse: [0.16, 0.16, 0.16, 1.0]
+      - name: boom
+        pose: [-0.28, 0.0, 2.02, 0.0, 1.5708, 0.0]
+        geometry: {type: cylinder, radius: 0.025, length: 0.56}
+        collision: true
+        visual_only: false
+        material:
+          ambient: [0.08, 0.08, 0.08, 1.0]
+          diffuse: [0.16, 0.16, 0.16, 1.0]
+      - name: camera_head
+        pose: [-0.58, 0.0, 1.95, 0.0, 0.52, 2.72]
+        geometry: {type: box, size: [0.16, 0.10, 0.10]}
+        collision: true
+        visual_only: false
+        material:
+          ambient: [0.02, 0.03, 0.04, 1.0]
+          diffuse: [0.05, 0.06, 0.07, 1.0]
+        sensors:
+          - name: cell_overview_camera
+            type: camera
+            pose: [0.08, 0.0, 0.0, 0.0, 0.32, 0.0]
+            always_on: true
+            update_rate: 20.0
+            visualize: true
+            topic: /industrial_cell/cell_overview/image
+            camera:
+              horizontal_fov: 1.047
+              image:
+                width: 1280
+                height: 720
+                format: R8G8B8
+              clip:
+                near: 0.05
+                far: 12.0
+
+  - name: cable_tray
+    type: model
+    static: true
+    pose: [-0.35, -1.82, 0.12, 0.0, 0.0, 0.0]
+    geometry:
+      type: box
+      size: [2.8, 0.18, 0.12]
+    collision: true
+    visual_only: false
+    material:
+      ambient: [0.10, 0.10, 0.10, 1.0]
+      diffuse: [0.20, 0.20, 0.20, 1.0]
+      specular: [0.06, 0.06, 0.06, 1.0]
+    tags: [obstacle, utility, cable_tray]
+
+  - name: planning_goal_marker
+    type: model
+    static: true
+    collision: false
+    visual_only: true
+    pose: [1.42, 0.70, 0.88, 0.0, 0.0, 0.0]
+    geometry:
+      type: box
+      size: [0.30, 0.30, 0.02]
+    material:
+      ambient: [0.02, 0.46, 0.88, 0.38]
+      diffuse: [0.03, 0.58, 1.00, 0.38]
+      specular: [0.02, 0.08, 0.12, 0.38]
+    tags: [target_area, planning_goal, visual_marker]
+
+  - name: optional_fuel_visual_cone
+    type: include
+    uri: https://fuel.gazebosim.org/1.0/OpenRobotics/models/Construction Cone
+    optional: true
+    static: true
+    pose: [-1.85, -1.55, 0.0, 0.0, 0.0, 0.0]
+    tags: [fuel_visual, optional, noncritical]
+
+regions:
+  obstacle_test:
+    frame: world
+    bounds:
+      min: [0.55, 0.25, 0.50]
+      max: [1.75, 1.20, 1.45]
+    orientation_rpy: [0.0, 0.0, 0.0]
+  fixture_pick:
+    frame: world
+    bounds:
+      min: [0.88, -1.20, 0.86]
+      max: [1.52, -0.70, 0.86]
+    orientation_rpy: [0.0, 0.0, 0.0]
+  pallet_drop:
+    frame: world
+    bounds:
+      min: [-1.42, 0.88, 0.52]
+      max: [-0.82, 1.34, 0.92]
+    orientation_rpy: [0.0, 0.0, 0.18]
+  planning_start:
+    frame: world
+    bounds:
+      min: [0.45, -0.42, 0.65]
+      max: [0.85, 0.10, 1.25]
+    orientation_rpy: [0.0, 0.0, 0.0]
+  planning_goal:
+    frame: world
+    bounds:
+      min: [1.25, 0.52, 0.88]
+      max: [1.62, 0.88, 1.22]
+    orientation_rpy: [0.0, 0.0, 0.0]

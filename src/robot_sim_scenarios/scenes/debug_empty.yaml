@@ -1,0 +1,256 @@
+schema: 1
+name: debug_empty
+description: Empty open scene for robot loading, motion, IK, trajectory, and collision debugging.
+
+world:
+  name: debug_empty
+  sdf_version: "1.7"
+  gravity: [0.0, 0.0, -9.8]
+  magnetic_field: [0.0, 0.0, 0.0]
+  atmosphere:
+    type: adiabatic
+  physics:
+    name: physics
+    type: dart
+    max_step_size: 0.001
+    real_time_factor: 1.0
+  plugins:
+    - filename: gz-sim-physics-system
+      name: gz::sim::systems::Physics
+    - filename: gz-sim-sensors-system
+      name: gz::sim::systems::Sensors
+      render_engine: ogre2
+    - filename: gz-sim-imu-system
+      name: gz::sim::systems::Imu
+    - filename: gz-sim-user-commands-system
+      name: gz::sim::systems::UserCommands
+    - filename: gz-sim-scene-broadcaster-system
+      name: gz::sim::systems::SceneBroadcaster
+  scene:
+    ambient: [0.72, 0.72, 0.72]
+    background: [0.78, 0.80, 0.82]
+    grid: true
+  gui:
+    fullscreen: 0
+    camera:
+      plugin_filename: MinimalScene
+      plugin_name: 3D View
+      gz-gui:
+        title: 3D View
+        properties:
+          - type: bool
+            key: showTitleBar
+            value: false
+          - type: string
+            key: state
+            value: docked
+      engine: ogre2
+      scene: scene
+      ambient_light: [0.55, 0.55, 0.55]
+      background_color: [0.78, 0.80, 0.82]
+      pose: [-3.0, -2.2, 2.0, 0.0, 0.42, 0.62]
+      clip:
+        near: 0.05
+        far: 25000.0
+    plugins:
+      - filename: EntityContextMenuPlugin
+        name: Entity context menu
+        gz-gui:
+          properties:
+            - type: bool
+              key: showTitleBar
+              value: false
+            - type: bool
+              key: resizable
+              value: false
+            - type: double
+              key: width
+              value: 5
+            - type: double
+              key: height
+              value: 5
+            - type: string
+              key: state
+              value: floating
+      - filename: GzSceneManager
+        name: Scene Manager
+        gz-gui:
+          properties:
+            - type: bool
+              key: showTitleBar
+              value: false
+            - type: bool
+              key: resizable
+              value: false
+            - type: double
+              key: width
+              value: 5
+            - type: double
+              key: height
+              value: 5
+            - type: string
+              key: state
+              value: floating
+      - filename: InteractiveViewControl
+        name: Interactive view control
+        gz-gui:
+          properties:
+            - type: bool
+              key: showTitleBar
+              value: false
+            - type: bool
+              key: resizable
+              value: false
+            - type: double
+              key: width
+              value: 5
+            - type: double
+              key: height
+              value: 5
+            - type: string
+              key: state
+              value: floating
+      - filename: CameraTracking
+        name: Camera Tracking
+        gz-gui:
+          properties:
+            - type: bool
+              key: showTitleBar
+              value: false
+            - type: bool
+              key: resizable
+              value: false
+            - type: double
+              key: width
+              value: 5
+            - type: double
+              key: height
+              value: 5
+            - type: string
+              key: state
+              value: floating
+      - filename: MarkerManager
+        name: Marker manager
+        gz-gui:
+          properties:
+            - type: bool
+              key: showTitleBar
+              value: false
+            - type: bool
+              key: resizable
+              value: false
+            - type: double
+              key: width
+              value: 5
+            - type: double
+              key: height
+              value: 5
+            - type: string
+              key: state
+              value: floating
+      - filename: EntityTree
+        name: Entity tree
+        gz-gui:
+          properties:
+            - type: string
+              key: state
+              value: docked
+      - filename: ComponentInspector
+        name: Component inspector
+        gz-gui:
+          properties:
+            - type: string
+              key: state
+              value: docked
+      - filename: WorldControl
+        name: World control
+        gz-gui:
+          title: World control
+          properties:
+            - type: bool
+              key: showTitleBar
+              value: false
+            - type: double
+              key: height
+              value: 72
+            - type: double
+              key: width
+              value: 121
+            - type: string
+              key: state
+              value: floating
+        children:
+          play_pause: true
+          step: true
+          start_paused: false
+          use_event: true
+      - filename: WorldStats
+        name: World stats
+        gz-gui:
+          title: World stats
+          properties:
+            - type: bool
+              key: showTitleBar
+              value: false
+            - type: double
+              key: height
+              value: 110
+            - type: double
+              key: width
+              value: 290
+            - type: string
+              key: state
+              value: floating
+        children:
+          sim_time: true
+          real_time: true
+          real_time_factor: true
+          iterations: true
+
+ground:
+  name: ground_plane
+  type: model
+  static: true
+  collision: true
+  visual_only: false
+  pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  geometry:
+    type: plane
+    normal: [0.0, 0.0, 1.0]
+    size: [24.0, 24.0]
+  material:
+    ambient: [0.62, 0.64, 0.65, 1.0]
+    diffuse: [0.62, 0.64, 0.65, 1.0]
+  tags: [ground]
+
+lights:
+  - name: sun
+    type: directional
+    cast_shadows: true
+    pose: [0.0, 0.0, 8.0, 0.0, 0.0, 0.0]
+    diffuse: [0.85, 0.85, 0.82, 1.0]
+    specular: [0.20, 0.20, 0.20, 1.0]
+    attenuation:
+      range: 1000.0
+      constant: 0.9
+      linear: 0.01
+      quadratic: 0.001
+    direction: [-0.45, 0.20, -0.86]
+
+robot_mount_pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+workspace:
+  frame: world
+  bounds:
+    min: [-1.50, -1.50, 0.00]
+    max: [1.50, 1.50, 1.80]
+
+objects: []
+
+regions:
+  workspace_sample:
+    frame: world
+    bounds:
+      min: [-1.20, -1.20, 0.10]
+      max: [1.20, 1.20, 1.40]
+    orientation_rpy: [0.0, 0.0, 0.0]

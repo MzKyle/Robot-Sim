@@ -1,0 +1,638 @@
+schema: 1
+name: conveyor_sorting
+description: Conveyor sorting cell with moving packages, bins, diverters, camera rig, and robot pick window.
+
+world:
+  name: conveyor_sorting
+  sdf_version: "1.7"
+  gravity: [0.0, 0.0, -9.8]
+  magnetic_field: [0.0, 0.0, 0.0]
+  atmosphere:
+    type: adiabatic
+  physics:
+    name: physics
+    type: dart
+    max_step_size: 0.001
+    real_time_factor: 1.0
+  plugins:
+    - filename: gz-sim-physics-system
+      name: gz::sim::systems::Physics
+    - filename: gz-sim-sensors-system
+      name: gz::sim::systems::Sensors
+      render_engine: ogre2
+    - filename: gz-sim-imu-system
+      name: gz::sim::systems::Imu
+    - filename: gz-sim-user-commands-system
+      name: gz::sim::systems::UserCommands
+    - filename: gz-sim-scene-broadcaster-system
+      name: gz::sim::systems::SceneBroadcaster
+  scene:
+    ambient: [0.64, 0.65, 0.64]
+    background: [0.74, 0.76, 0.78]
+    grid: true
+  gui:
+    fullscreen: 0
+    camera:
+      plugin_filename: MinimalScene
+      plugin_name: 3D View
+      gz-gui:
+        title: 3D View
+        properties:
+          - type: bool
+            key: showTitleBar
+            value: false
+          - type: string
+            key: state
+            value: docked
+      engine: ogre2
+      scene: scene
+      ambient_light: [0.50, 0.50, 0.50]
+      background_color: [0.74, 0.76, 0.78]
+      pose: [-3.9, -3.0, 2.45, 0.0, 0.46, 0.62]
+      clip:
+        near: 0.05
+        far: 25000.0
+    plugins:
+      - filename: EntityContextMenuPlugin
+        name: Entity context menu
+        gz-gui:
+          properties:
+            - type: bool
+              key: showTitleBar
+              value: false
+            - type: bool
+              key: resizable
+              value: false
+            - type: double
+              key: width
+              value: 5
+            - type: double
+              key: height
+              value: 5
+            - type: string
+              key: state
+              value: floating
+      - filename: GzSceneManager
+        name: Scene Manager
+        gz-gui:
+          properties:
+            - type: bool
+              key: showTitleBar
+              value: false
+            - type: bool
+              key: resizable
+              value: false
+            - type: double
+              key: width
+              value: 5
+            - type: double
+              key: height
+              value: 5
+            - type: string
+              key: state
+              value: floating
+      - filename: InteractiveViewControl
+        name: Interactive view control
+        gz-gui:
+          properties:
+            - type: bool
+              key: showTitleBar
+              value: false
+            - type: bool
+              key: resizable
+              value: false
+            - type: double
+              key: width
+              value: 5
+            - type: double
+              key: height
+              value: 5
+            - type: string
+              key: state
+              value: floating
+      - filename: CameraTracking
+        name: Camera Tracking
+        gz-gui:
+          properties:
+            - type: bool
+              key: showTitleBar
+              value: false
+            - type: bool
+              key: resizable
+              value: false
+            - type: double
+              key: width
+              value: 5
+            - type: double
+              key: height
+              value: 5
+            - type: string
+              key: state
+              value: floating
+      - filename: MarkerManager
+        name: Marker manager
+        gz-gui:
+          properties:
+            - type: bool
+              key: showTitleBar
+              value: false
+            - type: bool
+              key: resizable
+              value: false
+            - type: double
+              key: width
+              value: 5
+            - type: double
+              key: height
+              value: 5
+            - type: string
+              key: state
+              value: floating
+      - filename: EntityTree
+        name: Entity tree
+        gz-gui:
+          properties:
+            - type: string
+              key: state
+              value: docked
+      - filename: ComponentInspector
+        name: Component inspector
+        gz-gui:
+          properties:
+            - type: string
+              key: state
+              value: docked
+      - filename: WorldControl
+        name: World control
+        gz-gui:
+          title: World control
+          properties:
+            - type: bool
+              key: showTitleBar
+              value: false
+            - type: double
+              key: height
+              value: 72
+            - type: double
+              key: width
+              value: 121
+            - type: string
+              key: state
+              value: floating
+        children:
+          play_pause: true
+          step: true
+          start_paused: false
+          use_event: true
+      - filename: WorldStats
+        name: World stats
+        gz-gui:
+          title: World stats
+          properties:
+            - type: bool
+              key: showTitleBar
+              value: false
+            - type: double
+              key: height
+              value: 110
+            - type: double
+              key: width
+              value: 290
+            - type: string
+              key: state
+              value: floating
+        children:
+          sim_time: true
+          real_time: true
+          real_time_factor: true
+          iterations: true
+
+ground:
+  name: ground_plane
+  type: model
+  static: true
+  collision: true
+  visual_only: false
+  pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  geometry:
+    type: plane
+    normal: [0.0, 0.0, 1.0]
+    size: [20.0, 14.0]
+  material:
+    ambient: [0.48, 0.50, 0.51, 1.0]
+    diffuse: [0.48, 0.50, 0.51, 1.0]
+    specular: [0.05, 0.05, 0.05, 1.0]
+  tags: [ground]
+
+lights:
+  - name: sun
+    type: directional
+    cast_shadows: true
+    pose: [0.0, 0.0, 8.0, 0.0, 0.0, 0.0]
+    diffuse: [0.84, 0.84, 0.80, 1.0]
+    specular: [0.20, 0.20, 0.18, 1.0]
+    attenuation:
+      range: 1000.0
+      constant: 0.9
+      linear: 0.01
+      quadratic: 0.001
+    direction: [-0.38, 0.20, -0.90]
+  - name: inspection_light
+    type: point
+    cast_shadows: false
+    pose: [0.80, -0.35, 2.80, 0.0, 0.0, 0.0]
+    diffuse: [0.42, 0.46, 0.50, 1.0]
+    specular: [0.12, 0.12, 0.12, 1.0]
+    attenuation:
+      range: 6.0
+      constant: 0.65
+      linear: 0.12
+      quadratic: 0.03
+    direction: [0.0, 0.0, -1.0]
+
+robot_mount_pose: [-0.25, -1.15, 0.18, 0.0, 0.0, 0.0]
+
+workspace:
+  frame: world
+  bounds:
+    min: [-0.35, -1.25, 0.45]
+    max: [1.80, 0.75, 1.65]
+
+startup_commands:
+  - command: gz
+    delay_sec: 1.25
+    args:
+      - topic
+      - -t
+      - /model/main_conveyor/link/base_link/track_cmd_vel
+      - -m
+      - gz.msgs.Double
+      - -p
+      - "data: 0.45"
+
+objects:
+  - name: robot_mount_pedestal
+    type: model
+    static: true
+    collision: true
+    visual_only: false
+    pose: [-0.25, -1.15, 0.09, 0.0, 0.0, 0.0]
+    geometry:
+      type: cylinder
+      radius: 0.32
+      length: 0.18
+    material:
+      ambient: [0.11, 0.12, 0.13, 1.0]
+      diffuse: [0.22, 0.23, 0.24, 1.0]
+      specular: [0.08, 0.08, 0.08, 1.0]
+    tags: [robot_mount, pedestal]
+
+  - name: main_conveyor
+    type: model
+    static: true
+    pose: [0.75, 0.0, 0.52, 0.0, 0.0, 0.0]
+    tags: [conveyor, dynamic_surface, sorting]
+    links:
+      - name: base_link
+        pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        collisions:
+          - name: belt_collision
+            pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            geometry: {type: box, size: [3.30, 0.44, 0.08]}
+            surface:
+              friction:
+                ode:
+                  mu: 0.70
+                  mu2: 150.0
+                  fdir1: [1.0, 0.0, 0.0]
+          - name: drive_roller_collision
+            pose: [1.65, 0.0, -0.01, 1.5708, 0.0, 0.0]
+            geometry: {type: cylinder, radius: 0.09, length: 0.46}
+            surface:
+              friction:
+                ode:
+                  mu: 0.70
+                  mu2: 150.0
+                  fdir1: [1.0, 0.0, 0.0]
+          - name: tail_roller_collision
+            pose: [-1.65, 0.0, -0.01, 1.5708, 0.0, 0.0]
+            geometry: {type: cylinder, radius: 0.09, length: 0.46}
+            surface:
+              friction:
+                ode:
+                  mu: 0.70
+                  mu2: 150.0
+                  fdir1: [1.0, 0.0, 0.0]
+        visuals:
+          - name: belt_visual
+            pose: [0.0, 0.0, 0.01, 0.0, 0.0, 0.0]
+            geometry: {type: box, size: [3.30, 0.44, 0.08]}
+            material:
+              ambient: [0.03, 0.03, 0.04, 1.0]
+              diffuse: [0.05, 0.05, 0.06, 1.0]
+              specular: [0.08, 0.08, 0.08, 1.0]
+          - name: drive_roller_visual
+            pose: [1.65, 0.0, -0.01, 1.5708, 0.0, 0.0]
+            geometry: {type: cylinder, radius: 0.09, length: 0.46}
+            material:
+              ambient: [0.18, 0.18, 0.18, 1.0]
+              diffuse: [0.36, 0.36, 0.36, 1.0]
+              specular: [0.25, 0.25, 0.25, 1.0]
+          - name: tail_roller_visual
+            pose: [-1.65, 0.0, -0.01, 1.5708, 0.0, 0.0]
+            geometry: {type: cylinder, radius: 0.09, length: 0.46}
+            material:
+              ambient: [0.18, 0.18, 0.18, 1.0]
+              diffuse: [0.36, 0.36, 0.36, 1.0]
+              specular: [0.25, 0.25, 0.25, 1.0]
+      - name: left_rail
+        pose: [0.0, 0.27, 0.16, 0.0, 0.0, 0.0]
+        geometry: {type: box, size: [3.45, 0.05, 0.18]}
+        collision: true
+        visual_only: false
+        material:
+          ambient: [0.08, 0.08, 0.09, 1.0]
+          diffuse: [0.18, 0.18, 0.19, 1.0]
+      - name: right_rail
+        pose: [0.0, -0.27, 0.16, 0.0, 0.0, 0.0]
+        geometry: {type: box, size: [3.45, 0.05, 0.18]}
+        collision: true
+        visual_only: false
+        material:
+          ambient: [0.08, 0.08, 0.09, 1.0]
+          diffuse: [0.18, 0.18, 0.19, 1.0]
+      - name: support_frame
+        pose: [0.0, 0.0, -0.34, 0.0, 0.0, 0.0]
+        geometry: {type: box, size: [3.55, 0.62, 0.10]}
+        collision: true
+        visual_only: false
+        material:
+          ambient: [0.13, 0.13, 0.14, 1.0]
+          diffuse: [0.25, 0.25, 0.26, 1.0]
+    plugins:
+      - filename: gz-sim-track-controller-system
+        name: gz::sim::systems::TrackController
+        children:
+          link: base_link
+          velocity_topic: /model/main_conveyor/link/base_link/track_cmd_vel
+          odometry_publish_frequency: 20.0
+          min_velocity: 0.0
+          max_velocity: 0.65
+
+  - name: sorting_bins
+    type: model
+    static: true
+    pose: [2.18, 0.0, 0.0, 0.0, 0.0, 0.0]
+    tags: [bins, sorting_targets]
+    links:
+      - name: left_bin
+        pose: [0.0, 0.62, 0.30, 0.0, 0.0, 0.0]
+        geometry: {type: box, size: [0.62, 0.50, 0.60]}
+        collision: true
+        visual_only: false
+        material:
+          ambient: [0.04, 0.24, 0.12, 0.78]
+          diffuse: [0.08, 0.46, 0.22, 0.78]
+          specular: [0.03, 0.08, 0.04, 0.78]
+      - name: center_bin
+        pose: [0.16, 0.0, 0.30, 0.0, 0.0, 0.0]
+        geometry: {type: box, size: [0.62, 0.50, 0.60]}
+        collision: true
+        visual_only: false
+        material:
+          ambient: [0.08, 0.16, 0.30, 0.78]
+          diffuse: [0.14, 0.28, 0.56, 0.78]
+          specular: [0.03, 0.06, 0.12, 0.78]
+      - name: right_bin
+        pose: [0.0, -0.62, 0.30, 0.0, 0.0, 0.0]
+        geometry: {type: box, size: [0.62, 0.50, 0.60]}
+        collision: true
+        visual_only: false
+        material:
+          ambient: [0.30, 0.14, 0.05, 0.78]
+          diffuse: [0.58, 0.26, 0.08, 0.78]
+          specular: [0.10, 0.04, 0.02, 0.78]
+
+  - name: diverter_paddles
+    type: model
+    static: true
+    pose: [1.52, 0.0, 0.72, 0.0, 0.0, 0.0]
+    tags: [diverter, obstacle, sorting]
+    links:
+      - name: left_paddle
+        pose: [0.0, 0.22, 0.08, 0.0, 0.0, -0.38]
+        geometry: {type: box, size: [0.58, 0.05, 0.18]}
+        collision: true
+        visual_only: false
+        material:
+          ambient: [0.90, 0.68, 0.06, 1.0]
+          diffuse: [0.98, 0.76, 0.08, 1.0]
+      - name: right_paddle
+        pose: [0.0, -0.22, 0.08, 0.0, 0.0, 0.38]
+        geometry: {type: box, size: [0.58, 0.05, 0.18]}
+        collision: true
+        visual_only: false
+        material:
+          ambient: [0.90, 0.68, 0.06, 1.0]
+          diffuse: [0.98, 0.76, 0.08, 1.0]
+
+  - name: conveyor_camera_rig
+    type: model
+    static: true
+    pose: [0.82, -0.72, 0.0, 0.0, 0.0, 1.5708]
+    tags: [camera, perception, barcode]
+    links:
+      - name: gantry_left
+        pose: [-0.38, 0.0, 1.15, 0.0, 0.0, 0.0]
+        geometry: {type: box, size: [0.06, 0.06, 2.30]}
+        collision: true
+        visual_only: false
+        material:
+          ambient: [0.08, 0.08, 0.08, 1.0]
+          diffuse: [0.16, 0.16, 0.16, 1.0]
+      - name: gantry_right
+        pose: [0.38, 0.0, 1.15, 0.0, 0.0, 0.0]
+        geometry: {type: box, size: [0.06, 0.06, 2.30]}
+        collision: true
+        visual_only: false
+        material:
+          ambient: [0.08, 0.08, 0.08, 1.0]
+          diffuse: [0.16, 0.16, 0.16, 1.0]
+      - name: crossbar
+        pose: [0.0, 0.0, 2.25, 0.0, 0.0, 0.0]
+        geometry: {type: box, size: [0.86, 0.06, 0.06]}
+        collision: true
+        visual_only: false
+        material:
+          ambient: [0.08, 0.08, 0.08, 1.0]
+          diffuse: [0.16, 0.16, 0.16, 1.0]
+      - name: camera_head
+        pose: [0.0, 0.04, 2.05, 0.0, 0.95, -1.5708]
+        geometry: {type: box, size: [0.15, 0.10, 0.08]}
+        collision: true
+        visual_only: false
+        material:
+          ambient: [0.03, 0.04, 0.05, 1.0]
+          diffuse: [0.06, 0.07, 0.08, 1.0]
+        sensors:
+          - name: sorting_overhead_camera
+            type: camera
+            pose: [0.06, 0.0, 0.0, 0.0, 0.24, 0.0]
+            always_on: true
+            update_rate: 30.0
+            visualize: true
+            topic: /conveyor_sorting/overhead/image
+            camera:
+              horizontal_fov: 1.10
+              image:
+                width: 1280
+                height: 720
+                format: R8G8B8
+              clip:
+                near: 0.04
+                far: 10.0
+
+  - name: moving_parcel_red
+    type: model
+    static: false
+    pose: [-0.95, -0.12, 0.65, 0.0, 0.0, 0.0]
+    tags: [dynamic_object, parcel, pick_object, trajectory]
+    links:
+      - name: parcel_link
+        pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        inertial:
+          mass: 0.18
+          inertia:
+            ixx: 0.00042
+            ixy: 0.0
+            ixz: 0.0
+            iyy: 0.00050
+            iyz: 0.0
+            izz: 0.00058
+        geometry: {type: box, size: [0.18, 0.14, 0.12]}
+        collision: true
+        visual_only: false
+        material:
+          ambient: [0.62, 0.04, 0.04, 1.0]
+          diffuse: [0.92, 0.08, 0.08, 1.0]
+          specular: [0.18, 0.04, 0.04, 1.0]
+    plugins:
+      - filename: gz-sim-trajectory-follower-system
+        name: gz::sim::systems::TrajectoryFollower
+        children:
+          - tag: link_name
+            text: parcel_link
+          - tag: loop
+            text: true
+          - tag: range_tolerance
+            text: 0.08
+          - tag: force
+            text: 4.0
+          - tag: torque
+            text: 2.0
+          - tag: waypoints
+            children:
+              - tag: waypoint
+                text: [-0.95, -0.12]
+              - tag: waypoint
+                text: [2.20, -0.12]
+
+  - name: moving_parcel_blue
+    type: model
+    static: false
+    pose: [-1.35, 0.13, 0.66, 0.0, 0.0, 0.0]
+    tags: [dynamic_object, parcel, pick_object, trajectory]
+    links:
+      - name: parcel_link
+        pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        inertial:
+          mass: 0.16
+          inertia:
+            ixx: 0.00030
+            ixy: 0.0
+            ixz: 0.0
+            iyy: 0.00036
+            iyz: 0.0
+            izz: 0.00040
+        geometry: {type: box, size: [0.14, 0.16, 0.13]}
+        collision: true
+        visual_only: false
+        material:
+          ambient: [0.04, 0.16, 0.58, 1.0]
+          diffuse: [0.08, 0.28, 0.92, 1.0]
+          specular: [0.04, 0.08, 0.18, 1.0]
+    plugins:
+      - filename: gz-sim-trajectory-follower-system
+        name: gz::sim::systems::TrajectoryFollower
+        children:
+          - tag: link_name
+            text: parcel_link
+          - tag: loop
+            text: true
+          - tag: range_tolerance
+            text: 0.08
+          - tag: force
+            text: 4.0
+          - tag: torque
+            text: 2.0
+          - tag: waypoints
+            children:
+              - tag: waypoint
+                text: [-1.35, 0.13]
+              - tag: waypoint
+                text: [2.10, 0.13]
+
+  - name: pick_window_marker
+    type: model
+    static: true
+    collision: false
+    visual_only: true
+    pose: [0.75, -0.01, 0.70, 0.0, 0.0, 0.0]
+    geometry:
+      type: box
+      size: [0.58, 0.58, 0.015]
+    material:
+      ambient: [0.02, 0.46, 0.86, 0.34]
+      diffuse: [0.03, 0.58, 1.0, 0.34]
+      specular: [0.02, 0.08, 0.12, 0.34]
+    tags: [pick_window, visual_marker]
+
+  - name: optional_fuel_visual_forklift
+    type: include
+    uri: https://fuel.gazebosim.org/1.0/OpenRobotics/models/Forklift
+    optional: true
+    static: true
+    pose: [-2.20, 1.55, 0.0, 0.0, 0.0, -1.20]
+    tags: [fuel_visual, optional, noncritical]
+
+regions:
+  conveyor_spawn:
+    frame: world
+    bounds:
+      min: [-1.45, -0.16, 0.68]
+      max: [-1.05, 0.16, 0.68]
+    orientation_rpy: [0.0, 0.0, 0.0]
+  pick_window:
+    frame: world
+    bounds:
+      min: [0.48, -0.22, 0.72]
+      max: [1.02, 0.22, 0.92]
+    orientation_rpy: [0.0, 0.0, 0.0]
+  left_sort_bin:
+    frame: world
+    bounds:
+      min: [1.92, 0.42, 0.72]
+      max: [2.42, 0.82, 1.00]
+    orientation_rpy: [0.0, 0.0, 0.0]
+  center_sort_bin:
+    frame: world
+    bounds:
+      min: [2.02, -0.18, 0.72]
+      max: [2.52, 0.18, 1.00]
+    orientation_rpy: [0.0, 0.0, 0.0]
+  right_sort_bin:
+    frame: world
+    bounds:
+      min: [1.92, -0.82, 0.72]
+      max: [2.42, -0.42, 1.00]
+    orientation_rpy: [0.0, 0.0, 0.0]
