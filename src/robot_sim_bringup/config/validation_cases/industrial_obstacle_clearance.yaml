@@ -1,0 +1,35 @@
+schema: 1
+name: industrial_obstacle_clearance
+description: Fanuc industrial cell planning move with explicit TCP clearance gate near obstacle region.
+
+profile: fanuc_m20id12l_industrial_cell
+mode: full
+scene:
+  package: robot_sim_scenarios
+  path: scenes/industrial_cell.yaml
+seed: 17
+sensor_overrides: ""
+
+moveit:
+  group: manipulator
+  target_link: tool0
+  frame: world
+  planning_time_sec: 10.0
+  velocity_scaling: 0.18
+  acceleration_scaling: 0.18
+
+start_region: planning_start
+goal_region: planning_goal
+
+planning_scene:
+  apply: true
+  exclude_tags: [ground, robot_mount, pedestal, visual_marker, optional]
+
+pass_criteria:
+  position_tolerance_m: 0.15
+  orientation_tolerance_rad: 3.14159
+  max_goal_position_error_m: 0.30
+  min_tcp_clearance_m: 0.05
+  max_controller_error_rad: 0.50
+  required_sensor_min_hz: 1.0
+  require_tf_ok: true

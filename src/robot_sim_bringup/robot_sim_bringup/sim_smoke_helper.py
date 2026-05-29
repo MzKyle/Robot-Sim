@@ -1,5 +1,7 @@
 import argparse
 import json
+import math
+import random
 import shlex
 import subprocess
 import sys
@@ -10,6 +12,12 @@ from xml.etree import ElementTree as ET
 import yaml
 
 from robot_sim_bringup.sim_config_loader import load_sim_mode, load_sim_profile
+from robot_sim_bringup.validation_cases import (
+    collision_primitives_from_scene,
+    load_validation_case,
+    min_clearance_to_primitives,
+    quaternion_from_rpy,
+)
 
 
 SUCCESS = 0
@@ -793,6 +801,542 @@ def command_moveit(args):
         rclpy.shutdown()
 
 
+def command_validation_case_env(args):
+    case = load_validation_case(args.validation_case)
+    values = {
+        "VALIDATION_CASE_NAME": case["name"],
+        "VALIDATION_CASE_PROFILE": case["profile"],
+        "VALIDATION_CASE_MODE": case["mode"],
+        "VALIDATION_CASE_SENSOR_OVERRIDES": case["sensor_overrides"],
+    }
+    for name, value in values.items():
+        print(f"{name}={shlex.quote(str(value))}")
+    return SUCCESS
+
+
+def command_validation_case_json(args):
+    case = load_validation_case(args.validation_case)
+    print(json.dumps(_case_summary(case), indent=2, sort_keys=True))
+    return SUCCESS
+
+
+def command_validate_case(args):
+    metrics = {
+        "case_name": str(args.validation_case),
+        "passed": False,
+    }
+    try:
+        metrics = _run_validation_case(args)
+    except Exception as exc:
+        metrics["error"] = str(exc)
+        _write_metrics(args.metrics_output, metrics)
+        raise
+
+    _write_metrics(args.metrics_output, metrics)
+    if not metrics.get("passed", False):
+        raise RuntimeError(
+            "Validation case failed: "
+            + "; ".join(str(item) for item in metrics.get("failures", []))
+        )
+    print(f"validation case OK: {metrics['case_name']}")
+    print(f"metrics: {args.metrics_output}")
+    return SUCCESS
+
+
+def _case_summary(case):
+    return {
+        "name": case["name"],
+        "path": case["path"],
+        "profile": case["profile"],
+        "mode": case["mode"],
+        "scene": case["scene"].name,
+        "scene_path": str(case["scene"].path),
+        "seed": case["seed"],
+        "sensor_overrides": case["sensor_overrides"],
+        "moveit": case["moveit"],
+        "start_region": case["start_region"],
+        "goal_region": case["goal_region"],
+        "planning_scene": case["planning_scene"],
+        "pass_criteria": case["pass_criteria"],
+    }
+
+
+def _run_validation_case(args):
+    import rclpy
+    from control_msgs.msg import JointTrajectoryControllerState
+    from moveit_msgs.action import MoveGroup
+    from moveit_msgs.msg import MoveItErrorCodes
+    from rclpy.action import ActionClient
+    from tf2_ros import Buffer, TransformListener
+
+    case = load_validation_case(args.validation_case)
+    if args.profile != case["profile"] and not args.profile_file:
+        raise RuntimeError(
+            f"validation case '{case['name']}' expects profile '{case['profile']}', "
+            f"got '{args.profile}'"
+        )
+    if args.mode != case["mode"]:
+        raise RuntimeError(
+            f"validation case '{case['name']}' expects mode '{case['mode']}', "
+            f"got '{args.mode}'"
+        )
+
+    context = _load_context(args, require_moveit=True)
+    criteria = case["pass_criteria"]
+    rng = random.Random(case["seed"])
+    start_pose = case["scene"].sample_region(case["start_region"], rng=rng)
+    goal_pose = case["scene"].sample_region(case["goal_region"], rng=rng)
+    collision_primitives = collision_primitives_from_scene(
+        case["scene"],
+        case["planning_scene"],
+    )
+
+    rclpy.init(args=None)
+    node = rclpy.create_node("sim_validation_case_runner")
+    tf_buffer = Buffer()
+    tf_listener = TransformListener(tf_buffer, node)
+    action_client = ActionClient(node, MoveGroup, context["move_action"])
+    controller_state = {"max_error": None}
+    tcp_points = []
+
+    def controller_state_callback(msg):
+        errors = list(getattr(msg.error, "positions", []))
+        if not errors:
+            return
+        value = max(abs(float(error)) for error in errors)
+        current = controller_state["max_error"]
+        controller_state["max_error"] = value if current is None else max(current, value)
+
+    controller_state_topic = _absolute_name(
+        context["robot_namespace"],
+        f"{context['primary_controller']}/controller_state",
+    )
+    controller_sub = node.create_subscription(
+        JointTrajectoryControllerState,
+        controller_state_topic,
+        controller_state_callback,
+        10,
+    )
+
+    try:
+        if not action_client.wait_for_server(timeout_sec=args.timeout):
+            raise RuntimeError(f"MoveIt action server not available: {context['move_action']}")
+
+        applied_ids = []
+        if case["planning_scene"]["apply"]:
+            applied_ids = _apply_scene_collision_objects(
+                node,
+                case,
+                collision_primitives,
+                args.timeout,
+            )
+
+        start_result = _execute_pose_goal(
+            node,
+            action_client,
+            context,
+            case,
+            start_pose,
+            args.timeout,
+            tf_buffer,
+            tcp_points,
+            "start",
+        )
+        goal_result = _execute_pose_goal(
+            node,
+            action_client,
+            context,
+            case,
+            goal_pose,
+            args.timeout,
+            tf_buffer,
+            tcp_points,
+            "goal",
+        )
+
+        sensor_hz = _validation_sensor_hz(node, context, criteria)
+        final_point = _lookup_tf_point(
+            tf_buffer,
+            case["moveit"]["frame"],
+            case["moveit"]["target_link"],
+        )
+        tf_ok = final_point is not None
+        if final_point is not None:
+            tcp_points.append(final_point)
+
+        clearances = [
+            min_clearance_to_primitives(point, collision_primitives)
+            for point in tcp_points
+        ]
+        clearances = [value for value in clearances if value is not None]
+        min_clearance = min(clearances) if clearances else None
+        goal_error = (
+            _distance(final_point, goal_pose[:3])
+            if final_point is not None
+            else None
+        )
+
+        metrics = {
+            "case_name": case["name"],
+            "profile": context["profile"]["name"],
+            "scene": case["scene"].name,
+            "seed": case["seed"],
+            "planning_scene": {
+                "applied_collision_objects": len(applied_ids),
+                "collision_object_ids": applied_ids,
+            },
+            "start": start_result,
+            "goal": goal_result,
+            "moveit_error_code": goal_result.get("moveit_error_code"),
+            "planning_time_sec": (
+                float(start_result.get("planning_time_sec") or 0.0)
+                + float(goal_result.get("planning_time_sec") or 0.0)
+            ),
+            "execution_time_sec": (
+                float(start_result.get("execution_time_sec") or 0.0)
+                + float(goal_result.get("execution_time_sec") or 0.0)
+            ),
+            "goal_position_error_m": goal_error,
+            "min_tcp_clearance_m": min_clearance,
+            "max_controller_error_rad": controller_state["max_error"],
+            "sensor_hz": sensor_hz,
+            "tf_ok": tf_ok,
+            "passed": False,
+            "failures": [],
+        }
+        metrics["passed"] = _validation_passed(metrics, criteria, MoveItErrorCodes.SUCCESS)
+        return metrics
+    finally:
+        node.destroy_subscription(controller_sub)
+        action_client.destroy()
+        node.destroy_node()
+        rclpy.shutdown()
+        del tf_listener
+
+
+def _apply_scene_collision_objects(node, case, collision_primitives, timeout):
+    import rclpy
+    from moveit_msgs.msg import PlanningScene
+    from moveit_msgs.srv import ApplyPlanningScene
+
+    service_name = _absolute_name(
+        str(case["moveit"].get("namespace", "")),
+        "apply_planning_scene",
+    )
+    client = node.create_client(ApplyPlanningScene, service_name)
+    if not client.wait_for_service(timeout_sec=timeout):
+        raise RuntimeError(f"ApplyPlanningScene service not available: {service_name}")
+
+    planning_scene = PlanningScene()
+    planning_scene.is_diff = True
+    planning_scene.world.collision_objects = [
+        _collision_object_message(case["moveit"]["frame"], primitive)
+        for primitive in collision_primitives
+    ]
+    request = ApplyPlanningScene.Request()
+    request.scene = planning_scene
+    future = client.call_async(request)
+    rclpy.spin_until_future_complete(node, future, timeout_sec=timeout)
+    if not future.done() or future.result() is None:
+        raise RuntimeError("Timed out applying validation planning scene")
+    if not future.result().success:
+        raise RuntimeError("MoveIt rejected validation planning scene")
+    return [primitive["id"] for primitive in collision_primitives]
+
+
+def _collision_object_message(frame_id, primitive_info):
+    from moveit_msgs.msg import CollisionObject
+
+    obj = CollisionObject()
+    obj.header.frame_id = frame_id
+    obj.id = primitive_info["id"]
+    obj.primitives.append(_solid_primitive_message(primitive_info["geometry"]))
+    obj.primitive_poses.append(_pose_message(primitive_info["pose"]))
+    obj.operation = CollisionObject.ADD
+    return obj
+
+
+def _solid_primitive_message(geometry):
+    from shape_msgs.msg import SolidPrimitive
+
+    primitive = SolidPrimitive()
+    if geometry["type"] == "box":
+        primitive.type = SolidPrimitive.BOX
+        primitive.dimensions = [float(value) for value in geometry["size"]]
+        return primitive
+    if geometry["type"] == "cylinder":
+        primitive.type = SolidPrimitive.CYLINDER
+        primitive.dimensions = [float(geometry["length"]), float(geometry["radius"])]
+        return primitive
+    raise RuntimeError(f"Unsupported MoveIt collision primitive: {geometry['type']}")
+
+
+def _execute_pose_goal(
+    node,
+    action_client,
+    context,
+    case,
+    target_pose,
+    timeout,
+    tf_buffer,
+    tcp_points,
+    phase,
+):
+    import rclpy
+    from action_msgs.msg import GoalStatus
+    from moveit_msgs.action import MoveGroup
+    from moveit_msgs.msg import MoveItErrorCodes
+
+    joint_state, _ = _wait_for_joint_state(
+        node,
+        _joint_state_topics(context["robot_namespace"]),
+        context["primary_joints"],
+        timeout,
+    )
+    goal = MoveGroup.Goal()
+    goal.request.group_name = case["moveit"]["group"]
+    goal.request.num_planning_attempts = 5
+    goal.request.allowed_planning_time = case["moveit"]["planning_time_sec"]
+    goal.request.max_velocity_scaling_factor = case["moveit"]["velocity_scaling"]
+    goal.request.max_acceleration_scaling_factor = case["moveit"]["acceleration_scaling"]
+    goal.request.start_state.joint_state = joint_state
+    goal.request.start_state.is_diff = True
+    goal.request.goal_constraints.append(_pose_constraints(case, target_pose, phase))
+    workspace = context["profile"]["worlds"][context["layout"]["world"]].get("scene", {}).get("workspace")
+    if workspace:
+        goal.request.workspace_parameters.header.frame_id = workspace["frame"]
+        goal.request.workspace_parameters.min_corner.x = float(workspace["bounds"]["min"][0])
+        goal.request.workspace_parameters.min_corner.y = float(workspace["bounds"]["min"][1])
+        goal.request.workspace_parameters.min_corner.z = float(workspace["bounds"]["min"][2])
+        goal.request.workspace_parameters.max_corner.x = float(workspace["bounds"]["max"][0])
+        goal.request.workspace_parameters.max_corner.y = float(workspace["bounds"]["max"][1])
+        goal.request.workspace_parameters.max_corner.z = float(workspace["bounds"]["max"][2])
+    goal.planning_options.plan_only = False
+    goal.planning_options.look_around = False
+    goal.planning_options.replan = False
+
+    def sample_tf():
+        point = _lookup_tf_point(
+            tf_buffer,
+            case["moveit"]["frame"],
+            case["moveit"]["target_link"],
+        )
+        if point is not None:
+            tcp_points.append(point)
+
+    started = time.monotonic()
+    send_future = action_client.send_goal_async(goal)
+    _spin_until_future(node, send_future, timeout, sample_tf)
+    goal_handle = send_future.result()
+    if goal_handle is None or not goal_handle.accepted:
+        return {
+            "success": False,
+            "target_pose": list(target_pose),
+            "moveit_error_code": None,
+            "planning_time_sec": 0.0,
+            "execution_time_sec": time.monotonic() - started,
+            "status": "rejected",
+        }
+
+    result_future = goal_handle.get_result_async()
+    _spin_until_future(node, result_future, timeout, sample_tf)
+    result = result_future.result()
+    elapsed = time.monotonic() - started
+    if result is None:
+        return {
+            "success": False,
+            "target_pose": list(target_pose),
+            "moveit_error_code": None,
+            "planning_time_sec": 0.0,
+            "execution_time_sec": elapsed,
+            "status": "timeout",
+        }
+    error_code = result.result.error_code.val
+    return {
+        "success": (
+            result.status == GoalStatus.STATUS_SUCCEEDED
+            and error_code == MoveItErrorCodes.SUCCESS
+        ),
+        "target_pose": list(target_pose),
+        "moveit_error_code": int(error_code),
+        "planning_time_sec": float(result.result.planning_time),
+        "execution_time_sec": float(elapsed),
+        "status": int(result.status),
+    }
+
+
+def _pose_constraints(case, target_pose, phase):
+    from moveit_msgs.msg import Constraints, OrientationConstraint, PositionConstraint
+    from shape_msgs.msg import SolidPrimitive
+
+    criteria = case["pass_criteria"]
+    frame_id = case["moveit"]["frame"]
+    target_link = case["moveit"]["target_link"]
+    tolerance = criteria["position_tolerance_m"]
+
+    constraints = Constraints()
+    constraints.name = f"{case['name']}_{phase}"
+
+    box = SolidPrimitive()
+    box.type = SolidPrimitive.BOX
+    box.dimensions = [tolerance * 2.0, tolerance * 2.0, tolerance * 2.0]
+
+    position = PositionConstraint()
+    position.header.frame_id = frame_id
+    position.link_name = target_link
+    position.constraint_region.primitives.append(box)
+    position.constraint_region.primitive_poses.append(_pose_message((
+        target_pose[0],
+        target_pose[1],
+        target_pose[2],
+        0.0,
+        0.0,
+        0.0,
+    )))
+    position.weight = 1.0
+    constraints.position_constraints.append(position)
+
+    orientation = OrientationConstraint()
+    orientation.header.frame_id = frame_id
+    orientation.link_name = target_link
+    orientation.orientation = _orientation_message(target_pose[3:])
+    orientation.absolute_x_axis_tolerance = criteria["orientation_tolerance_rad"]
+    orientation.absolute_y_axis_tolerance = criteria["orientation_tolerance_rad"]
+    orientation.absolute_z_axis_tolerance = criteria["orientation_tolerance_rad"]
+    orientation.weight = 0.5
+    constraints.orientation_constraints.append(orientation)
+    return constraints
+
+
+def _validation_sensor_hz(node, context, criteria):
+    result = {}
+    for topic in _sensor_topics(context["profile"], context["sensors"], context["namespaces"]):
+        hz, samples = _measure_topic_hz(
+            node,
+            topic["name"],
+            topic["type"],
+            float(context["profile"]["smoke"]["sensors"].get("topic_timeout", 6.0)),
+            int(context["profile"]["smoke"]["sensors"].get("min_samples", 3)),
+        )
+        result[topic["name"]] = {
+            "hz": hz,
+            "samples": samples,
+            "type": topic["type"],
+            "ok": hz >= criteria["required_sensor_min_hz"],
+        }
+    return result
+
+
+def _validation_passed(metrics, criteria, success_code):
+    failures = metrics["failures"]
+    if not metrics["start"].get("success"):
+        failures.append("start move failed")
+    if not metrics["goal"].get("success"):
+        failures.append("goal move failed")
+    if metrics.get("moveit_error_code") != success_code:
+        failures.append(f"MoveIt error code {metrics.get('moveit_error_code')}")
+    if criteria["require_tf_ok"] and not metrics.get("tf_ok"):
+        failures.append("TF lookup failed")
+
+    goal_error = metrics.get("goal_position_error_m")
+    if goal_error is None:
+        failures.append("goal position error unavailable")
+    elif goal_error > criteria["max_goal_position_error_m"]:
+        failures.append(
+            f"goal error {goal_error:.3f} > {criteria['max_goal_position_error_m']:.3f}"
+        )
+
+    clearance = metrics.get("min_tcp_clearance_m")
+    if clearance is not None and clearance < criteria["min_tcp_clearance_m"]:
+        failures.append(
+            f"TCP clearance {clearance:.3f} < {criteria['min_tcp_clearance_m']:.3f}"
+        )
+
+    controller_error = metrics.get("max_controller_error_rad")
+    if (
+        controller_error is not None
+        and controller_error > criteria["max_controller_error_rad"]
+    ):
+        failures.append(
+            f"controller error {controller_error:.3f} > "
+            f"{criteria['max_controller_error_rad']:.3f}"
+        )
+
+    bad_topics = [
+        name
+        for name, hz_metrics in metrics.get("sensor_hz", {}).items()
+        if not hz_metrics.get("ok", False)
+    ]
+    if bad_topics:
+        failures.append("sensor hz below threshold: " + ", ".join(sorted(bad_topics)))
+
+    return not failures
+
+
+def _spin_until_future(node, future, timeout, sample_fn):
+    import rclpy
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        rclpy.spin_once(node, timeout_sec=0.1)
+        sample_fn()
+        if future.done():
+            return future.result()
+    raise RuntimeError("Timed out waiting for asynchronous validation operation")
+
+
+def _lookup_tf_point(tf_buffer, frame_id, target_link):
+    import rclpy
+
+    try:
+        transform = tf_buffer.lookup_transform(
+            frame_id,
+            target_link,
+            rclpy.time.Time(),
+        )
+    except Exception:
+        return None
+    translation = transform.transform.translation
+    return (float(translation.x), float(translation.y), float(translation.z))
+
+
+def _pose_message(pose):
+    from geometry_msgs.msg import Pose
+
+    msg = Pose()
+    msg.position.x = float(pose[0])
+    msg.position.y = float(pose[1])
+    msg.position.z = float(pose[2])
+    msg.orientation = _orientation_message(pose[3:])
+    return msg
+
+
+def _orientation_message(rpy):
+    from geometry_msgs.msg import Quaternion
+
+    q = quaternion_from_rpy(*rpy)
+    msg = Quaternion()
+    msg.x = q[0]
+    msg.y = q[1]
+    msg.z = q[2]
+    msg.w = q[3]
+    return msg
+
+
+def _distance(first, second):
+    return math.sqrt(
+        sum((float(first[index]) - float(second[index])) ** 2 for index in range(3))
+    )
+
+
+def _write_metrics(path, metrics):
+    if not path:
+        return
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(metrics, handle, indent=2, sort_keys=True)
+        handle.write("\n")
+
+
 def _add_common_args(parser):
     parser.add_argument("--profile", default="panda")
     parser.add_argument("--profile-file", default="")
@@ -853,6 +1397,21 @@ def build_parser():
     moveit.add_argument("--timeout", type=float, default=90.0)
     moveit.add_argument("--tolerance", type=float, default=0.02)
     moveit.set_defaults(func=command_moveit)
+
+    validation_case_env = subparsers.add_parser("validation-case-env")
+    validation_case_env.add_argument("--validation-case", required=True)
+    validation_case_env.set_defaults(func=command_validation_case_env)
+
+    validation_case_json = subparsers.add_parser("validation-case-json")
+    validation_case_json.add_argument("--validation-case", required=True)
+    validation_case_json.set_defaults(func=command_validation_case_json)
+
+    validate_case = subparsers.add_parser("validate-case")
+    _add_common_args(validate_case)
+    validate_case.add_argument("--validation-case", required=True)
+    validate_case.add_argument("--metrics-output", required=True)
+    validate_case.add_argument("--timeout", type=float, default=120.0)
+    validate_case.set_defaults(func=command_validate_case)
 
     return parser
 

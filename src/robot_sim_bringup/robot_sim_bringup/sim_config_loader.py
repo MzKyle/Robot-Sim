@@ -7,6 +7,7 @@ from xml.etree import ElementTree as ET
 
 import yaml
 from ament_index_python.packages import get_package_share_directory
+from robot_sim_scenarios import build_world, load_scene
 
 
 CONFIG_SCHEMA_VERSION = 1
@@ -148,7 +149,9 @@ def _resolve_worlds(raw, profile_path):
     resolved = {}
     for name, spec in worlds.items():
         field_name = f"worlds.{name}"
-        if isinstance(spec, dict) and "scenario" in spec:
+        if isinstance(spec, dict) and "scene" in spec:
+            resolved[name] = _resolve_world_scene(spec["scene"], field_name)
+        elif isinstance(spec, dict) and "scenario" in spec:
             resolved[name] = _resolve_world_scenario(spec["scenario"], field_name)
         else:
             resolved[name] = {
@@ -157,6 +160,51 @@ def _resolve_worlds(raw, profile_path):
                 "path": _resolve_path(spec, field_name),
             }
     return resolved
+
+
+def _resolve_world_scene(spec, field_name):
+    scene_ref = _resolve_scene_ref(spec, f"{field_name}.scene")
+    scene = load_scene(scene_ref)
+    world_path = build_world(scene)
+    return {
+        "name": scene.name,
+        "source": "scene",
+        "path": str(world_path),
+        "scene": {
+            "name": scene.name,
+            "path": str(scene.path),
+            "description": scene.description,
+            "workspace": {
+                "frame": scene.workspace.frame,
+                "bounds": {
+                    "min": list(scene.workspace.min_bounds),
+                    "max": list(scene.workspace.max_bounds),
+                },
+            },
+            "regions": {
+                name: {
+                    "frame": region.frame,
+                    "bounds": {
+                        "min": list(region.min_bounds),
+                        "max": list(region.max_bounds),
+                    },
+                    "orientation_rpy": list(region.orientation_rpy),
+                }
+                for name, region in scene.regions.items()
+            },
+        },
+    }
+
+
+def _resolve_scene_ref(spec, field_name):
+    if isinstance(spec, dict):
+        return _resolve_path(spec, field_name)
+    if isinstance(spec, str):
+        candidate = os.path.expanduser(os.path.expandvars(spec))
+        if os.path.isabs(candidate) or candidate.startswith("package://"):
+            return _resolve_path(spec, field_name)
+        return spec
+    raise RuntimeError(f"{field_name} must be a string or mapping")
 
 
 def _resolve_world_scenario(spec, field_name):

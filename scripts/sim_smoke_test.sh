@@ -6,11 +6,16 @@ PROFILE="panda"
 PROFILE_FILE=""
 MODE="full"
 SENSOR_OVERRIDES=""
+PROFILE_SET=false
+MODE_SET=false
+SENSOR_OVERRIDES_SET=false
 WITH_MOVEIT=false
 WITH_ROSBAG=false
 KEEP_SIM=false
 KEEP_LOGS=false
 TIMEOUT=120
+VALIDATION_CASE=""
+METRICS_OUTPUT=""
 
 usage() {
   cat <<'EOF'
@@ -22,6 +27,8 @@ Options:
   --profile-file PATH         external sim_profile YAML
   --mode full|light|mock      simulation mode (default: full)
   --sensor-overrides TEXT     e.g. camera=true,depth=false
+  --validation-case NAME      run a validation case after the base smoke checks
+  --metrics-output PATH       metrics JSON path for --validation-case
   --with-moveit               run optional MoveIt plan/execute check
   --with-rosbag               run optional short rosbag record check
   --keep-sim                  leave launched simulation running
@@ -35,6 +42,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --profile)
       PROFILE="${2:?--profile requires a value}"
+      PROFILE_SET=true
       shift 2
       ;;
     --profile-file)
@@ -43,10 +51,20 @@ while [[ $# -gt 0 ]]; do
       ;;
     --mode)
       MODE="${2:?--mode requires a value}"
+      MODE_SET=true
       shift 2
       ;;
     --sensor-overrides)
       SENSOR_OVERRIDES="${2:?--sensor-overrides requires a value}"
+      SENSOR_OVERRIDES_SET=true
+      shift 2
+      ;;
+    --validation-case)
+      VALIDATION_CASE="${2:?--validation-case requires a value}"
+      shift 2
+      ;;
+    --metrics-output)
+      METRICS_OUTPUT="${2:?--metrics-output requires a value}"
       shift 2
       ;;
     --with-moveit)
@@ -81,14 +99,6 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-case "$MODE" in
-  full|light|mock) ;;
-  *)
-    echo "--mode must be full, light, or mock; got '$MODE'" >&2
-    exit 2
-    ;;
-esac
-
 source_setup() {
   local setup_file="$1"
   set +u
@@ -110,6 +120,29 @@ export GZ_VERSION="${GZ_VERSION:-harmonic}"
 
 HELPER=(python3 -m robot_sim_bringup.sim_smoke_helper)
 LINTER=(python3 -m robot_sim_bringup.profile_lint)
+
+if [[ -n "$VALIDATION_CASE" ]]; then
+  eval "$("${HELPER[@]}" validation-case-env --validation-case "$VALIDATION_CASE")"
+  if [[ "$PROFILE_SET" != true ]]; then
+    PROFILE="$VALIDATION_CASE_PROFILE"
+  fi
+  if [[ "$MODE_SET" != true ]]; then
+    MODE="$VALIDATION_CASE_MODE"
+  fi
+  if [[ "$SENSOR_OVERRIDES_SET" != true ]]; then
+    SENSOR_OVERRIDES="$VALIDATION_CASE_SENSOR_OVERRIDES"
+  fi
+  WITH_MOVEIT=true
+fi
+
+case "$MODE" in
+  full|light|mock) ;;
+  *)
+    echo "--mode must be full, light, or mock; got '$MODE'" >&2
+    exit 2
+    ;;
+esac
+
 COMMON_ARGS=(--profile "$PROFILE" --mode "$MODE")
 if [[ -n "$PROFILE_FILE" ]]; then
   COMMON_ARGS+=(--profile-file "$PROFILE_FILE")
@@ -281,6 +314,9 @@ preflight
 
 LOG_DIR="$(mktemp -d "${TMPDIR:-/tmp}/robot_sim_smoke.XXXXXX")"
 URDF_FILE="$LOG_DIR/robot.urdf"
+if [[ -n "$VALIDATION_CASE" && -z "$METRICS_OUTPUT" ]]; then
+  METRICS_OUTPUT="$LOG_DIR/metrics.json"
+fi
 
 echo "robot_sim smoke test"
 echo "  profile: $PROFILE"
@@ -289,6 +325,10 @@ if [[ -n "$PROFILE_FILE" ]]; then
 fi
 echo "  mode: $MODE"
 echo "  sensor_overrides: ${SENSOR_OVERRIDES:-<auto>}"
+if [[ -n "$VALIDATION_CASE" ]]; then
+  echo "  validation_case: $VALIDATION_CASE"
+  echo "  metrics_output: $METRICS_OUTPUT"
+fi
 echo "  logs: $LOG_DIR"
 
 SHELL_ENV_ARGS=("${COMMON_ARGS[@]}")
@@ -333,6 +373,18 @@ else
   echo
   echo "==> MoveIt plan/execute"
   echo "optional check disabled; pass --with-moveit to enable"
+fi
+
+if [[ -n "$VALIDATION_CASE" ]]; then
+  run_step "validation case" "${HELPER[@]}" validate-case \
+    "${COMMON_ARGS[@]}" \
+    --validation-case "$VALIDATION_CASE" \
+    --metrics-output "$METRICS_OUTPUT" \
+    --timeout "$TIMEOUT"
+else
+  echo
+  echo "==> validation case"
+  echo "optional check disabled; pass --validation-case to enable"
 fi
 
 if [[ "$WITH_ROSBAG" == true ]]; then
