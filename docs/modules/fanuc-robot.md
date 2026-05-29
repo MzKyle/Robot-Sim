@@ -1,30 +1,11 @@
 # Fanuc 机器人节点
 
-`fanuc_robot` 负责读取 Fanuc 机器人状态、目标寄存器值和相关焊接信息，并向外发布 ROS 数据。
+> 已废弃：旧 `fanuc_robot` 真实硬件驱动包已从工作空间移除。
 
-## 主要职责
+当前 Fanuc 仿真模板使用 `robot_sim_fanuc_description`、`robot_sim_fanuc_control` 和 `robot_sim_fanuc_moveit_config`，通过 `sim_profile:=fanuc_m20ia10l` 接入。
 
-- 加载 Fanuc 共享库。
-- 连接机器人控制器。
-- 发布机器人状态、报警、生产相关数据和寄存器信息。
-- 提供与采集流程配套的服务和状态接口。
-
-## 关键配置
-
-```yaml
-robot_driver_fanuc:
-  ros__parameters:
-    so_file_path: 'lib/libFanucRobot.so'
-    robot_ip: '10.16.140.114'
-    robot_port: 60008
-    target_register_index: 100
-    publish_tool_pose: false
-    publish_robot_info: false
+```bash
+ros2 launch robot_sim_bringup sim.launch.py sim_profile:=fanuc_m20ia10l sim_mode:=full
 ```
 
-## 运行要点
-
-- `so_file_path` 必须指向真实存在的 `libFanucRobot.so`。
-- `robot_ip` 和 `robot_port` 需要与控制器保持一致。
-- `target_register_index` 用于区分采集类别或工件类别。
-- `publish_tool_pose` 和 `publish_robot_info` 可以按需要切换，只在需要同步位姿或状态时开启。
+真实 Fanuc 控制器适配后续应作为新的硬件 adapter 独立设计，不再复用本次移除的 SDK 耦合包。

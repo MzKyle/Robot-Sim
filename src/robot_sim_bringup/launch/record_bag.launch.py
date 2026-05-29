@@ -4,65 +4,10 @@ from datetime import datetime
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess, LogInfo, OpaqueFunction
 
+from robot_sim_bringup.sim_config_loader import load_sim_profile
 
-CORE_TOPICS = [
-    "/clock",
-    "/tf",
-    "/tf_static",
-]
-
-CONTROL_TOPICS = [
-    "/joint_states",
-    "/arm_controller/controller_state",
-    "/arm_controller/joint_trajectory",
-    "/gripper_controller/controller_state",
-    "/gripper_controller/joint_trajectory",
-]
-
-CONTROL_ACTION_TOPICS = [
-    "/arm_controller/follow_joint_trajectory/_action/feedback",
-    "/arm_controller/follow_joint_trajectory/_action/status",
-    "/gripper_controller/follow_joint_trajectory/_action/feedback",
-    "/gripper_controller/follow_joint_trajectory/_action/status",
-]
-
-SENSOR_TOPICS = [
-    "/camera/color/image_raw",
-    "/camera/color/camera_info",
-    "/camera/depth/image_raw",
-    "/camera/depth/camera_info",
-    "/camera/points",
-    "/scan",
-    "/lidar/points",
-    "/imu/data",
-]
-
-DISTRIBUTED_CONTROL_TOPICS = [
-    "/joint_states",
-    "/robot/joint_states",
-    "/robot/arm_controller/controller_state",
-    "/robot/arm_controller/joint_trajectory",
-    "/robot/gripper_controller/controller_state",
-    "/robot/gripper_controller/joint_trajectory",
-]
-
-DISTRIBUTED_CONTROL_ACTION_TOPICS = [
-    "/robot/arm_controller/follow_joint_trajectory/_action/feedback",
-    "/robot/arm_controller/follow_joint_trajectory/_action/status",
-    "/robot/gripper_controller/follow_joint_trajectory/_action/feedback",
-    "/robot/gripper_controller/follow_joint_trajectory/_action/status",
-]
-
-DISTRIBUTED_SENSOR_TOPICS = [
-    "/sensors/camera/color/image_raw",
-    "/sensors/camera/color/camera_info",
-    "/sensors/camera/depth/image_raw",
-    "/sensors/camera/depth/camera_info",
-    "/sensors/camera/points",
-    "/sensors/scan",
-    "/sensors/lidar/points",
-    "/sensors/imu/data",
-]
+CORE_TOPICS = ["/clock", "/tf", "/tf_static"]
+TRAJECTORY_CONTROLLER_TYPE = "joint_trajectory_controller/JointTrajectoryController"
 
 
 def _get_config(context, name):
@@ -94,28 +39,143 @@ def _dedupe(topics):
     return result
 
 
-def _topic_group_topics(topic_group, include_action_topics):
+def _namespace_value(namespaces, value):
+    if not value:
+        return ""
+    return namespaces.get(value, value)
+
+
+def _absolute_name(namespace, name):
+    if not name:
+        return "/"
+    if name.startswith("/"):
+        return name
+    namespace = namespace.strip("/")
+    if namespace:
+        return f"/{namespace}/{name}"
+    return f"/{name}"
+
+
+def _parse_sensor_overrides(text):
+    result = {}
+    if not text:
+        return result
+    for item in text.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        if "=" not in item:
+            raise RuntimeError("sensor_overrides entries must use name=true or name=false")
+        name, value = item.split("=", 1)
+        name = name.strip()
+        if not name:
+            raise RuntimeError("sensor_overrides contains an empty sensor name")
+        result[name] = _bool_value(value, f"sensor_overrides.{name}")
+    return result
+
+
+def _layout(profile, layout_name):
+    if layout_name not in profile["layouts"]:
+        raise RuntimeError(
+            f"sim_profile '{profile['name']}' does not define layout '{layout_name}'"
+        )
+    return profile["layouts"][layout_name]
+
+
+def _bridge_topics(profile, bridge_names, namespaces):
+    topics = []
+    for bridge_name in bridge_names:
+        if bridge_name not in profile["bridges"]:
+            raise RuntimeError(f"Unknown bridge group '{bridge_name}'")
+        bridge = profile["bridges"][bridge_name]
+        namespace = _namespace_value(namespaces, bridge.get("namespace", ""))
+        for item in bridge.get("topics", []):
+            ros_topic = item.get("ros_topic_name")
+            if ros_topic:
+                topics.append(_absolute_name(namespace, str(ros_topic)))
+    return topics
+
+
+def _core_topics(profile, namespaces):
+    return [
+        *CORE_TOPICS,
+        *_bridge_topics(profile, profile.get("startup_bridges", []), namespaces),
+    ]
+
+
+def _control_topics(profile, namespaces, include_action_topics):
+    robot_namespace = namespaces.get("robot", "")
+    topics = ["/joint_states"]
+    if robot_namespace:
+        topics.append(_absolute_name(robot_namespace, "joint_states"))
+
+    for spawner in profile["control"]["spawners"]:
+        if spawner.get("type") != TRAJECTORY_CONTROLLER_TYPE:
+            continue
+        controller = _absolute_name(robot_namespace, spawner["name"])
+        topics.extend([
+            f"{controller}/controller_state",
+            f"{controller}/joint_trajectory",
+        ])
+        if include_action_topics:
+            action = f"{controller}/follow_joint_trajectory/_action"
+            topics.extend([f"{action}/feedback", f"{action}/status"])
+    return topics
+
+
+def _sensor_topics(profile, namespaces, sensor_overrides):
+    sensor_states = {
+        name: True
+        for name in profile["sensors"]
+    }
+    for name, enabled in _parse_sensor_overrides(sensor_overrides).items():
+        if name not in sensor_states:
+            raise RuntimeError(
+                f"sensor_overrides references unknown sensor group '{name}'"
+            )
+        sensor_states[name] = enabled
+
+    bridge_names = []
+    for sensor_name, enabled in sensor_states.items():
+        if not enabled:
+            continue
+        bridge_name = profile["sensors"][sensor_name].get("bridge_group")
+        if bridge_name:
+            bridge_names.append(bridge_name)
+    return _bridge_topics(profile, _dedupe(bridge_names), namespaces)
+
+
+def _topic_group_topics(
+    profile,
+    layout_name,
+    topic_group,
+    include_action_topics,
+    sensor_overrides,
+):
+    layout = _layout(profile, layout_name)
+    namespaces = layout["namespaces"]
     if topic_group == "control":
-        topics = [*CORE_TOPICS, *CONTROL_TOPICS]
-        if include_action_topics:
-            topics.extend(CONTROL_ACTION_TOPICS)
-        return topics
-    if topic_group == "sensors":
-        return [*CORE_TOPICS, *SENSOR_TOPICS]
-    if topic_group == "all":
-        topics = [*CORE_TOPICS, *CONTROL_TOPICS, *SENSOR_TOPICS]
-        if include_action_topics:
-            topics.extend(CONTROL_ACTION_TOPICS)
-        return topics
-    if topic_group == "distributed":
-        topics = [
-            *CORE_TOPICS,
-            *DISTRIBUTED_CONTROL_TOPICS,
-            *DISTRIBUTED_SENSOR_TOPICS,
+        return [
+            *_core_topics(profile, namespaces),
+            *_control_topics(profile, namespaces, include_action_topics),
         ]
-        if include_action_topics:
-            topics.extend(DISTRIBUTED_CONTROL_ACTION_TOPICS)
-        return topics
+    if topic_group == "sensors":
+        return [
+            *_core_topics(profile, namespaces),
+            *_sensor_topics(profile, namespaces, sensor_overrides),
+        ]
+    if topic_group == "all":
+        return [
+            *_core_topics(profile, namespaces),
+            *_control_topics(profile, namespaces, include_action_topics),
+            *_sensor_topics(profile, namespaces, sensor_overrides),
+        ]
+    if topic_group == "distributed":
+        return [
+            *_core_topics(profile, namespaces),
+            *_control_topics(profile, namespaces, include_action_topics),
+            *_sensor_topics(profile, namespaces, sensor_overrides),
+        ]
     if topic_group == "custom":
         return []
     raise RuntimeError(
@@ -126,6 +186,9 @@ def _topic_group_topics(topic_group, include_action_topics):
 
 def _launch_setup(context, *args, **kwargs):
     topic_group = _get_config(context, "topic_group").lower()
+    layout_name = _get_config(context, "layout") or "auto"
+    if layout_name == "auto":
+        layout_name = "distributed" if topic_group == "distributed" else "single"
     requested_hidden_topics = _bool_value(
         _get_config(context, "include_hidden_topics"), "include_hidden_topics"
     )
@@ -135,7 +198,18 @@ def _launch_setup(context, *args, **kwargs):
     )
     compression = _bool_value(_get_config(context, "compression"), "compression")
 
-    topics = _topic_group_topics(topic_group, include_action_topics)
+    profile = load_sim_profile(
+        _get_config(context, "sim_profile"),
+        _get_config(context, "sim_profile_file"),
+    )
+
+    topics = _topic_group_topics(
+        profile,
+        layout_name,
+        topic_group,
+        include_action_topics,
+        _get_config(context, "sensor_overrides"),
+    )
     topics.extend(_split_topics(_get_config(context, "extra_topics")))
     topics = _dedupe(topics)
     if not topics:
@@ -193,7 +267,12 @@ def _launch_setup(context, *args, **kwargs):
 
     return [
         LogInfo(msg=f"Recording rosbag2 to: {output_path}"),
-        LogInfo(msg=f"Topic group: {topic_group}; topics: {' '.join(topics)}"),
+        LogInfo(
+            msg=(
+                f"Profile: {profile['name']}; layout: {layout_name}; "
+                f"topic group: {topic_group}; topics: {' '.join(topics)}"
+            )
+        ),
         ExecuteProcess(cmd=cmd, output="screen", emulate_tty=True),
     ]
 
@@ -205,6 +284,14 @@ def generate_launch_description():
             default_value="all",
             description="Topic preset: control, sensors, all, distributed, or custom.",
         ),
+        DeclareLaunchArgument("sim_profile", default_value="panda"),
+        DeclareLaunchArgument("sim_profile_file", default_value=""),
+        DeclareLaunchArgument(
+            "layout",
+            default_value="auto",
+            description="Profile layout used for namespaces. auto selects distributed for topic_group:=distributed, otherwise single.",
+        ),
+        DeclareLaunchArgument("sensor_overrides", default_value=""),
         DeclareLaunchArgument(
             "extra_topics",
             default_value="",

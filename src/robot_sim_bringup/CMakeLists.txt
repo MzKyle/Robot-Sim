@@ -12,4 +12,9 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}
 )
 
+install(PROGRAMS
+  scripts/profile_lint
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 ament_package()

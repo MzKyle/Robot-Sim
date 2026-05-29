@@ -6,9 +6,9 @@
 src/config/nodemanage.yaml
 ```
 
-真实设备链路启动时，`data_collect.launch.py` 会把这个 YAML 传给 2D 相机、3D 相机、Fanuc 节点和采集质量节点；`data_collect_node` 也会通过 `AUTOCOVER_NODEMANAGE_YAML` 读取同一个文件。界面中的 `参数设置` 页会直接修改这个 YAML。
+旧真实设备链路启动时，`data_collect.launch.py` 曾把这个 YAML 传给 2D 相机、3D 相机、Fanuc 节点和采集质量节点；这些硬件驱动包已移除，旧硬件启动入口本轮暂不维护。`data_collect_node` 仍可通过 `AUTOCOVER_NODEMANAGE_YAML` 读取同一个文件，界面中的 `参数设置` 页会直接修改这个 YAML。
 
-仿真链路使用 `robot_sim_bringup` 的 launch 参数和 `robot_sim_control/config/panda_controllers.yaml`。旧 `data_collect_sim/config/nodemanage_sim.yaml` 已移除。
+仿真链路使用 `sim_profile`、`robot_sim_bringup` 的 launch 参数和对应 controller yaml；传感器接收由 profile 的 `sensors.<name>.receiver` 声明。
 
 ## 常用配置段
 

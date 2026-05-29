@@ -93,6 +93,23 @@ def _controller_manager_path(profile, namespace):
 
 
 def _enabled_spawners(profile):
+    required = profile.get("smoke", {}).get("controllers", {}).get("required")
+    if required is not None:
+        spawners_by_name = {
+            spawner["name"]: spawner
+            for spawner in profile["control"]["spawners"]
+        }
+        missing = [name for name in required if name not in spawners_by_name]
+        if missing:
+            raise RuntimeError(
+                "smoke.controllers.required references unknown spawners: "
+                + ", ".join(missing)
+            )
+        return [
+            spawners_by_name[name]
+            for name in required
+        ]
+
     result = []
     for spawner in profile["control"]["spawners"]:
         if spawner.get("enabled_by"):
@@ -102,6 +119,10 @@ def _enabled_spawners(profile):
 
 
 def _primary_trajectory_controller(profile):
+    primary = profile.get("smoke", {}).get("controllers", {}).get("primary_trajectory")
+    if primary:
+        return primary
+
     for spawner in _enabled_spawners(profile):
         if spawner.get("type") == "joint_trajectory_controller/JointTrajectoryController":
             return spawner["name"]
@@ -137,12 +158,9 @@ def _primary_joints(profile):
 def _bridge_config_topics(profile, bridge_name, namespace):
     bridge = profile["bridges"][bridge_name]
     bridge_namespace = _namespace_value(namespace, bridge.get("namespace", ""))
-    raw = _load_yaml(bridge["config"])
-    if not isinstance(raw, list):
-        raise RuntimeError(f"Bridge config must be a list: {bridge['config']}")
 
     topics = []
-    for item in raw:
+    for item in bridge.get("topics", []):
         if not isinstance(item, dict):
             continue
         ros_topic = item.get("ros_topic_name")
@@ -266,6 +284,7 @@ def command_profile_json(args):
         "primary_joints": context["primary_joints"],
         "sensors": context["sensors"],
         "sensor_topics": sensor_topics,
+        "smoke": profile.get("smoke", {}),
     }, indent=2, sort_keys=True))
     return SUCCESS
 
@@ -521,6 +540,22 @@ def command_check_sensors(args):
     import rclpy
 
     context = _load_context(args)
+    smoke_sensors = context["profile"].get("smoke", {}).get("sensors", {})
+    topic_timeout = (
+        args.topic_timeout
+        if args.topic_timeout is not None
+        else float(smoke_sensors.get("topic_timeout", 6.0))
+    )
+    min_hz = (
+        args.min_hz
+        if args.min_hz is not None
+        else float(smoke_sensors.get("min_hz", 1.0))
+    )
+    min_samples = (
+        args.min_samples
+        if args.min_samples is not None
+        else int(smoke_sensors.get("min_samples", 3))
+    )
     topics = _sensor_topics(
         context["profile"],
         context["sensors"],
@@ -539,16 +574,16 @@ def command_check_sensors(args):
                 node,
                 topic["name"],
                 topic["type"],
-                args.topic_timeout,
-                args.min_samples,
+                topic_timeout,
+                min_samples,
             )
             print(f"{topic['name']} [{topic['type']}]: {hz:.2f} Hz ({samples} samples)")
-            if hz < args.min_hz:
+            if hz < min_hz:
                 failures.append(f"{topic['name']}={hz:.2f}Hz")
         if failures:
             raise RuntimeError(
                 "Sensor topic hz below threshold "
-                f"{args.min_hz}: " + ", ".join(failures)
+                f"{min_hz}: " + ", ".join(failures)
             )
         return SUCCESS
     finally:
@@ -573,6 +608,8 @@ def _required_tf_frames(context, urdf_path):
         for tf_config in context["profile"]["sensors"][group].get("static_tfs", []):
             frames.add(str(tf_config["parent_frame"]).lstrip("/"))
             frames.add(str(tf_config["child_frame"]).lstrip("/"))
+    for frame in context["profile"].get("smoke", {}).get("tf", {}).get("required_frames", []):
+        frames.add(str(frame).lstrip("/"))
     return frames
 
 
@@ -800,9 +837,9 @@ def build_parser():
 
     check_sensors = subparsers.add_parser("check-sensors")
     _add_common_args(check_sensors)
-    check_sensors.add_argument("--topic-timeout", type=float, default=6.0)
-    check_sensors.add_argument("--min-hz", type=float, default=1.0)
-    check_sensors.add_argument("--min-samples", type=int, default=3)
+    check_sensors.add_argument("--topic-timeout", type=float, default=None)
+    check_sensors.add_argument("--min-hz", type=float, default=None)
+    check_sensors.add_argument("--min-samples", type=int, default=None)
     check_sensors.set_defaults(func=command_check_sensors)
 
     check_tf = subparsers.add_parser("check-tf")

@@ -7,9 +7,9 @@
   <img alt="MoveIt2" src="https://img.shields.io/badge/Planning-MoveIt2-2D6CDF?style=for-the-badge" />
 </p>
 
-`robot_sim` 是以 Gazebo 仿真和机器人运控验证为主的 ROS 2 Humble 工作空间。当前主线是 `robot_sim_*` 包族：用 Panda 机械臂在 `gz sim 8` 中跑通模型、场景、`gz_ros2_control`、轨迹控制、MoveIt2、RViz2 和传感器桥接。
+`robot_sim` 是以 Gazebo 仿真和机器人运控验证为主的 ROS 2 Humble 工作空间。当前主线是 `robot_sim_*` 包族：用 Panda/Fanuc 机械臂在 `gz sim 8` 中跑通模型、场景、`gz_ros2_control`、轨迹控制、MoveIt2、RViz2、传感器桥接和仿真传感器接收。
 
-仓库中仍保留数据采集、相机、Fanuc、UI 等包，但它们现在定位为仿真联调和采集链路测试的辅助模块，不再是项目主叙事。
+旧的真实硬件耦合驱动包已废弃并移除。`data_collect`、packaging 等旧硬件采集链路本轮暂不维护；新项目优先走 `sim_profile` + `robot_sim_sensors` 的仿真数据接收入口。
 
 ## 快速启动
 
@@ -26,7 +26,10 @@ colcon build --symlink-install \
   --packages-select \
     gz_ros2_control \
     robot_sim_description robot_sim_control robot_sim_scenarios \
-    robot_sim_moveit_config robot_sim_bringup
+    robot_sim_moveit_config \
+    robot_sim_fanuc_description robot_sim_fanuc_control robot_sim_fanuc_moveit_config \
+    robot_sim_sensor_camera robot_sim_sensor_depth robot_sim_sensor_lidar robot_sim_sensor_imu \
+    robot_sim_bringup
 
 source install/setup.bash
 ros2 launch robot_sim_bringup sim.launch.py
@@ -44,6 +47,8 @@ ros2 launch robot_sim_bringup sim.launch.py sim_mode:=full
 
 ```bash
 ros2 launch robot_sim_bringup sim.launch.py sim_profile:=panda sim_mode:=full
+
+ros2 launch robot_sim_bringup sim.launch.py sim_profile:=fanuc_m20ia10l sim_mode:=full
 
 ros2 launch robot_sim_bringup sim.launch.py \
   sim_profile_file:=/path/to/custom_robot.yaml \
@@ -72,19 +77,67 @@ ros2 launch robot_sim_bringup sim.launch.py \
   sensor_overrides:=camera=true,depth=false,lidar=true,imu=true
 ```
 
+## 仿真传感器接收包
+
+`src/robot_sim_sensors/` 是新的传感器总目录，首批提供四个只面向仿真原生话题的 C++ ROS 2 接收包：
+
+| 包 | 接收内容 |
+| --- | --- |
+| `robot_sim_sensor_camera` | RGB `Image` 和 `CameraInfo` |
+| `robot_sim_sensor_depth` | 深度 `Image`、`CameraInfo` 和 `PointCloud2` |
+| `robot_sim_sensor_lidar` | `LaserScan` 和 lidar `PointCloud2` |
+| `robot_sim_sensor_imu` | `Imu` |
+
+receiver 不兼容旧 `/image_topic`、`/tcp_cloud_raw`、`/scan_3d` 等硬件业务接口，只订阅 `sim_profile` 的 bridge topic，统计消息数、Hz、最后时间戳和 frame，并发布 `/diagnostics`。
+
+仿真启动后，可以单独拉起 receiver：
+
+```bash
+ros2 launch robot_sim_bringup sim.launch.py sim_profile:=fanuc_m20ia10l sim_mode:=full
+
+ros2 launch robot_sim_bringup sensor_receivers.launch.py sim_profile:=fanuc_m20ia10l
+```
+
+新机器人迁移时，在 `sensors.<name>.receiver` 中声明 receiver 包、可执行文件和类型；未来新增传感器也按“新增 `robot_sim_sensor_*` 包 + profile 声明”的方式接入。
+
 ## 仿真 Profile
 
 `sim_profile` 用 YAML 描述机器人接入所需的仿真资源，当前内置文件为：
 
 ```text
 src/robot_sim_bringup/config/sim_profiles/panda.yaml
+src/robot_sim_bringup/config/sim_profiles/fanuc_m20ia10l.yaml
+```
+
+新机器人迁移时，`sim_profile` 是唯一入口。建议从模板开始：
+
+```bash
+cp src/robot_sim_bringup/config/templates/template_robot.yaml /path/to/custom_robot.yaml
+```
+
+填入机器人 xacro、controller yaml、可选 MoveIt 配置、sensor/bridge/topic、world/scenario 和 smoke 验收规则后，先跑 profile lint：
+
+```bash
+ros2 run robot_sim_bringup profile_lint --profile panda --mode light --require-receivers
+
+ros2 run robot_sim_bringup profile_lint \
+  --profile-file /path/to/custom_robot.yaml \
+  --mode full \
+  --require-moveit \
+  --require-receivers
+```
+
+`profile_lint` 会检查路径、通用 xacro 参数、sensor xacro_arg、controller spawner/type、trajectory joints、bridge topic ROS 类型、receiver 可执行文件和静态 TF frame。通过后再启动仿真或 smoke test：
+
+```bash
+scripts/sim_smoke_test.sh --profile-file /path/to/custom_robot.yaml --mode full
 ```
 
 配置拆成四类：
 
 - `config/sim_profiles/*.yaml`：机器人、world、controller、MoveIt、namespace、传感器能力和静态 TF。
 - `config/sim_modes.yaml`：`mock/light/full` 默认开关和启动延迟。
-- `config/bridge_groups/*.yaml`：每组 `ros_gz_bridge` 的节点名、命名空间策略和 bridge 配置文件。
+- `config/bridge_groups/*.yaml`：旧式全局 bridge group；新项目优先在 profile 的 `bridge_groups` 内联声明。
 - `robot_sim_scenarios/scenarios/*.yaml`：base world、可复用 assets 和业务 scenario 的组合关系。
 
 profile 中集中声明：
@@ -94,8 +147,11 @@ profile 中集中声明：
 - ros2_control controllers 文件和需要 spawn 的 controller。
 - MoveIt2 的 SRDF、kinematics、joint limits、controller、OMPL 和 RViz 配置。
 - Gazebo resource path、clock bridge、传感器 bridge group 和静态 TF。
+- `bridge_groups` 内联 bridge topic，或引用外部 bridge config。
+- `sensors.<name>.receiver` 声明仿真传感器接收节点。
+- `smoke` 验收规则，例如必需 controller、主轨迹 controller、传感器 hz 阈值和额外 TF frame。
 
-新增机器人时，建议复制 `panda.yaml` 后替换对应路径。新机器人的 xacro 需要支持这些通用参数：
+新增机器人时，建议复制 `config/templates/template_robot.yaml`，再按已有 `panda.yaml` 对照补齐真实资源。新机器人的 xacro 需要支持这些通用参数：
 
 ```text
 hardware_plugin
@@ -162,7 +218,7 @@ flowchart LR
     CTRL[robot_sim_control\nros2_control controllers]
     MOVEIT[robot_sim_moveit_config\nMoveIt2 + RViz2]
     BRIDGE[ros_gz_bridge\ncamera/depth/lidar/imu/clock]
-    TEST[数据采集测试模块\ndata_collect / UI / drivers]
+    RECV[robot_sim_sensors\nreceiver diagnostics]
 
     BRINGUP --> DESC
     BRINGUP --> WORLD
@@ -170,7 +226,7 @@ flowchart LR
     GZ --> CTRL
     CTRL --> MOVEIT
     GZ --> BRIDGE
-    BRIDGE --> TEST
+    BRIDGE --> RECV
 ```
 
 ## 关键包
@@ -180,13 +236,17 @@ flowchart LR
 | `src/robot_sim_bringup/` | 仿真总入口，提供单机、传感器桥接和本机分布式 launch |
 | `src/robot_sim_description/` | Panda 机械臂、夹爪、相机挂载、传感器和 Gazebo 插件描述 |
 | `src/robot_sim_control/` | `joint_state_broadcaster`、`arm_controller`、可选 `gripper_controller` 配置 |
+| `src/robot_sim_fanuc_description/` | Fanuc M-20iA/10L ROS2/Gazebo 描述和下载的 ROS-Industrial mesh 资源 |
+| `src/robot_sim_fanuc_control/` | Fanuc M-20iA/10L ros2_control controller 配置 |
+| `src/robot_sim_fanuc_moveit_config/` | Fanuc M-20iA/10L MoveIt2 配置 |
+| `src/robot_sim_sensors/` | camera、depth、lidar、imu 仿真传感器 ROS 2 接收包 |
 | `src/robot_sim_scenarios/` | base world、assets 和 scenario 场景 |
 | `src/robot_sim_moveit_config/` | Panda MoveIt2 规划和执行配置 |
 | `src/gz_ros2_control/` | Humble + gz sim 8/Harmonic 使用的源码 overlay |
 | `src/simulation_interfaces/` | 通用仿真 scenario 接口 |
 | `src/robot_task_interfaces/` | 通用任务上下文接口 |
 | `src/acquisition_interfaces/` | 通用采集状态、质量和任务接口 |
-| `src/data_collect*`、`src/camera_*`、`src/fanuc_robot/` | 采集链路和真实设备测试辅助模块 |
+| `src/data_collect*` | 旧采集链路测试辅助，本轮不维护硬件驱动启动入口 |
 | `src/weld_interface/` | 焊接业务 adapter 和旧接口兼容层 |
 
 ## 本机分布式仿真
@@ -224,7 +284,7 @@ source install/setup.bash
 ros2 launch robot_sim_bringup record_bag.launch.py topic_group:=all
 ```
 
-默认输出到 `~/robot_sim_bags/robot_sim_<topic_group>_<timestamp>`。常用组：
+录包 topic 现在从 `sim_profile` 的 controller、sensor 和 bridge topic 自动生成。默认输出到 `~/robot_sim_bags/robot_sim_<topic_group>_<timestamp>`。常用组：
 
 | 组 | 录制内容 |
 | --- | --- |
@@ -238,11 +298,14 @@ ros2 launch robot_sim_bringup record_bag.launch.py topic_group:=all
 
 ```bash
 ros2 launch robot_sim_bringup record_bag.launch.py \
+  sim_profile:=panda \
   topic_group:=sensors \
   bag_name:=camera_lidar_test \
   compression:=true
 
 ros2 launch robot_sim_bringup record_bag.launch.py \
+  sim_profile_file:=/path/to/custom_robot.yaml \
+  layout:=single \
   topic_group:=custom \
   extra_topics:="/joint_states /camera/points /tf /tf_static"
 ```
@@ -272,7 +335,7 @@ http://localhost:3000
 
 ## 数据采集测试
 
-采集相关包仍可用于验证仿真传感器话题、真实相机、Fanuc 状态和桌面 UI 流程。只做采集链路测试时，可以按需编译：
+采集相关包仍保留为旧业务链路测试辅助，但真实相机和 Fanuc 硬件驱动包已废弃移除，本轮不维护旧硬件启动和打包入口。只做采集链路测试时，可以按需编译仍可用的接口和采集模块：
 
 ```bash
 colcon build --symlink-install --packages-select \
@@ -280,4 +343,4 @@ colcon build --symlink-install --packages-select \
   weld_interface file_reader data_collect data_collect_quality data_collect_ui
 ```
 
-新项目优先接入 `/task/set_context`、`/acquisition/set_task`、`/acquisition/status` 和 `/acquisition/quality`。焊接字段通过 `weld_interface/WeldTaskExtension` 或旧 `/data_collect_set_task` 兼容服务保留。真实设备驱动依赖 RVC SDK、MVSDK 和 Fanuc 共享库；缺少厂商 SDK 时，建议先使用 `robot_sim_bringup` 的仿真话题完成运控和接口联调。
+新项目优先接入 `/task/set_context`、`/acquisition/set_task`、`/acquisition/status` 和 `/acquisition/quality`。仿真传感器数据请通过 `robot_sim_bringup` 的 bridge topic 和 `robot_sim_sensors` receiver 验证，不再接入旧厂商 SDK 驱动。

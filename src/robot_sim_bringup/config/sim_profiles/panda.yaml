@@ -124,11 +124,97 @@ moveit:
 bridges:
   - clock
 
+bridge_groups:
+  clock:
+    node_name: clock_bridge
+    namespace: sensors
+    topics:
+      - ros_topic_name: /clock
+        gz_topic_name: /clock
+        ros_type_name: rosgraph_msgs/msg/Clock
+        gz_type_name: gz.msgs.Clock
+        direction: GZ_TO_ROS
+  camera:
+    node_name: camera_bridge
+    namespace: sensors
+    topics:
+      - ros_topic_name: camera/color/image_raw
+        gz_topic_name: /camera/color/image_raw
+        ros_type_name: sensor_msgs/msg/Image
+        gz_type_name: gz.msgs.Image
+        direction: GZ_TO_ROS
+      - ros_topic_name: camera/color/camera_info
+        gz_topic_name: /camera/color/camera_info
+        ros_type_name: sensor_msgs/msg/CameraInfo
+        gz_type_name: gz.msgs.CameraInfo
+        direction: GZ_TO_ROS
+  depth:
+    node_name: depth_bridge
+    namespace: sensors
+    topics:
+      - ros_topic_name: camera/depth/image_raw
+        gz_topic_name: /camera/depth/depth_image
+        ros_type_name: sensor_msgs/msg/Image
+        gz_type_name: gz.msgs.Image
+        direction: GZ_TO_ROS
+      - ros_topic_name: camera/depth/camera_info
+        gz_topic_name: /camera/depth/camera_info
+        ros_type_name: sensor_msgs/msg/CameraInfo
+        gz_type_name: gz.msgs.CameraInfo
+        direction: GZ_TO_ROS
+      - ros_topic_name: camera/points
+        gz_topic_name: /camera/depth/points
+        ros_type_name: sensor_msgs/msg/PointCloud2
+        gz_type_name: gz.msgs.PointCloudPacked
+        direction: GZ_TO_ROS
+  lidar:
+    node_name: lidar_bridge
+    namespace: sensors
+    topics:
+      - ros_topic_name: scan
+        gz_topic_name: /scan
+        ros_type_name: sensor_msgs/msg/LaserScan
+        gz_type_name: gz.msgs.LaserScan
+        direction: GZ_TO_ROS
+      - ros_topic_name: lidar/points
+        gz_topic_name: /lidar/points
+        ros_type_name: sensor_msgs/msg/PointCloud2
+        gz_type_name: gz.msgs.PointCloudPacked
+        direction: GZ_TO_ROS
+  imu:
+    node_name: imu_bridge
+    namespace: sensors
+    topics:
+      - ros_topic_name: imu/data
+        gz_topic_name: /imu/data
+        ros_type_name: sensor_msgs/msg/Imu
+        gz_type_name: gz.msgs.IMU
+        direction: GZ_TO_ROS
+
+smoke:
+  controllers:
+    required:
+      - joint_state_broadcaster
+      - arm_controller
+    primary_trajectory: arm_controller
+  sensors:
+    min_hz: 1.0
+    min_samples: 3
+    topic_timeout: 6.0
+  tf:
+    required_frames: []
+
 sensors:
   camera:
     xacro_arg: enable_camera
     default_enabled: true
     bridge_group: camera
+    receiver:
+      package: robot_sim_sensor_camera
+      executable: camera_receiver
+      type: camera
+      expected_min_hz: 1.0
+      log_period_sec: 5.0
     static_tfs:
       - name: color_camera
         parent_frame: camera_color_frame
@@ -137,6 +223,12 @@ sensors:
     xacro_arg: enable_depth
     default_enabled: true
     bridge_group: depth
+    receiver:
+      package: robot_sim_sensor_depth
+      executable: depth_receiver
+      type: depth
+      expected_min_hz: 1.0
+      log_period_sec: 5.0
     static_tfs:
       - name: rgbd_camera
         parent_frame: rgbd_camera_frame
@@ -145,6 +237,12 @@ sensors:
     xacro_arg: enable_lidar
     default_enabled: true
     bridge_group: lidar
+    receiver:
+      package: robot_sim_sensor_lidar
+      executable: lidar_receiver
+      type: lidar
+      expected_min_hz: 1.0
+      log_period_sec: 5.0
     static_tfs:
       - name: lidar_2d
         parent_frame: lidar_2d_frame
@@ -156,6 +254,12 @@ sensors:
     xacro_arg: enable_imu
     default_enabled: true
     bridge_group: imu
+    receiver:
+      package: robot_sim_sensor_imu
+      executable: imu_receiver
+      type: imu
+      expected_min_hz: 1.0
+      log_period_sec: 5.0
     static_tfs:
       - name: imu
         parent_frame: imu_link

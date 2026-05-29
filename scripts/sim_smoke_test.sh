@@ -109,6 +109,7 @@ fi
 export GZ_VERSION="${GZ_VERSION:-harmonic}"
 
 HELPER=(python3 -m robot_sim_bringup.sim_smoke_helper)
+LINTER=(python3 -m robot_sim_bringup.profile_lint)
 COMMON_ARGS=(--profile "$PROFILE" --mode "$MODE")
 if [[ -n "$PROFILE_FILE" ]]; then
   COMMON_ARGS+=(--profile-file "$PROFILE_FILE")
@@ -139,6 +140,11 @@ preflight() {
   fi
   if ! "${HELPER[@]}" --help >/dev/null; then
     echo "Cannot import robot_sim_bringup.sim_smoke_helper." >&2
+    echo "Run colcon build and source install/setup.bash first." >&2
+    exit 1
+  fi
+  if ! "${LINTER[@]}" --help >/dev/null; then
+    echo "Cannot import robot_sim_bringup.profile_lint." >&2
     echo "Run colcon build and source install/setup.bash first." >&2
     exit 1
   fi
@@ -286,9 +292,19 @@ echo "  sensor_overrides: ${SENSOR_OVERRIDES:-<auto>}"
 echo "  logs: $LOG_DIR"
 
 SHELL_ENV_ARGS=("${COMMON_ARGS[@]}")
+LINT_ARGS=(--profile "$PROFILE" --mode "$MODE")
+if [[ -n "$PROFILE_FILE" ]]; then
+  LINT_ARGS+=(--profile-file "$PROFILE_FILE")
+fi
+if [[ -n "$SENSOR_OVERRIDES" ]]; then
+  LINT_ARGS+=(--sensor-overrides "$SENSOR_OVERRIDES")
+fi
 if [[ "$WITH_MOVEIT" == true ]]; then
   SHELL_ENV_ARGS+=(--with-moveit)
+  LINT_ARGS+=(--require-moveit)
 fi
+
+run_step "Profile lint" "${LINTER[@]}" "${LINT_ARGS[@]}"
 eval "$("${HELPER[@]}" shell-env "${SHELL_ENV_ARGS[@]}")"
 
 run_step "Profile summary" "${HELPER[@]}" profile-json "${COMMON_ARGS[@]}"

@@ -5,32 +5,28 @@
 ```bash
 ros2 node list
 ros2 service list
-ros2 topic echo --once /acquisition/status
-ros2 topic echo --once /acquisition/quality
-ros2 topic echo --once /data_collect_status
-ros2 topic echo --once /fanuc_robot_info
-ros2 topic hz /image_topic
-ros2 topic hz /tcp_cloud_raw
-ros2 topic echo --once /tool_pos
-ros2 topic echo --once /data_collect_quality
+ros2 control list_controllers
+ros2 topic echo --once /joint_states
+ros2 topic hz /camera/color/image_raw
+ros2 topic hz /camera/points
+ros2 topic hz /scan
+ros2 topic echo --once /diagnostics
 ```
 
 ## 推荐检查项
 
-- 节点是否正常启动。
-- `/acquisition/status` 是否能持续更新；旧链路可同时检查 `/data_collect_status`。
-- 2D 图像、3D 点云和 TCP 位姿是否有数据。
-- Fanuc 节点或仿真节点是否正常发布状态。
-- 采集目录是否按当前 adapter 的目录模板组织。
-- `/acquisition/quality` 是否持续输出质量等级；旧链路可同时检查 `/data_collect_quality`。
+- `profile_lint --require-receivers` 是否通过。
+- 仿真节点、controller 和 bridge 是否正常启动。
+- RGB、深度、点云、LaserScan 和 IMU 话题是否有数据。
+- `robot_sim_sensors` 是否在 `/diagnostics` 输出 receiver 健康状态。
+- 旧 `data_collect` 硬件启动链路本轮暂不维护，不作为仿真验收条件。
 
 ## 结束条件
 
 满足以下条件时可以认为主流程通过：
 
-1. 后端可正常启动。
-2. UI 可以打开并显示状态。
-3. 图像、点云、TCP 位姿和机器人状态可保存。
-4. 服务调用可以正常启停采集。
-5. 历史目录和元数据可以正常生成。
-6. 质量评估能够给出 PASS、WARN 或 FAIL 结果。
+1. `sim.launch.py` 可正常启动目标 profile。
+2. controller 均处于预期状态。
+3. 启用的传感器 bridge topic 有稳定数据。
+4. `sensor_receivers.launch.py` 能根据 profile 自动启动 receiver。
+5. `/diagnostics` 可看到对应 receiver 的消息计数和 Hz。

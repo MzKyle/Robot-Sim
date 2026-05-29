@@ -1,0 +1,8 @@
+#!/usr/bin/env python3
+import sys
+
+from robot_sim_bringup.profile_lint import main
+
+
+if __name__ == "__main__":
+    sys.exit(main())

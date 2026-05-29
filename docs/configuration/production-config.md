@@ -7,15 +7,14 @@
 
 ## 推荐做法
 
-- 在目标机上先确认 RVC SDK、MVSDK、Fanuc 共享库和数据目录权限都可用。
-- 通过 `ros2 launch data_collect_bringup data_collect.launch.py` 启动真实采集栈。
-- 没有真实设备时，使用 `ros2 launch robot_sim_bringup sim.launch.py` 验证仿真控制链；需要完整感知数据时追加 `sim_mode:=full`。
+- 先使用 `ros2 launch robot_sim_bringup sim.launch.py` 验证仿真控制链；需要完整感知数据时追加 `sim_mode:=full`。
+- 使用 `ros2 launch robot_sim_bringup sensor_receivers.launch.py sim_profile:=panda` 验证仿真传感器接收和 `/diagnostics`。
+- 旧真实相机/Fanuc 硬件驱动包已移除，`data_collect_bringup` 的旧硬件启动入口本轮暂不维护。
 - 仅调试部分功能时，可按需选择核心包重新编译。
 - 如果主机使用自定义 OpenCV，建议在干净系统中重新构建打包产物。
 
 ## 部署检查
 
-- 机器人 IP、端口和共享库路径是否正确。
-- 配置文件内容是否与现场设备一致。
+- profile 中 robot、controller、bridge、receiver 和 scenario 路径是否通过 lint。
 - 数据保存目录是否有写权限。
 - UI 所需的 Qt Python 绑定是否已安装。

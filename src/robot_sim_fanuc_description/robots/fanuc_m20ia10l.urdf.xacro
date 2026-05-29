@@ -1,0 +1,360 @@
+<?xml version="1.0"?>
+<robot name="fanuc_m20ia10l" xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:arg name="prefix" default=""/>
+  <xacro:arg name="mesh_root" default="package://robot_sim_fanuc_description/models/m20ia10l/meshes"/>
+  <xacro:arg name="hardware_plugin" default="mock_components/GenericSystem"/>
+  <xacro:arg name="controllers_file" default=""/>
+  <xacro:arg name="controller_manager_name" default="controller_manager"/>
+  <xacro:arg name="use_gz_ros2_control" default="false"/>
+  <xacro:arg name="ros_namespace" default=""/>
+  <xacro:arg name="enable_camera" default="false"/>
+  <xacro:arg name="enable_depth" default="false"/>
+  <xacro:arg name="enable_lidar" default="false"/>
+  <xacro:arg name="enable_imu" default="false"/>
+
+  <xacro:property name="prefix" value="$(arg prefix)"/>
+  <xacro:property name="mesh_root" value="$(arg mesh_root)"/>
+  <xacro:property name="hardware_plugin" value="$(arg hardware_plugin)"/>
+  <xacro:property name="controllers_file" value="$(arg controllers_file)"/>
+  <xacro:property name="controller_manager_name" value="$(arg controller_manager_name)"/>
+  <xacro:property name="ros_namespace" value="$(arg ros_namespace)"/>
+  <xacro:property name="PI" value="3.141592653589793"/>
+
+  <material name="fanuc_yellow">
+    <color rgba="1.0 0.77 0.05 1.0"/>
+  </material>
+  <material name="fanuc_gray">
+    <color rgba="0.34 0.34 0.34 1.0"/>
+  </material>
+  <material name="fanuc_black">
+    <color rgba="0.02 0.02 0.02 1.0"/>
+  </material>
+
+  <xacro:macro name="simple_inertial" params="mass:=1.0 ixx:=0.02 iyy:=0.02 izz:=0.02 xyz:='0 0 0' rpy:='0 0 0'">
+    <inertial>
+      <origin xyz="${xyz}" rpy="${rpy}"/>
+      <mass value="${mass}"/>
+      <inertia ixx="${ixx}" ixy="0.0" ixz="0.0" iyy="${iyy}" iyz="0.0" izz="${izz}"/>
+    </inertial>
+  </xacro:macro>
+
+  <xacro:macro name="mesh_link" params="name visual collision material mass:=10.0">
+    <link name="${prefix}${name}">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <mesh filename="${mesh_root}/visual/${visual}"/>
+        </geometry>
+        <material name="${material}"/>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <mesh filename="${mesh_root}/collision/${collision}"/>
+        </geometry>
+      </collision>
+      <xacro:simple_inertial mass="${mass}" ixx="0.08" iyy="0.08" izz="0.08"/>
+    </link>
+  </xacro:macro>
+
+  <xacro:macro name="control_joint" params="name initial lower upper">
+    <joint name="${prefix}${name}">
+      <command_interface name="position">
+        <param name="min">${lower}</param>
+        <param name="max">${upper}</param>
+      </command_interface>
+      <state_interface name="position">
+        <param name="initial_value">${initial}</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+  </xacro:macro>
+
+  <link name="${prefix}world"/>
+
+  <joint name="${prefix}world_to_base_link" type="fixed">
+    <origin xyz="0.2 0 0" rpy="0 0 0"/>
+    <parent link="${prefix}world"/>
+    <child link="${prefix}base_link"/>
+  </joint>
+
+  <xacro:mesh_link name="base_link" visual="base_link.stl" collision="base_link.stl" material="fanuc_gray" mass="80.0"/>
+  <xacro:mesh_link name="link_1" visual="link_1.stl" collision="link_1.stl" material="fanuc_yellow" mass="65.0"/>
+  <xacro:mesh_link name="link_2" visual="link_2.stl" collision="link_2.stl" material="fanuc_yellow" mass="55.0"/>
+  <xacro:mesh_link name="link_3" visual="link_3.stl" collision="link_3.stl" material="fanuc_yellow" mass="45.0"/>
+  <xacro:mesh_link name="link_4" visual="link_4.stl" collision="link_4.stl" material="fanuc_yellow" mass="28.0"/>
+  <xacro:mesh_link name="link_5" visual="link_5.stl" collision="link_5.stl" material="fanuc_yellow" mass="18.0"/>
+  <xacro:mesh_link name="link_6" visual="link_6.stl" collision="link_6.stl" material="fanuc_black" mass="12.0"/>
+
+  <joint name="${prefix}joint_1" type="revolute">
+    <origin xyz="0 0 0.525" rpy="0 0 0"/>
+    <parent link="${prefix}base_link"/>
+    <child link="${prefix}link_1"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-3.228859" upper="3.228859" effort="300" velocity="3.403392"/>
+    <dynamics damping="18.0" friction="2.0"/>
+  </joint>
+  <joint name="${prefix}joint_2" type="revolute">
+    <origin xyz="0.150 0 0" rpy="0 0 0"/>
+    <parent link="${prefix}link_1"/>
+    <child link="${prefix}link_2"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.745329" upper="2.792527" effort="300" velocity="3.054326"/>
+    <dynamics damping="18.0" friction="2.0"/>
+  </joint>
+  <joint name="${prefix}joint_3" type="revolute">
+    <origin xyz="0 0 0.790" rpy="0 0 0"/>
+    <parent link="${prefix}link_2"/>
+    <child link="${prefix}link_3"/>
+    <axis xyz="0 -1 0"/>
+    <limit lower="-3.228859" upper="4.810826" effort="260" velocity="3.141593"/>
+    <dynamics damping="15.0" friction="1.6"/>
+  </joint>
+  <joint name="${prefix}joint_4" type="revolute">
+    <origin xyz="0 0 0.250" rpy="0 0 0"/>
+    <parent link="${prefix}link_3"/>
+    <child link="${prefix}link_4"/>
+    <axis xyz="-1 0 0"/>
+    <limit lower="-3.490658" upper="3.490658" effort="150" velocity="6.981317"/>
+    <dynamics damping="8.0" friction="1.0"/>
+  </joint>
+  <joint name="${prefix}joint_5" type="revolute">
+    <origin xyz="1.040 0 0" rpy="0 0 0"/>
+    <parent link="${prefix}link_4"/>
+    <child link="${prefix}link_5"/>
+    <axis xyz="0 -1 0"/>
+    <limit lower="-2.443461" upper="2.443461" effort="120" velocity="6.981317"/>
+    <dynamics damping="6.0" friction="0.8"/>
+  </joint>
+  <joint name="${prefix}joint_6" type="revolute">
+    <origin xyz="0.100 0 0" rpy="0 0 0"/>
+    <parent link="${prefix}link_5"/>
+    <child link="${prefix}link_6"/>
+    <axis xyz="-1 0 0"/>
+    <limit lower="-4.712389" upper="4.712389" effort="80" velocity="10.471980"/>
+    <dynamics damping="4.0" friction="0.6"/>
+  </joint>
+
+  <link name="${prefix}base">
+    <xacro:simple_inertial mass="0.01" ixx="0.0001" iyy="0.0001" izz="0.0001"/>
+  </link>
+  <joint name="${prefix}base_link_to_base" type="fixed">
+    <origin xyz="0 0 0.525" rpy="0 0 0"/>
+    <parent link="${prefix}base_link"/>
+    <child link="${prefix}base"/>
+  </joint>
+
+  <link name="${prefix}flange">
+    <xacro:simple_inertial mass="0.01" ixx="0.0001" iyy="0.0001" izz="0.0001"/>
+  </link>
+  <joint name="${prefix}joint_6_to_flange" type="fixed">
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <parent link="${prefix}link_6"/>
+    <child link="${prefix}flange"/>
+  </joint>
+
+  <link name="${prefix}tool0">
+    <xacro:simple_inertial mass="0.01" ixx="0.0001" iyy="0.0001" izz="0.0001"/>
+  </link>
+  <joint name="${prefix}flange_to_tool0" type="fixed">
+    <origin xyz="0 0 0" rpy="${PI} ${-PI / 2.0} 0"/>
+    <parent link="${prefix}flange"/>
+    <child link="${prefix}tool0"/>
+  </joint>
+
+  <link name="${prefix}camera_mount">
+    <visual>
+      <origin xyz="0.035 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.16 0.05 0.05"/>
+      </geometry>
+      <material name="fanuc_black"/>
+    </visual>
+    <collision>
+      <origin xyz="0.035 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.16 0.05 0.05"/>
+      </geometry>
+    </collision>
+    <xacro:simple_inertial mass="0.25" ixx="0.0004" iyy="0.0008" izz="0.0008"/>
+  </link>
+  <joint name="${prefix}tool0_to_camera_mount" type="fixed">
+    <origin xyz="0.12 0 0.02" rpy="0 -0.55 0"/>
+    <parent link="${prefix}tool0"/>
+    <child link="${prefix}camera_mount"/>
+  </joint>
+
+  <link name="${prefix}camera_color_frame"/>
+  <joint name="${prefix}camera_color_frame_joint" type="fixed">
+    <origin xyz="0.08 0 0" rpy="0 0 0"/>
+    <parent link="${prefix}camera_mount"/>
+    <child link="${prefix}camera_color_frame"/>
+  </joint>
+  <link name="${prefix}rgbd_camera_frame"/>
+  <joint name="${prefix}rgbd_camera_frame_joint" type="fixed">
+    <origin xyz="0.08 0 0" rpy="0 0 0"/>
+    <parent link="${prefix}camera_mount"/>
+    <child link="${prefix}rgbd_camera_frame"/>
+  </joint>
+  <link name="${prefix}lidar_2d_frame"/>
+  <joint name="${prefix}lidar_2d_frame_joint" type="fixed">
+    <origin xyz="0.08 0 0.03" rpy="0 0 0"/>
+    <parent link="${prefix}camera_mount"/>
+    <child link="${prefix}lidar_2d_frame"/>
+  </joint>
+  <link name="${prefix}lidar_3d_frame"/>
+  <joint name="${prefix}lidar_3d_frame_joint" type="fixed">
+    <origin xyz="0.08 0 0.05" rpy="0 0 0"/>
+    <parent link="${prefix}camera_mount"/>
+    <child link="${prefix}lidar_3d_frame"/>
+  </joint>
+  <link name="${prefix}imu_link"/>
+  <joint name="${prefix}imu_joint" type="fixed">
+    <origin xyz="0.02 0 0" rpy="0 0 0"/>
+    <parent link="${prefix}camera_mount"/>
+    <child link="${prefix}imu_link"/>
+  </joint>
+
+  <xacro:if value="$(arg enable_camera)">
+    <gazebo reference="${prefix}camera_mount">
+      <sensor name="color_camera" type="camera">
+        <pose>0.08 0 0 0 0 0</pose>
+        <topic>/camera/color/image_raw</topic>
+        <camera>
+          <horizontal_fov>1.047</horizontal_fov>
+          <image>
+            <width>640</width>
+            <height>480</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip>
+            <near>0.03</near>
+            <far>100.0</far>
+          </clip>
+        </camera>
+        <always_on>true</always_on>
+        <update_rate>30</update_rate>
+        <visualize>true</visualize>
+      </sensor>
+    </gazebo>
+  </xacro:if>
+
+  <xacro:if value="$(arg enable_depth)">
+    <gazebo reference="${prefix}camera_mount">
+      <sensor name="rgbd_camera" type="rgbd_camera">
+        <pose>0.08 0 0 0 0 0</pose>
+        <topic>/camera/depth</topic>
+        <camera>
+          <horizontal_fov>1.047</horizontal_fov>
+          <image>
+            <width>640</width>
+            <height>480</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip>
+            <near>0.03</near>
+            <far>30.0</far>
+          </clip>
+        </camera>
+        <always_on>true</always_on>
+        <update_rate>15</update_rate>
+        <visualize>false</visualize>
+      </sensor>
+    </gazebo>
+  </xacro:if>
+
+  <xacro:if value="$(arg enable_lidar)">
+    <gazebo reference="${prefix}camera_mount">
+      <sensor name="lidar_2d" type="gpu_lidar">
+        <pose>0.08 0 0.03 0 0 0</pose>
+        <topic>/scan</topic>
+        <update_rate>20</update_rate>
+        <lidar>
+          <scan>
+            <horizontal>
+              <samples>720</samples>
+              <resolution>1</resolution>
+              <min_angle>-1.5707963267948966</min_angle>
+              <max_angle>1.5707963267948966</max_angle>
+            </horizontal>
+          </scan>
+          <range>
+            <min>0.05</min>
+            <max>12.0</max>
+            <resolution>0.01</resolution>
+          </range>
+        </lidar>
+        <visualize>false</visualize>
+      </sensor>
+    </gazebo>
+
+    <gazebo reference="${prefix}camera_mount">
+      <sensor name="lidar_3d" type="gpu_lidar">
+        <pose>0.08 0 0.05 0 0 0</pose>
+        <topic>/lidar</topic>
+        <update_rate>10</update_rate>
+        <lidar>
+          <scan>
+            <horizontal>
+              <samples>320</samples>
+              <resolution>1</resolution>
+              <min_angle>-1.5707963267948966</min_angle>
+              <max_angle>1.5707963267948966</max_angle>
+            </horizontal>
+            <vertical>
+              <samples>32</samples>
+              <resolution>1</resolution>
+              <min_angle>-0.5235987755982988</min_angle>
+              <max_angle>0.5235987755982988</max_angle>
+            </vertical>
+          </scan>
+          <range>
+            <min>0.05</min>
+            <max>15.0</max>
+            <resolution>0.02</resolution>
+          </range>
+        </lidar>
+        <visualize>false</visualize>
+      </sensor>
+    </gazebo>
+  </xacro:if>
+
+  <xacro:if value="$(arg enable_imu)">
+    <gazebo reference="${prefix}camera_mount">
+      <sensor name="imu" type="imu">
+        <pose>0.02 0 0 0 0 0</pose>
+        <topic>/imu/data</topic>
+        <always_on>true</always_on>
+        <update_rate>100</update_rate>
+        <visualize>false</visualize>
+      </sensor>
+    </gazebo>
+  </xacro:if>
+
+  <xacro:if value="$(arg use_gz_ros2_control)">
+    <gazebo>
+      <plugin filename="libgz_ros2_control-system.so" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+        <parameters>${controllers_file}</parameters>
+        <robot_param>robot_description</robot_param>
+        <robot_param_node>robot_state_publisher</robot_param_node>
+        <controller_manager_name>${controller_manager_name}</controller_manager_name>
+        <ros>
+          <namespace>${ros_namespace}</namespace>
+        </ros>
+      </plugin>
+    </gazebo>
+  </xacro:if>
+
+  <ros2_control name="${prefix}FanucM20iA10LSystem" type="system">
+    <hardware>
+      <plugin>${hardware_plugin}</plugin>
+    </hardware>
+    <xacro:control_joint name="joint_1" initial="0.0" lower="-3.228859" upper="3.228859"/>
+    <xacro:control_joint name="joint_2" initial="-0.45" lower="-1.745329" upper="2.792527"/>
+    <xacro:control_joint name="joint_3" initial="0.75" lower="-3.228859" upper="4.810826"/>
+    <xacro:control_joint name="joint_4" initial="0.0" lower="-3.490658" upper="3.490658"/>
+    <xacro:control_joint name="joint_5" initial="-0.35" lower="-2.443461" upper="2.443461"/>
+    <xacro:control_joint name="joint_6" initial="0.0" lower="-4.712389" upper="4.712389"/>
+  </ros2_control>
+</robot>

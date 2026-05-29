@@ -38,7 +38,12 @@ def load_sim_mode(mode_name):
     return mode
 
 
-def load_sim_profile(profile_name="panda", profile_file="", require_moveit=False):
+def load_sim_profile(
+    profile_name="panda",
+    profile_file="",
+    require_moveit=False,
+    include_optional_moveit=False,
+):
     profile_path = _profile_path(profile_name, profile_file)
     raw = _load_yaml(profile_path, "sim_profile")
 
@@ -58,10 +63,11 @@ def load_sim_profile(profile_name="panda", profile_file="", require_moveit=False
         "gazebo": _resolve_gazebo(raw, profile_path),
         "control": _resolve_control(raw, profile_path),
         "startup_bridges": startup_bridges,
-        "bridges": _resolve_bridge_groups(raw, startup_bridges),
+        "bridges": _resolve_bridge_groups(raw, startup_bridges, profile_path),
         "sensors": _resolve_sensors(raw, profile_path),
+        "smoke": _resolve_smoke(raw, profile_path),
     }
-    if require_moveit:
+    if require_moveit or (include_optional_moveit and "moveit" in raw):
         profile["moveit"] = _resolve_moveit(raw, profile_path)
     return profile
 
@@ -381,7 +387,7 @@ def _resolve_startup_bridges(raw, profile_path):
     return [str(name) for name in bridges]
 
 
-def _resolve_bridge_groups(raw, startup_bridges):
+def _resolve_bridge_groups(raw, startup_bridges, profile_path):
     bridge_names = set(startup_bridges)
     sensors = raw.get("sensors", {})
     if isinstance(sensors, dict):
@@ -389,9 +395,22 @@ def _resolve_bridge_groups(raw, startup_bridges):
             if isinstance(sensor, dict) and sensor.get("bridge_group"):
                 bridge_names.add(str(sensor["bridge_group"]))
 
+    profile_bridge_groups = raw.get("bridge_groups", {})
+    if profile_bridge_groups is None:
+        profile_bridge_groups = {}
+    if not isinstance(profile_bridge_groups, dict):
+        raise RuntimeError(f"bridge_groups must be a mapping: {profile_path}")
+
     resolved = {}
     for name in sorted(bridge_names):
-        resolved[name] = _load_bridge_group(name)
+        if name in profile_bridge_groups:
+            resolved[name] = _resolve_bridge_group_spec(
+                name,
+                profile_bridge_groups[name],
+                profile_path,
+            )
+        else:
+            resolved[name] = _load_bridge_group(name)
     return resolved
 
 
@@ -406,6 +425,7 @@ def _load_bridge_group(name):
     if raw.get("schema") != CONFIG_SCHEMA_VERSION:
         raise RuntimeError(f"bridge_group schema must be {CONFIG_SCHEMA_VERSION}: {path}")
 
+    config = _resolve_path(raw.get("config"), f"bridge_group.{name}.config")
     return {
         "name": raw.get("name", name),
         "package": raw.get("package", "ros_gz_bridge"),
@@ -413,8 +433,86 @@ def _load_bridge_group(name):
         "node_name": raw.get("node_name") or f"{name}_bridge",
         "namespace": raw.get("namespace", "sensors"),
         "output": raw.get("output", "screen"),
-        "config": _resolve_path(raw.get("config"), f"bridge_group.{name}.config"),
+        "config": config,
+        "topics": _load_bridge_topics(config, f"bridge_group.{name}.config"),
     }
+
+
+def _resolve_bridge_group_spec(name, spec, profile_path):
+    field_name = f"bridge_groups.{name}"
+    if not isinstance(spec, dict):
+        raise RuntimeError(f"{field_name} must be a mapping: {profile_path}")
+
+    has_config = spec.get("config") is not None
+    has_topics = spec.get("topics") is not None
+    if has_config and has_topics:
+        raise RuntimeError(f"{field_name} must use either config or topics, not both")
+    if not has_config and not has_topics:
+        raise RuntimeError(f"{field_name} must define config or topics")
+
+    if has_config:
+        config = _resolve_path(spec.get("config"), f"{field_name}.config")
+        topics = _load_bridge_topics(config, f"{field_name}.config")
+    else:
+        topics = _normalize_bridge_topics(spec.get("topics"), f"{field_name}.topics")
+        config = _write_inline_bridge_config(name, topics)
+
+    return {
+        "name": spec.get("name", name),
+        "package": spec.get("package", "ros_gz_bridge"),
+        "executable": spec.get("executable", "parameter_bridge"),
+        "node_name": spec.get("node_name") or f"{name}_bridge",
+        "namespace": spec.get("namespace", "sensors"),
+        "output": spec.get("output", "screen"),
+        "config": config,
+        "topics": topics,
+    }
+
+
+def _load_bridge_topics(path, field_name):
+    _require_path(path, field_name)
+    with open(path, "r", encoding="utf-8") as handle:
+        raw = yaml.safe_load(handle)
+    return _normalize_bridge_topics(raw, field_name)
+
+
+def _normalize_bridge_topics(raw, field_name):
+    if not isinstance(raw, list):
+        raise RuntimeError(f"{field_name} must be a list of bridge topic mappings")
+
+    required = (
+        "ros_topic_name",
+        "gz_topic_name",
+        "ros_type_name",
+        "gz_type_name",
+        "direction",
+    )
+    topics = []
+    for index, item in enumerate(raw):
+        item_field = f"{field_name}[{index}]"
+        if not isinstance(item, dict):
+            raise RuntimeError(f"{item_field} must be a mapping")
+        missing = [name for name in required if not item.get(name)]
+        if missing:
+            raise RuntimeError(f"{item_field} missing required fields: {', '.join(missing)}")
+        topics.append({name: str(item[name]) for name in required})
+    return topics
+
+
+def _write_inline_bridge_config(name, topics):
+    digest = sha256()
+    digest.update(name.encode("utf-8"))
+    digest.update(yaml.safe_dump(topics, sort_keys=True).encode("utf-8"))
+    safe_name = re.sub(r"[^A-Za-z0-9_.-]+", "_", name)
+    path = os.path.join(
+        tempfile.gettempdir(),
+        "robot_sim_bridge_configs",
+        f"{safe_name}-{digest.hexdigest()[:12]}.yaml",
+    )
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as handle:
+        yaml.safe_dump(topics, handle, sort_keys=False)
+    return path
 
 
 def _resolve_sensors(raw, profile_path):
@@ -434,8 +532,104 @@ def _resolve_sensors(raw, profile_path):
             "default_enabled": bool(sensor.get("default_enabled", True)),
             "bridge_group": bridge_group,
             "static_tfs": sensor.get("static_tfs", []),
+            "receiver": _resolve_sensor_receiver(name, sensor, profile_path),
         }
     return resolved
+
+
+def _resolve_sensor_receiver(sensor_name, sensor, profile_path):
+    receiver = sensor.get("receiver")
+    if receiver is None:
+        return None
+    if not isinstance(receiver, dict):
+        raise RuntimeError(
+            f"sensors.{sensor_name}.receiver must be a mapping: {profile_path}"
+        )
+
+    missing = [
+        field
+        for field in ("package", "executable", "type")
+        if not receiver.get(field)
+    ]
+    if missing:
+        raise RuntimeError(
+            f"sensors.{sensor_name}.receiver missing fields: "
+            + ", ".join(missing)
+            + f": {profile_path}"
+        )
+
+    parameters = receiver.get("parameters", {})
+    if parameters is None:
+        parameters = {}
+    if not isinstance(parameters, dict):
+        raise RuntimeError(
+            f"sensors.{sensor_name}.receiver.parameters must be a mapping: {profile_path}"
+        )
+
+    return {
+        "package": str(receiver["package"]),
+        "executable": str(receiver["executable"]),
+        "type": str(receiver["type"]),
+        "node_name": str(receiver.get("node_name") or f"{sensor_name}_receiver"),
+        "namespace": str(receiver.get("namespace", "sensors")),
+        "output": str(receiver.get("output", "screen")),
+        "expected_min_hz": float(receiver.get("expected_min_hz", 1.0)),
+        "log_period_sec": max(float(receiver.get("log_period_sec", 5.0)), 0.1),
+        "parameters": {str(key): value for key, value in parameters.items()},
+    }
+
+
+def _resolve_smoke(raw, profile_path):
+    smoke = raw.get("smoke", {})
+    if smoke is None:
+        smoke = {}
+    if not isinstance(smoke, dict):
+        raise RuntimeError(f"smoke must be a mapping: {profile_path}")
+
+    controllers = smoke.get("controllers", {})
+    sensors = smoke.get("sensors", {})
+    tf = smoke.get("tf", {})
+    if controllers is None:
+        controllers = {}
+    if sensors is None:
+        sensors = {}
+    if tf is None:
+        tf = {}
+    if not isinstance(controllers, dict):
+        raise RuntimeError(f"smoke.controllers must be a mapping: {profile_path}")
+    if not isinstance(sensors, dict):
+        raise RuntimeError(f"smoke.sensors must be a mapping: {profile_path}")
+    if not isinstance(tf, dict):
+        raise RuntimeError(f"smoke.tf must be a mapping: {profile_path}")
+
+    required = controllers.get("required")
+    if required is not None:
+        if not isinstance(required, list):
+            raise RuntimeError(f"smoke.controllers.required must be a list: {profile_path}")
+        required = [str(name) for name in required]
+
+    required_frames = tf.get("required_frames", [])
+    if not isinstance(required_frames, list):
+        raise RuntimeError(f"smoke.tf.required_frames must be a list: {profile_path}")
+
+    return {
+        "controllers": {
+            "required": required,
+            "primary_trajectory": (
+                str(controllers["primary_trajectory"])
+                if controllers.get("primary_trajectory")
+                else None
+            ),
+        },
+        "sensors": {
+            "min_hz": float(sensors.get("min_hz", 1.0)),
+            "min_samples": int(sensors.get("min_samples", 3)),
+            "topic_timeout": float(sensors.get("topic_timeout", 6.0)),
+        },
+        "tf": {
+            "required_frames": [str(frame) for frame in required_frames],
+        },
+    }
 
 
 def _resolve_moveit(raw, profile_path):
