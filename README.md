@@ -247,7 +247,7 @@ flowchart LR
 | `src/robot_task_interfaces/` | 通用任务上下文接口 |
 | `src/acquisition_interfaces/` | 通用采集状态、质量和任务接口 |
 | `src/data_collect*` | 旧采集链路测试辅助，本轮不维护硬件驱动启动入口 |
-| `src/weld_interface/` | 焊接业务 adapter 和旧接口兼容层 |
+| `src/weld_interface/` | 已删除：旧焊接接口已迁出到离线检验项目，不参与当前仿真构建 |
 
 ## 本机分布式仿真
 
@@ -340,7 +340,11 @@ http://localhost:3000
 ```bash
 colcon build --symlink-install --packages-select \
   robot_task_interfaces acquisition_interfaces simulation_interfaces \
-  weld_interface file_reader data_collect data_collect_quality data_collect_ui
+  file_reader
 ```
 
-新项目优先接入 `/task/set_context`、`/acquisition/set_task`、`/acquisition/status` 和 `/acquisition/quality`。仿真传感器数据请通过 `robot_sim_bringup` 的 bridge topic 和 `robot_sim_sensors` receiver 验证，不再接入旧厂商 SDK 驱动。
+## 数据检验软件
+
+离线数据检验能力已经从 `robot_sim` 中拆出到 [/home/kyle/sany/Offline_data_tool](/home/kyle/sany/Offline_data_tool)。`robot_sim` 现在只保留仿真与录包辅助入口，不再维护旧 `data_collect` 或 `weld_interface` 构建链路。
+
+如果你要做现场数据导入、规范化、可视化检验和质量评估，请直接使用新项目。

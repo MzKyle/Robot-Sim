@@ -20,7 +20,7 @@ colcon build --symlink-install --allow-overriding gz_ros2_control --packages-sel
 ```bash
 colcon build --symlink-install --packages-select \
   robot_task_interfaces acquisition_interfaces simulation_interfaces \
-  weld_interface file_reader data_collect data_collect_quality data_collect_ui
+  file_reader
 ```
 
 ## 加载环境

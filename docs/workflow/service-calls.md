@@ -56,9 +56,4 @@ ros2 service call /acquisition/set_task acquisition_interfaces/srv/SetAcquisitio
   "{context: {task_id: T-001, workpiece_id: WP-01, operator_name: zhang, shift: day, notes: test}}"
 ```
 
-旧焊接兼容接口：
-
-```bash
-ros2 service call /data_collect_set_task weld_interface/srv/SetCollectionTask \
-  "{task_id: T-001, workpiece_id: WP-01, weld_seam_id: S-01, operator_name: zhang, shift: day, notes: test}"
-```
+旧焊接兼容接口已移除，不再维护。

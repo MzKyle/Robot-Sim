@@ -1,8 +1,0 @@
-# 请求
-string point_id
-string value_type
-string value
----
-# 响应
-bool success
-string message

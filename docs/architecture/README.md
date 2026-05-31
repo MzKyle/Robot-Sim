@@ -28,7 +28,6 @@ flowchart TB
         TASK[robot_task_interfaces]
         ACQ[acquisition_interfaces]
         SIMIF[simulation_interfaces]
-        WELD[weld_interface]
         FILE[file_reader]
     end
 
@@ -41,7 +40,6 @@ flowchart TB
     ACQ --> UI
     ACQ --> COLLECT
     SIMIF --> SIM
-    WELD --> COLLECT
     FILE --> BRINGUP
     FILE --> UI
     QUALITY --> COLLECT
@@ -51,7 +49,7 @@ flowchart TB
 ## 架构特点
 
 - 节点职责清晰，采集、展示和配置分层管理。
-- 实际采集与仿真采集优先共享中性的 task/acquisition/simulation 接口，焊接字段由 `weld_interface` 作为 adapter 承载。
+- 实际采集与仿真采集优先共享中性的 task/acquisition/simulation 接口；旧焊接适配层已迁出到独立的离线数据检验项目。
 - 仿真链路由 `robot_sim_bringup` 的 `sim_mode`、scenario world 和传感器组开关控制，对应 gz sim 8、Panda 机械臂、Gazebo hardware plugin 和标准 ROS 2 控制器。
 - 仿真传感器接收由 profile 中的 `sensors.<name>.receiver` 声明，receiver 订阅原生仿真话题并发布 diagnostics。
 - 采集状态通过 ROS 话题向外广播，UI 通过服务完成控制动作。

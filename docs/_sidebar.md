@@ -24,7 +24,6 @@
   - [采集质量节点](modules/data-collect-quality.md)
   - [采集核心](modules/data-collect.md)
   - [桌面操作台](modules/data-collect-ui.md)
-  - [ROS 接口包](modules/weld-interface.md)
   - [配置读取工具](modules/file-reader.md)
   - [Bringup 入口](modules/data-collect-bringup.md)
 

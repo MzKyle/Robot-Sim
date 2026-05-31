@@ -21,7 +21,7 @@
 
 `robot_sim` 当前以 Gazebo 仿真和机器人运控验证为主。核心入口是 `robot_sim_bringup`，它把 Panda/Fanuc 机械臂模型、Gazebo world、`gz_ros2_control`、MoveIt2、RViz2、`ros_gz_bridge` 和仿真传感器接收包组织成统一仿真链路。
 
-旧真实硬件相机和 Fanuc 驱动包已移除。数据采集、桌面 UI 等模块保留为旧业务链路测试辅助能力，但旧硬件启动和打包入口本轮暂不维护。阅读本文档时，建议先从仿真运控链路看起，再按需进入采集测试章节。
+旧真实硬件相机和 Fanuc 驱动包已移除。离线数据检验能力已经迁出到 [/home/kyle/sany/Offline_data_tool](/home/kyle/sany/Offline_data_tool)，`robot_sim` 现在只保留仿真主链路和录包辅助入口。
 
 ## 主要特性
 
@@ -74,7 +74,7 @@ flowchart LR
 | `src/simulation_interfaces/` | 通用仿真 scenario 接口 |
 | `src/robot_task_interfaces/` | 通用任务上下文接口 |
 | `src/acquisition_interfaces/` | 通用采集状态、质量和任务接口 |
-| `src/data_collect*` | 旧数据采集链路测试辅助，硬件驱动入口暂不维护 |
+| `src/data_collect*` | 已移除：旧数据采集链路已迁出到离线数据检验项目 |
 
 ## 快速导航
 
