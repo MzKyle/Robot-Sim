@@ -123,8 +123,8 @@ def test_new_scene_workspaces_and_regions_are_readable():
     shelf = load_scene("shelf_bin_picking")
 
     assert industrial.workspace.frame == "world"
-    assert industrial.workspace.min_bounds == (-0.25, -1.35, 0.35)
-    assert industrial.workspace.max_bounds == (1.95, 1.35, 1.9)
+    assert industrial.workspace.min_bounds == (-1.6, -1.35, 0.35)
+    assert industrial.workspace.max_bounds == (1.95, 1.55, 2.1)
     assert {"obstacle_test", "fixture_pick", "planning_goal"} <= set(industrial.regions)
 
     assert conveyor.workspace.min_bounds == (-0.35, -1.25, 0.45)

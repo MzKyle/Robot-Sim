@@ -15,8 +15,8 @@ moveit:
   target_link: tool0
   frame: world
   planning_time_sec: 10.0
-  velocity_scaling: 0.18
-  acceleration_scaling: 0.18
+  velocity_scaling: 0.1
+  acceleration_scaling: 0.1
 
 start_region: planning_start
 goal_region: planning_goal

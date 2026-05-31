@@ -255,8 +255,8 @@ robot_mount_pose: [0.0, 0.0, 0.18, 0.0, 0.0, 0.0]
 workspace:
   frame: world
   bounds:
-    min: [-0.25, -1.35, 0.35]
-    max: [1.95, 1.35, 1.90]
+    min: [-1.60, -1.35, 0.35]
+    max: [1.95, 1.55, 2.10]
 
 objects:
   - name: robot_mount_pedestal

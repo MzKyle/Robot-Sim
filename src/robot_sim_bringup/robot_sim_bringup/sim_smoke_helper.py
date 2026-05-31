@@ -896,7 +896,11 @@ def _run_validation_case(args):
     tf_buffer = Buffer()
     tf_listener = TransformListener(tf_buffer, node)
     action_client = ActionClient(node, MoveGroup, context["move_action"])
-    controller_state = {"max_error": None}
+    controller_state = {
+        "peak_error": None,
+        "latest_error": None,
+        "settled_errors": None,
+    }
     tcp_points = []
 
     def controller_state_callback(msg):
@@ -904,8 +908,11 @@ def _run_validation_case(args):
         if not errors:
             return
         value = max(abs(float(error)) for error in errors)
-        current = controller_state["max_error"]
-        controller_state["max_error"] = value if current is None else max(current, value)
+        controller_state["latest_error"] = value
+        current = controller_state["peak_error"]
+        controller_state["peak_error"] = value if current is None else max(current, value)
+        if controller_state["settled_errors"] is not None:
+            controller_state["settled_errors"].append(value)
 
     controller_state_topic = _absolute_name(
         context["robot_namespace"],
@@ -953,6 +960,7 @@ def _run_validation_case(args):
             tcp_points,
             "goal",
         )
+        settled_controller_error = _settled_controller_error(node, controller_state)
 
         sensor_hz = _validation_sensor_hz(node, context, criteria)
         final_point = _lookup_tf_point(
@@ -998,7 +1006,8 @@ def _run_validation_case(args):
             ),
             "goal_position_error_m": goal_error,
             "min_tcp_clearance_m": min_clearance,
-            "max_controller_error_rad": controller_state["max_error"],
+            "max_controller_error_rad": settled_controller_error,
+            "peak_controller_error_rad": controller_state["peak_error"],
             "sensor_hz": sensor_hz,
             "tf_ok": tf_ok,
             "passed": False,
@@ -1283,6 +1292,20 @@ def _spin_until_future(node, future, timeout, sample_fn):
         if future.done():
             return future.result()
     raise RuntimeError("Timed out waiting for asynchronous validation operation")
+
+
+def _settled_controller_error(node, controller_state, settle_sec=1.0):
+    import rclpy
+
+    controller_state["settled_errors"] = []
+    deadline = time.monotonic() + settle_sec
+    while time.monotonic() < deadline:
+        rclpy.spin_once(node, timeout_sec=0.1)
+    settled_errors = controller_state["settled_errors"]
+    controller_state["settled_errors"] = None
+    if settled_errors:
+        return max(settled_errors)
+    return controller_state["latest_error"]
 
 
 def _lookup_tf_point(tf_buffer, frame_id, target_link):
