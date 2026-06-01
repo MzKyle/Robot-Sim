@@ -35,6 +35,7 @@ ros2 launch robot_sim_bringup sim.launch.py
 ```
 
 默认 `sim_mode:=light` 会启动 Gazebo 和 `gz_ros2_control`，关闭传感器、MoveIt2 和 RViz2，适合日常调控制链。
+`light/full` 启动前会检查 `gz_ros2_control` 的 Gazebo system plugin 是否真的导出 `gz_ros2_control::GazeboSimROS2ControlPlugin`，并把当前 overlay 的 `lib` 路径注入 `GZ_SIM_SYSTEM_PLUGIN_PATH`、`IGN_GAZEBO_SYSTEM_PLUGIN_PATH` 和 `LD_LIBRARY_PATH`。如果检查指向 `/opt/ros/humble/lib/libgz_ros2_control-system.so` 且提示没有插件，说明没有正确使用本工作空间的源码 overlay，需要重新构建并 `source install/setup.bash`。
 
 完整仿真：
 
@@ -127,6 +128,7 @@ ros2 run robot_sim_bringup profile_lint \
 ```
 
 `profile_lint` 会检查路径、通用 xacro 参数、sensor xacro_arg、controller spawner/type、trajectory joints、bridge topic ROS 类型、receiver 可执行文件和静态 TF frame。通过后再启动仿真或 smoke test：
+`light/full` 模式下它还会运行 Gazebo 插件预检，确认 `gz sim` major version 和 `gz_ros2_control` 插件 ABI 匹配。
 
 ```bash
 scripts/sim_smoke_test.sh --profile-file /path/to/custom_robot.yaml --mode full
@@ -196,6 +198,13 @@ scripts/sim_smoke_test.sh --profile panda --mode full --timeout 120
 scripts/sim_smoke_test.sh --profile panda --mode full --with-moveit
 scripts/sim_smoke_test.sh --profile panda --mode full --with-rosbag --keep-logs
 scripts/sim_smoke_test.sh --profile-file /path/to/custom_robot.yaml --mode full
+```
+
+`mock` 只验证 ROS 控制链，不会启动 Gazebo，也不会证明 system plugin 可加载。要专门复核插件链路，可以运行：
+
+```bash
+ros2 run robot_sim_bringup profile_lint --profile panda --mode light --require-receivers
+gz plugin -p "$(ros2 pkg prefix gz_ros2_control)/lib/libgz_ros2_control-system.so" --info
 ```
 
 排查单项问题时仍可使用手工命令：

@@ -12,6 +12,12 @@ from launch.substitutions import Command, FindExecutable
 from launch_ros.actions import Node, PushRosNamespace
 from launch_ros.parameter_descriptions import ParameterValue
 
+from robot_sim_bringup.gazebo_plugin_check import (
+    check_gz_ros2_control_plugin,
+    format_gz_ros2_control_check,
+    gz_ros2_control_environment,
+    uses_gz_ros2_control,
+)
 from robot_sim_bringup.sim_config_loader import load_sim_mode, load_sim_profile
 
 
@@ -88,6 +94,7 @@ def build_sim_launch_actions(context, layout_name):
     actions = [
         LogInfo(msg=_log_message(profile, mode, layout_name, use_sim_time, sensors)),
         *_resource_path_actions(profile),
+        *_gazebo_plugin_path_actions(profile, mode),
         _namespace_group(robot_namespace, robot_stack_actions),
     ]
 
@@ -372,6 +379,20 @@ def _resource_path_actions(profile):
     return [
         SetEnvironmentVariable(env_name, env_value(env_name))
         for env_name in env_vars
+    ]
+
+
+def _gazebo_plugin_path_actions(profile, mode):
+    if not uses_gz_ros2_control(profile, mode):
+        return []
+
+    check = check_gz_ros2_control_plugin(profile["gazebo"]["gz_version"])
+    if not check["ok"]:
+        raise RuntimeError(format_gz_ros2_control_check(check))
+
+    return [
+        SetEnvironmentVariable(name, value)
+        for name, value in gz_ros2_control_environment().items()
     ]
 
 

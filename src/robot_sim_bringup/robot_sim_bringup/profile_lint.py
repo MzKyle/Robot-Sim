@@ -9,6 +9,11 @@ from xml.etree import ElementTree as ET
 import yaml
 from ament_index_python.packages import get_package_prefix
 
+from robot_sim_bringup.gazebo_plugin_check import (
+    check_gz_ros2_control_plugin,
+    format_gz_ros2_control_check,
+    uses_gz_ros2_control,
+)
 from robot_sim_bringup.sim_config_loader import load_sim_mode, load_sim_profile
 
 
@@ -406,6 +411,140 @@ def _check_tf(profile, urdf_links, errors):
             errors.append(f"smoke required TF frame '{frame}' is not declared")
 
 
+def _check_moveit(profile, errors, warnings):
+    moveit = profile.get("moveit")
+    if not moveit:
+        return
+
+    arguments = moveit["arguments"]
+    groups, group_states = _moveit_srdf_groups(arguments["srdf_file"], errors)
+    if not groups:
+        return
+    primary_group = groups[0]
+
+    kinematics = _load_yaml(arguments["kinematics_yaml"])
+    if primary_group not in kinematics:
+        errors.append(
+            f"MoveIt kinematics_yaml missing planning group '{primary_group}'"
+        )
+
+    ompl = _load_yaml(arguments["ompl_planning_yaml"])
+    if primary_group not in ompl:
+        errors.append(
+            f"MoveIt ompl_planning_yaml missing planning group '{primary_group}'"
+        )
+
+    primary_controller = (
+        profile["smoke"]["controllers"].get("primary_trajectory")
+        or _first_trajectory_spawner(profile)
+    )
+    controller_joints = []
+    if primary_controller:
+        controller_joints = _controller_parameters(
+            _load_yaml(profile["control"]["controllers_file"]),
+            primary_controller,
+        ).get("joints", [])
+        if not isinstance(controller_joints, list):
+            controller_joints = []
+
+    joint_limits = _load_yaml(arguments["joint_limits_yaml"])
+    planning_limits = (
+        joint_limits.get("robot_description_planning", {})
+        .get("joint_limits", {})
+        if isinstance(joint_limits, dict)
+        else {}
+    )
+    if not isinstance(planning_limits, dict) or not planning_limits:
+        errors.append(
+            "MoveIt joint_limits_yaml must define "
+            "robot_description_planning.joint_limits"
+        )
+    for joint in controller_joints:
+        if joint not in planning_limits:
+            errors.append(f"MoveIt joint_limits_yaml missing joint '{joint}'")
+
+    moveit_controllers = _load_yaml(arguments["moveit_controllers_yaml"])
+    manager = moveit_controllers.get("moveit_simple_controller_manager", {})
+    controller_names = manager.get("controller_names", [])
+    if primary_controller and primary_controller not in controller_names:
+        errors.append(
+            f"MoveIt controllers missing primary controller '{primary_controller}'"
+        )
+    if primary_controller:
+        controller = manager.get(primary_controller, {})
+        if controller.get("type") != "FollowJointTrajectory":
+            errors.append(
+                f"MoveIt controller '{primary_controller}' must use "
+                "type FollowJointTrajectory"
+            )
+        if controller.get("action_ns") != "follow_joint_trajectory":
+            errors.append(
+                f"MoveIt controller '{primary_controller}' must use "
+                "action_ns follow_joint_trajectory"
+            )
+        moveit_joints = controller.get("joints", [])
+        if list(moveit_joints) != list(controller_joints):
+            errors.append(
+                f"MoveIt controller '{primary_controller}' joints do not match "
+                "ros2_control controller joints"
+            )
+
+    if primary_group not in group_states:
+        warnings.append(
+            f"MoveIt SRDF planning group '{primary_group}' has no named group_state"
+        )
+
+    _check_moveit_rviz(arguments["rviz_config"], primary_group, errors)
+
+
+def _moveit_srdf_groups(path, errors):
+    try:
+        root = ET.parse(path).getroot()
+    except ET.ParseError as exc:
+        errors.append(f"MoveIt SRDF is not valid XML: {path}: {exc}")
+        return [], {}
+
+    groups = [
+        group.attrib["name"]
+        for group in root.findall("group")
+        if group.attrib.get("name")
+    ]
+    if not groups:
+        errors.append(f"MoveIt SRDF has no planning group: {path}")
+
+    group_states = {}
+    for state in root.findall("group_state"):
+        group = state.attrib.get("group")
+        if not group:
+            continue
+        group_states.setdefault(group, []).append(state.attrib.get("name", ""))
+    return groups, group_states
+
+
+def _check_moveit_rviz(path, primary_group, errors):
+    with open(path, "r", encoding="utf-8") as handle:
+        text = handle.read()
+    if "moveit_rviz_plugin/MotionPlanning" not in text:
+        errors.append(
+            "MoveIt RViz config must include moveit_rviz_plugin/MotionPlanning"
+        )
+    if f"Planning Group: {primary_group}" not in text:
+        errors.append(
+            f"MoveIt RViz config must set Planning Group: {primary_group}"
+        )
+
+
+def _check_gazebo_runtime(profile, mode, errors, warnings):
+    if not uses_gz_ros2_control(profile, mode):
+        return None
+
+    result = check_gz_ros2_control_plugin(profile["gazebo"]["gz_version"])
+    warnings.extend(result.get("warnings", []))
+    if not result["ok"]:
+        errors.append(format_gz_ros2_control_check(result))
+    return result
+
+
 def lint_profile(args):
     errors = []
     warnings = []
@@ -435,6 +574,8 @@ def lint_profile(args):
     _check_bridges(profile, errors)
     _check_receivers(profile, sensors, args.require_receivers, errors, warnings)
     _check_tf(profile, urdf_links, errors)
+    _check_moveit(profile, errors, warnings)
+    gazebo_plugin = _check_gazebo_runtime(profile, mode, errors, warnings)
 
     return {
         "ok": not errors,
@@ -447,6 +588,7 @@ def lint_profile(args):
         "warnings": warnings,
         "bridges": sorted(profile["bridges"]),
         "sensors": sensors,
+        "gazebo_plugin": gazebo_plugin,
     }
 
 

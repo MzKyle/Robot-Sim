@@ -16,10 +16,22 @@ ros2 topic echo --once /diagnostics
 ## 推荐检查项
 
 - `profile_lint --require-receivers` 是否通过。
+- `light/full` 模式下 `profile_lint` 是否能确认 `gz_ros2_control::GazeboSimROS2ControlPlugin` 从当前 overlay 的 `libgz_ros2_control-system.so` 导出。
 - 仿真节点、controller 和 bridge 是否正常启动。
 - RGB、深度、点云、LaserScan 和 IMU 话题是否有数据。
 - `robot_sim_sensors` 是否在 `/diagnostics` 输出 receiver 健康状态。
 - 旧 `data_collect` 硬件启动链路本轮暂不维护，不作为仿真验收条件。
+
+## Gazebo 插件预检
+
+真实 Gazebo 链路必须使用本工作空间编译的 `gz_ros2_control` overlay。只跑 `mock` 不会加载 Gazebo system plugin，因此不能覆盖这类 ABI 问题。
+
+```bash
+ros2 run robot_sim_bringup profile_lint --profile panda --mode light --require-receivers
+gz plugin -p "$(ros2 pkg prefix gz_ros2_control)/lib/libgz_ros2_control-system.so" --info
+```
+
+输出里应包含 `gz_ros2_control::GazeboSimROS2ControlPlugin`。如果路径落到 `/opt/ros/humble/lib/libgz_ros2_control-system.so` 且提示没有导出插件，重新执行带 `--allow-overriding gz_ros2_control` 的工作空间构建并 `source install/setup.bash`。
 
 ## 结束条件
 

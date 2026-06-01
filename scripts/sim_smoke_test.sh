@@ -181,6 +181,47 @@ preflight() {
     echo "Run colcon build and source install/setup.bash first." >&2
     exit 1
   fi
+  gazebo_plugin_preflight
+}
+
+gazebo_plugin_preflight() {
+  if [[ "$MODE" == "mock" ]]; then
+    return
+  fi
+
+  local prefix
+  if ! prefix="$(ros2 pkg prefix gz_ros2_control 2>/dev/null)"; then
+    echo "gz_ros2_control is not visible in the ROS environment." >&2
+    echo "Run colcon build --symlink-install --allow-overriding gz_ros2_control --packages-select gz_ros2_control and source install/setup.bash." >&2
+    exit 1
+  fi
+
+  local lib_dir="$prefix/lib"
+  local plugin="$lib_dir/libgz_ros2_control-system.so"
+  if [[ ! -f "$plugin" ]]; then
+    echo "gz_ros2_control Gazebo plugin library not found: $plugin" >&2
+    echo "Run colcon build --symlink-install --allow-overriding gz_ros2_control --packages-select gz_ros2_control and source install/setup.bash." >&2
+    exit 1
+  fi
+
+  export GZ_SIM_SYSTEM_PLUGIN_PATH="$lib_dir${GZ_SIM_SYSTEM_PLUGIN_PATH:+:$GZ_SIM_SYSTEM_PLUGIN_PATH}"
+  export IGN_GAZEBO_SYSTEM_PLUGIN_PATH="$lib_dir${IGN_GAZEBO_SYSTEM_PLUGIN_PATH:+:$IGN_GAZEBO_SYSTEM_PLUGIN_PATH}"
+  export LD_LIBRARY_PATH="$lib_dir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
+  local info
+  if ! info="$(gz plugin -p "$plugin" --info 2>&1)"; then
+    echo "Failed to inspect gz_ros2_control Gazebo plugin: $plugin" >&2
+    echo "$info" >&2
+    exit 1
+  fi
+  if ! grep -F "gz_ros2_control::GazeboSimROS2ControlPlugin" <<<"$info" >/dev/null; then
+    echo "gz_ros2_control library does not export gz_ros2_control::GazeboSimROS2ControlPlugin: $plugin" >&2
+    echo "$info" >&2
+    echo "The workspace overlay is probably missing or the system package is built for a different Gazebo ABI." >&2
+    exit 1
+  fi
+
+  echo "gz_ros2_control plugin OK: $plugin"
 }
 
 LOG_DIR=""

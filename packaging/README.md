@@ -1,6 +1,6 @@
 # Debian 打包说明
 
-`packaging/build_deb.sh` 只打包当前通用仿真主线，不再包含旧真实硬件、采集 UI 或厂商 SDK。
+`packaging/build_deb.sh` 打包当前通用仿真主线。
 
 ## 构建
 
