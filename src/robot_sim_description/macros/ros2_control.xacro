@@ -14,7 +14,7 @@
     </joint>
   </xacro:macro>
 
-  <xacro:macro name="panda_ros2_control" params="prefix hardware_plugin controllers_file controller_manager_name use_gz_ros2_control ros_namespace">
+  <xacro:macro name="robot_sim_gazebo_ros2_control_plugin" params="use_gz_ros2_control controllers_file controller_manager_name ros_namespace">
     <xacro:if value="${use_gz_ros2_control}">
       <gazebo>
         <plugin filename="libgz_ros2_control-system.so" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
@@ -28,6 +28,15 @@
         </plugin>
       </gazebo>
     </xacro:if>
+  </xacro:macro>
+
+  <xacro:macro name="panda_ros2_control" params="prefix hardware_plugin controllers_file controller_manager_name use_gz_ros2_control ros_namespace">
+    <xacro:robot_sim_gazebo_ros2_control_plugin
+      use_gz_ros2_control="${use_gz_ros2_control}"
+      controllers_file="${controllers_file}"
+      controller_manager_name="${controller_manager_name}"
+      ros_namespace="${ros_namespace}"
+    />
 
     <ros2_control name="${prefix}PandaSystem" type="system">
       <hardware>

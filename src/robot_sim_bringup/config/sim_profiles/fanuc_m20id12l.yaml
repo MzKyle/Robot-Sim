@@ -30,7 +30,7 @@ layouts:
 
 robot:
   xacro:
-    package: robot_sim_fanuc_description
+    package: robot_sim_description
     path: robots/fanuc_m20id12l.urdf.xacro
   spawn_name: fanuc_m20id12l
   spawn_node_name: spawn_fanuc_m20id12l
@@ -41,8 +41,12 @@ robot:
     z: 0.0
   xacro_args:
     mesh_root:
-      package: robot_sim_fanuc_description
-      path: models/m20id12l/meshes
+      package: robot_sim_description
+      path: models/robots/fanuc_m20id12l/meshes
+      uri: file
+    camera_mesh:
+      package: robot_sim_description
+      path: models/sensors/cameras/rgbd_camera/meshes/3dCamera.DAE
       uri: file
 
 worlds:
@@ -68,8 +72,8 @@ gazebo:
     - GZ_SIM_RESOURCE_PATH
     - IGN_GAZEBO_RESOURCE_PATH
   resource_paths:
-    - package: robot_sim_fanuc_description
-    - package: robot_sim_fanuc_description
+    - package: robot_sim_description
+    - package: robot_sim_description
       path: models
     - package: robot_sim_scenarios
     - package: robot_sim_scenarios
@@ -77,7 +81,7 @@ gazebo:
 
 control:
   controllers_file:
-    package: robot_sim_fanuc_control
+    package: robot_sim_control
     path: config/fanuc_m20id12l_controllers.yaml
   controller_manager_name: controller_manager
   hardware_plugins:
@@ -96,25 +100,25 @@ moveit:
     package: robot_sim_moveit_config
     path: launch/moveit.launch.py
   robot_xacro:
-    package: robot_sim_fanuc_description
+    package: robot_sim_description
     path: robots/fanuc_m20id12l.urdf.xacro
   srdf_file:
-    package: robot_sim_fanuc_moveit_config
-    path: config/fanuc_m20id12l.srdf
+    package: robot_sim_moveit_config
+    path: config/fanuc_m20id12l/fanuc_m20id12l.srdf
   kinematics_yaml:
-    package: robot_sim_fanuc_moveit_config
-    path: config/kinematics.yaml
+    package: robot_sim_moveit_config
+    path: config/fanuc_m20id12l/kinematics.yaml
   joint_limits_yaml:
-    package: robot_sim_fanuc_moveit_config
-    path: config/joint_limits.yaml
+    package: robot_sim_moveit_config
+    path: config/fanuc_m20id12l/joint_limits.yaml
   moveit_controllers_yaml:
-    package: robot_sim_fanuc_moveit_config
-    path: config/moveit_controllers.yaml
+    package: robot_sim_moveit_config
+    path: config/fanuc_m20id12l/moveit_controllers.yaml
   ompl_planning_yaml:
-    package: robot_sim_fanuc_moveit_config
-    path: config/ompl_planning.yaml
+    package: robot_sim_moveit_config
+    path: config/fanuc_m20id12l/ompl_planning.yaml
   rviz_config:
-    package: robot_sim_fanuc_moveit_config
+    package: robot_sim_moveit_config
     path: rviz/fanuc_m20id12l_moveit.rviz
 
 bridges:

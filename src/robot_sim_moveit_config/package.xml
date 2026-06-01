@@ -3,7 +3,7 @@
 <package format="3">
   <name>robot_sim_moveit_config</name>
   <version>0.1.0</version>
-  <description>MoveIt2 configuration for the Panda robot simulation platform.</description>
+  <description>MoveIt2 configurations for the generic robot simulation platform.</description>
   <maintainer email="2972689924@qq.com">huang</maintainer>
   <license>Apache-2.0</license>
 

@@ -7,6 +7,7 @@ install(DIRECTORY
   macros
   models
   robots
+  upstream
   DESTINATION share/${PROJECT_NAME}
 )
 

@@ -1,10 +1,10 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
-  <xacro:macro name="panda_gazebo_sensors" params="prefix enable_camera enable_depth enable_lidar enable_imu">
+  <xacro:macro name="robot_sim_gazebo_sensors" params="prefix enable_camera enable_depth enable_lidar enable_imu camera_pose:='0 0 0 0 0 0' depth_pose:='0 0 0 0 0 0' lidar_2d_pose:='0 0 0.035 0 0 0' lidar_3d_pose:='0 0 0.055 0 0 0' imu_pose:='0 0 0.02 0 0 0'">
     <xacro:if value="${enable_camera}">
       <gazebo reference="${prefix}camera_mount">
         <sensor name="color_camera" type="camera">
-          <pose>0 0 0 0 0 0</pose>
+          <pose>${camera_pose}</pose>
           <topic>/camera/color/image_raw</topic>
           <camera>
             <horizontal_fov>1.047</horizontal_fov>
@@ -28,7 +28,7 @@
     <xacro:if value="${enable_depth}">
       <gazebo reference="${prefix}camera_mount">
         <sensor name="rgbd_camera" type="rgbd_camera">
-          <pose>0 0 0 0 0 0</pose>
+          <pose>${depth_pose}</pose>
           <topic>/camera/depth</topic>
           <camera>
             <horizontal_fov>1.047</horizontal_fov>
@@ -52,7 +52,7 @@
     <xacro:if value="${enable_lidar}">
       <gazebo reference="${prefix}camera_mount">
         <sensor name="lidar_2d" type="gpu_lidar">
-          <pose>0 0 0.035 0 0 0</pose>
+          <pose>${lidar_2d_pose}</pose>
           <topic>/scan</topic>
           <update_rate>20</update_rate>
           <lidar>
@@ -76,7 +76,7 @@
 
       <gazebo reference="${prefix}camera_mount">
         <sensor name="lidar_3d" type="gpu_lidar">
-          <pose>0 0 0.055 0 0 0</pose>
+          <pose>${lidar_3d_pose}</pose>
           <topic>/lidar</topic>
           <update_rate>10</update_rate>
           <lidar>
@@ -108,7 +108,7 @@
     <xacro:if value="${enable_imu}">
       <gazebo reference="${prefix}camera_mount">
         <sensor name="imu" type="imu">
-          <pose>0 0 0.02 0 0 0</pose>
+          <pose>${imu_pose}</pose>
           <topic>/imu/data</topic>
           <always_on>true</always_on>
           <update_rate>100</update_rate>
@@ -116,5 +116,15 @@
         </sensor>
       </gazebo>
     </xacro:if>
+  </xacro:macro>
+
+  <xacro:macro name="panda_gazebo_sensors" params="prefix enable_camera enable_depth enable_lidar enable_imu">
+    <xacro:robot_sim_gazebo_sensors
+      prefix="${prefix}"
+      enable_camera="${enable_camera}"
+      enable_depth="${enable_depth}"
+      enable_lidar="${enable_lidar}"
+      enable_imu="${enable_imu}"
+    />
   </xacro:macro>
 </robot>

@@ -50,7 +50,7 @@
       <text x="188" y="30" fill="#effcff" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="18">camera_3d</text>
 
       <rect x="340" y="0" width="150" height="48" rx="14" fill="#ffb36b" fill-opacity="0.16" stroke="#ffd2a8" stroke-opacity="0.45" />
-      <text x="360" y="30" fill="#fff6ea" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="18">fanuc_robot</text>
+      <text x="360" y="30" fill="#fff6ea" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="18">robot_profile</text>
     </g>
   </g>
 
@@ -76,7 +76,7 @@
       <text x="62" y="233" fill="#c8f6f4" font-size="14">point cloud</text>
 
       <rect x="182" y="116" width="138" height="88" rx="20" fill="#ffffff" fill-opacity="0.08" stroke="#c9f2ff" stroke-opacity="0.45" />
-      <text x="210" y="148" fill="#ffffff" font-size="22" font-weight="700">data_collect</text>
+      <text x="210" y="148" fill="#ffffff" font-size="22" font-weight="700">robot_sim</text>
       <text x="204" y="174" fill="#d3edf4" font-size="14">manifest.json</text>
       <text x="204" y="194" fill="#d3edf4" font-size="14">status topic</text>
 

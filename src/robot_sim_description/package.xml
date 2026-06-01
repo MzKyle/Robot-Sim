@@ -3,7 +3,7 @@
 <package format="3">
   <name>robot_sim_description</name>
   <version>0.1.0</version>
-  <description>Panda robot description, Gazebo models, sensors, and ros2_control tags.</description>
+  <description>Robot descriptions, Gazebo models, sensors, and ros2_control tags for the generic simulation platform.</description>
   <maintainer email="2972689924@qq.com">huang</maintainer>
   <license>Apache-2.0</license>
 

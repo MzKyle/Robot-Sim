@@ -9,8 +9,8 @@
   <xacro:arg name="hardware_plugin" default="mock_components/GenericSystem"/>
   <xacro:arg name="controllers_file" default=""/>
   <xacro:arg name="controller_manager_name" default="controller_manager"/>
-  <xacro:arg name="mesh_root" default="package://robot_sim_description/models/panda_arm/meshes"/>
-  <xacro:arg name="camera_mesh" default="package://robot_sim_description/models/rgbd_camera/meshes/3dCamera.DAE"/>
+  <xacro:arg name="mesh_root" default="package://robot_sim_description/models/robots/panda/meshes"/>
+  <xacro:arg name="camera_mesh" default="package://robot_sim_description/models/sensors/cameras/rgbd_camera/meshes/3dCamera.DAE"/>
   <xacro:arg name="use_gz_ros2_control" default="false"/>
   <xacro:arg name="ros_namespace" default=""/>
   <xacro:arg name="enable_camera" default="false"/>

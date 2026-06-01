@@ -41,9 +41,6 @@
   <exec_depend>trajectory_msgs</exec_depend>
   <exec_depend>robot_sim_control</exec_depend>
   <exec_depend>robot_sim_description</exec_depend>
-  <exec_depend>robot_sim_fanuc_control</exec_depend>
-  <exec_depend>robot_sim_fanuc_description</exec_depend>
-  <exec_depend>robot_sim_fanuc_moveit_config</exec_depend>
   <exec_depend>robot_sim_moveit_config</exec_depend>
   <exec_depend>robot_sim_scenarios</exec_depend>
   <exec_depend>robot_sim_sensor_camera</exec_depend>

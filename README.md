@@ -9,7 +9,7 @@
 
 `robot_sim` 是以 Gazebo 仿真和机器人运控验证为主的 ROS 2 Humble 工作空间。当前主线是 `robot_sim_*` 包族：用 Panda/Fanuc 机械臂在 `gz sim 8` 中跑通模型、场景、`gz_ros2_control`、轨迹控制、MoveIt2、RViz2、传感器桥接和仿真传感器接收。
 
-旧的真实硬件耦合驱动包已废弃并移除。`data_collect`、packaging 等旧硬件采集链路本轮暂不维护；新项目优先走 `sim_profile` + `robot_sim_sensors` 的仿真数据接收入口。
+旧的真实硬件耦合驱动包已废弃并移除。项目当前只维护通用仿真主线；具体机械臂型号通过 `sim_profile`、URDF、controller 和 MoveIt 配置切换。
 
 ## 快速启动
 
@@ -27,9 +27,8 @@ colcon build --symlink-install \
     gz_ros2_control \
     robot_sim_description robot_sim_control robot_sim_scenarios \
     robot_sim_moveit_config \
-    robot_sim_fanuc_description robot_sim_fanuc_control robot_sim_fanuc_moveit_config \
     robot_sim_sensor_camera robot_sim_sensor_depth robot_sim_sensor_lidar robot_sim_sensor_imu \
-    robot_sim_bringup
+    robot_sim_bringup robot_task_interfaces simulation_interfaces
 
 source install/setup.bash
 ros2 launch robot_sim_bringup sim.launch.py
@@ -234,20 +233,14 @@ flowchart LR
 | 路径 | 当前定位 |
 | --- | --- |
 | `src/robot_sim_bringup/` | 仿真总入口，提供单机、传感器桥接和本机分布式 launch |
-| `src/robot_sim_description/` | Panda 机械臂、夹爪、相机挂载、传感器和 Gazebo 插件描述 |
-| `src/robot_sim_control/` | `joint_state_broadcaster`、`arm_controller`、可选 `gripper_controller` 配置 |
-| `src/robot_sim_fanuc_description/` | Fanuc M-20iD/12L ROS2/Gazebo 描述和官方 DAE/STL mesh 资源 |
-| `src/robot_sim_fanuc_control/` | Fanuc M-20iD/12L ros2_control controller 配置 |
-| `src/robot_sim_fanuc_moveit_config/` | Fanuc M-20iD/12L MoveIt2 配置 |
+| `src/robot_sim_description/` | 通用机器人描述、Panda/Fanuc M20iD 模型资源、传感器挂载和 Gazebo 插件描述 |
+| `src/robot_sim_control/` | Panda/Fanuc M20iD 的 `ros2_control` controller 配置 |
 | `src/robot_sim_sensors/` | camera、depth、lidar、imu 仿真传感器 ROS 2 接收包 |
 | `src/robot_sim_scenarios/` | base world、assets 和 scenario 场景 |
-| `src/robot_sim_moveit_config/` | Panda MoveIt2 规划和执行配置 |
+| `src/robot_sim_moveit_config/` | Panda/Fanuc M20iD 的 MoveIt2 规划和执行配置 |
 | `src/gz_ros2_control/` | Humble + gz sim 8/Harmonic 使用的源码 overlay |
 | `src/simulation_interfaces/` | 通用仿真 scenario 接口 |
 | `src/robot_task_interfaces/` | 通用任务上下文接口 |
-| `src/acquisition_interfaces/` | 通用采集状态、质量和任务接口 |
-| `src/data_collect*` | 旧采集链路测试辅助，本轮不维护硬件驱动启动入口 |
-| `src/weld_interface/` | 已删除：旧焊接接口已迁出到离线检验项目，不参与当前仿真构建 |
 
 ## 本机分布式仿真
 
@@ -333,18 +326,6 @@ http://localhost:3000
 - `docs/modules/README.md`：包职责索引。
 - `docs/workflow/testing.md`：验收检查项。
 
-## 数据采集测试
-
-采集相关包仍保留为旧业务链路测试辅助，但真实相机和 Fanuc 硬件驱动包已废弃移除，本轮不维护旧硬件启动和打包入口。只做采集链路测试时，可以按需编译仍可用的接口和采集模块：
-
-```bash
-colcon build --symlink-install --packages-select \
-  robot_task_interfaces acquisition_interfaces simulation_interfaces \
-  file_reader
-```
-
 ## 数据检验软件
 
-离线数据检验能力已经从 `robot_sim` 中拆出到 [/home/kyle/sany/Offline_data_tool](/home/kyle/sany/Offline_data_tool)。`robot_sim` 现在只保留仿真与录包辅助入口，不再维护旧 `data_collect` 或 `weld_interface` 构建链路。
-
-如果你要做现场数据导入、规范化、可视化检验和质量评估，请直接使用新项目。
+离线数据检验能力已经从 `robot_sim` 中拆出到 [/home/kyle/sany/Offline_data_tool](/home/kyle/sany/Offline_data_tool)。`robot_sim` 现在只保留通用仿真、场景、控制、规划、传感器桥接和录包辅助入口。

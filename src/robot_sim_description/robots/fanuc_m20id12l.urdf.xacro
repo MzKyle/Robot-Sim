@@ -1,0 +1,203 @@
+<?xml version="1.0"?>
+<robot name="fanuc_m20id12l" xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:include filename="$(find robot_sim_description)/macros/common.xacro"/>
+  <xacro:include filename="$(find robot_sim_description)/macros/sensor_mounts.xacro"/>
+  <xacro:include filename="$(find robot_sim_description)/macros/gazebo_sensors.xacro"/>
+  <xacro:include filename="$(find robot_sim_description)/macros/ros2_control.xacro"/>
+
+  <xacro:arg name="prefix" default=""/>
+  <xacro:arg name="mesh_root" default="package://robot_sim_description/models/robots/fanuc_m20id12l/meshes"/>
+  <xacro:arg name="camera_mesh" default="package://robot_sim_description/models/sensors/cameras/rgbd_camera/meshes/3dCamera.DAE"/>
+  <xacro:arg name="hardware_plugin" default="mock_components/GenericSystem"/>
+  <xacro:arg name="controllers_file" default=""/>
+  <xacro:arg name="controller_manager_name" default="controller_manager"/>
+  <xacro:arg name="use_gz_ros2_control" default="false"/>
+  <xacro:arg name="ros_namespace" default=""/>
+  <xacro:arg name="enable_camera" default="false"/>
+  <xacro:arg name="enable_depth" default="false"/>
+  <xacro:arg name="enable_lidar" default="false"/>
+  <xacro:arg name="enable_imu" default="false"/>
+
+  <xacro:property name="prefix" value="$(arg prefix)"/>
+  <xacro:property name="mesh_root" value="$(arg mesh_root)"/>
+  <xacro:property name="camera_mesh" value="$(arg camera_mesh)"/>
+  <xacro:property name="hardware_plugin" value="$(arg hardware_plugin)"/>
+  <xacro:property name="controllers_file" value="$(arg controllers_file)"/>
+  <xacro:property name="controller_manager_name" value="$(arg controller_manager_name)"/>
+  <xacro:property name="ros_namespace" value="$(arg ros_namespace)"/>
+  <xacro:property name="PI" value="3.141592653589793"/>
+
+  <xacro:macro name="fanuc_inertial" params="mass xyz ixx ixy ixz iyy iyz izz">
+    <inertial>
+      <origin xyz="${xyz}" rpy="0 0 0"/>
+      <mass value="${mass}"/>
+      <inertia ixx="${ixx}" ixy="${ixy}" ixz="${ixz}" iyy="${iyy}" iyz="${iyz}" izz="${izz}"/>
+    </inertial>
+  </xacro:macro>
+
+  <xacro:macro name="fanuc_mesh_link" params="name visual collision mass inertial_xyz ixx ixy ixz iyy iyz izz">
+    <link name="${prefix}${name}">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <mesh filename="${mesh_root}/visual/${visual}"/>
+        </geometry>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <mesh filename="${mesh_root}/collision/${collision}"/>
+        </geometry>
+      </collision>
+      <xacro:fanuc_inertial
+        mass="${mass}"
+        xyz="${inertial_xyz}"
+        ixx="${ixx}"
+        ixy="${ixy}"
+        ixz="${ixz}"
+        iyy="${iyy}"
+        iyz="${iyz}"
+        izz="${izz}"
+      />
+    </link>
+  </xacro:macro>
+
+  <link name="${prefix}world"/>
+
+  <joint name="${prefix}world_to_base_link" type="fixed">
+    <origin xyz="0.2 0 0" rpy="0 0 0"/>
+    <parent link="${prefix}world"/>
+    <child link="${prefix}base_link"/>
+  </joint>
+
+  <xacro:fanuc_mesh_link name="base_link" visual="base.dae" collision="base.stl" mass="45.3" inertial_xyz="-0.0767 0.00288 0.109" ixx="0.492" ixy="0.0288" ixz="0.0135" iyy="1.09" iyz="0.0000531" izz="1.15"/>
+  <xacro:fanuc_mesh_link name="link_1" visual="j1.dae" collision="j1.stl" mass="62.2" inertial_xyz="0.0158 -0.0106 -0.0831" ixx="1.33" ixy="0.132" ixz="-0.0412" iyy="1.1" iyz="-0.107" izz="1.29"/>
+  <xacro:fanuc_mesh_link name="link_2" visual="j2.dae" collision="j2.stl" mass="65.1" inertial_xyz="-0.0343 -0.172 0.38" ixx="4.81" ixy="-0.0801" ixz="0.0448" iyy="4.93" iyz="-0.117" izz="0.53"/>
+  <xacro:fanuc_mesh_link name="link_3" visual="j3.dae" collision="j3.stl" mass="52.3" inertial_xyz="0.134 0.00796 0.103" ixx="0.892" ixy="-0.0776" ixz="-0.291" iyy="1.12" iyz="-0.0381" izz="1.05"/>
+  <xacro:fanuc_mesh_link name="link_4" visual="j4.dae" collision="j4.stl" mass="23.5" inertial_xyz="0.827 -0.0285 -0.00109" ixx="0.0677" ixy="0.112" ixz="0.00237" iyy="1.86" iyz="-0.000766" izz="1.88"/>
+  <xacro:fanuc_mesh_link name="link_5" visual="j5.dae" collision="j5.stl" mass="1.26" inertial_xyz="0.0214 -0.015 0.0000000000494" ixx="0.00187" ixy="-0.000425" ixz="0.00000000000169" iyy="0.00207" iyz="0.00000000000153" izz="0.00205"/>
+  <xacro:fanuc_mesh_link name="link_6" visual="j6.dae" collision="j6.stl" mass="0.243" inertial_xyz="0.0537 0.000000457 0.00000541" ixx="0.000142" ixy="-0.000000000125" ixz="-0.00000000866" iyy="0.00011" iyz="-0.00000000000431" izz="0.00011"/>
+
+  <joint name="${prefix}joint_1" type="revolute">
+    <origin xyz="0 0 0.425" rpy="0 0 0"/>
+    <parent link="${prefix}base_link"/>
+    <child link="${prefix}link_1"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-3.228859" upper="3.228859" effort="7000" velocity="3.665191"/>
+    <dynamics damping="18.0" friction="2.0"/>
+  </joint>
+  <joint name="${prefix}joint_2" type="revolute">
+    <origin xyz="0.075 0 0" rpy="0 0 0"/>
+    <parent link="${prefix}link_1"/>
+    <child link="${prefix}link_2"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.745329" upper="2.792527" effort="8000" velocity="3.665191"/>
+    <dynamics damping="18.0" friction="2.0"/>
+  </joint>
+  <joint name="${prefix}joint_3" type="revolute">
+    <origin xyz="0 0 0.840" rpy="0 0 0"/>
+    <parent link="${prefix}link_2"/>
+    <child link="${prefix}link_3"/>
+    <axis xyz="0 -1 0"/>
+    <limit lower="-1.570796" upper="3.839724" effort="4000" velocity="4.625123"/>
+    <dynamics damping="15.0" friction="1.6"/>
+  </joint>
+  <joint name="${prefix}joint_4" type="revolute">
+    <origin xyz="0 0 0.215" rpy="0 0 0"/>
+    <parent link="${prefix}link_3"/>
+    <child link="${prefix}link_4"/>
+    <axis xyz="-1 0 0"/>
+    <limit lower="-3.490659" upper="3.490659" effort="100" velocity="7.330383"/>
+    <dynamics damping="8.0" friction="1.0"/>
+  </joint>
+  <joint name="${prefix}joint_5" type="revolute">
+    <origin xyz="1.340 0 0" rpy="0 0 0"/>
+    <parent link="${prefix}link_4"/>
+    <child link="${prefix}link_5"/>
+    <axis xyz="0 -1 0"/>
+    <limit lower="-3.141575" upper="3.141575" effort="100" velocity="7.853982"/>
+    <dynamics damping="6.0" friction="0.8"/>
+  </joint>
+  <joint name="${prefix}joint_6" type="revolute">
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <parent link="${prefix}link_5"/>
+    <child link="${prefix}link_6"/>
+    <axis xyz="-1 0 0"/>
+    <limit lower="-7.853982" upper="7.853982" effort="50" velocity="12.566371"/>
+    <dynamics damping="4.0" friction="0.6"/>
+  </joint>
+
+  <link name="${prefix}base">
+    <xacro:simple_inertial mass="0.01" ixx="0.0001" iyy="0.0001" izz="0.0001"/>
+  </link>
+  <joint name="${prefix}base_link_to_base" type="fixed">
+    <origin xyz="0 0 0.425" rpy="0 0 0"/>
+    <parent link="${prefix}base_link"/>
+    <child link="${prefix}base"/>
+  </joint>
+
+  <link name="${prefix}flange">
+    <xacro:simple_inertial mass="0.01" ixx="0.0001" iyy="0.0001" izz="0.0001"/>
+  </link>
+  <joint name="${prefix}joint_6_to_flange" type="fixed">
+    <origin xyz="0.075 0 0" rpy="0 0 0"/>
+    <parent link="${prefix}link_6"/>
+    <child link="${prefix}flange"/>
+  </joint>
+
+  <link name="${prefix}tool0">
+    <xacro:simple_inertial mass="0.01" ixx="0.0001" iyy="0.0001" izz="0.0001"/>
+  </link>
+  <joint name="${prefix}flange_to_tool0" type="fixed">
+    <origin xyz="0 0 0" rpy="${PI} ${-PI / 2.0} 0"/>
+    <parent link="${prefix}flange"/>
+    <child link="${prefix}tool0"/>
+  </joint>
+
+  <xacro:robot_sim_sensor_mounts
+    prefix="${prefix}"
+    parent_link="tool0"
+    joint_name="tool0_to_camera_mount"
+    camera_mesh="${camera_mesh}"
+    mount_xyz="0.12 0 0.02"
+    mount_rpy="0 -0.55 0"
+    visual_xyz="0.035 0 0"
+    collision_xyz="0.035 0 0"
+    frame_xyz="0.08 0 0"
+    lidar_2d_xyz="0.08 0 0.03"
+    lidar_3d_xyz="0.08 0 0.05"
+    imu_xyz="0.02 0 0"
+  />
+
+  <xacro:robot_sim_gazebo_sensors
+    prefix="${prefix}"
+    enable_camera="$(arg enable_camera)"
+    enable_depth="$(arg enable_depth)"
+    enable_lidar="$(arg enable_lidar)"
+    enable_imu="$(arg enable_imu)"
+    camera_pose="0.08 0 0 0 0 0"
+    depth_pose="0.08 0 0 0 0 0"
+    lidar_2d_pose="0.08 0 0.03 0 0 0"
+    lidar_3d_pose="0.08 0 0.05 0 0 0"
+    imu_pose="0.02 0 0 0 0 0"
+  />
+
+  <xacro:robot_sim_gazebo_ros2_control_plugin
+    use_gz_ros2_control="$(arg use_gz_ros2_control)"
+    controllers_file="${controllers_file}"
+    controller_manager_name="${controller_manager_name}"
+    ros_namespace="${ros_namespace}"
+  />
+
+  <ros2_control name="${prefix}FanucM20iD12LSystem" type="system">
+    <hardware>
+      <plugin>${hardware_plugin}</plugin>
+    </hardware>
+    <xacro:ros2_control_joint prefix="${prefix}" name="joint_1" initial="0.0" lower_limit="-3.228859" upper_limit="3.228859"/>
+    <xacro:ros2_control_joint prefix="${prefix}" name="joint_2" initial="-0.45" lower_limit="-1.745329" upper_limit="2.792527"/>
+    <xacro:ros2_control_joint prefix="${prefix}" name="joint_3" initial="0.75" lower_limit="-1.570796" upper_limit="3.839724"/>
+    <xacro:ros2_control_joint prefix="${prefix}" name="joint_4" initial="0.0" lower_limit="-3.490659" upper_limit="3.490659"/>
+    <xacro:ros2_control_joint prefix="${prefix}" name="joint_5" initial="-0.35" lower_limit="-3.141575" upper_limit="3.141575"/>
+    <xacro:ros2_control_joint prefix="${prefix}" name="joint_6" initial="0.0" lower_limit="-7.853982" upper_limit="7.853982"/>
+  </ros2_control>
+</robot>

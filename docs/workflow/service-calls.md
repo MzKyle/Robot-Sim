@@ -49,11 +49,4 @@ ros2 service call /task/set_context robot_task_interfaces/srv/SetTaskContext \
   "{context: {task_id: T-001, workpiece_id: WP-01, operator_name: zhang, shift: day, notes: test}}"
 ```
 
-通用采集任务接口：
-
-```bash
-ros2 service call /acquisition/set_task acquisition_interfaces/srv/SetAcquisitionTask \
-  "{context: {task_id: T-001, workpiece_id: WP-01, operator_name: zhang, shift: day, notes: test}}"
-```
-
 旧焊接兼容接口已移除，不再维护。

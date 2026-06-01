@@ -38,11 +38,11 @@ robot:
   xacro_args:
     mesh_root:
       package: robot_sim_description
-      path: models/panda_arm/meshes
+      path: models/robots/panda/meshes
       uri: file
     camera_mesh:
       package: robot_sim_description
-      path: models/rgbd_camera/meshes/3dCamera.DAE
+      path: models/sensors/cameras/rgbd_camera/meshes/3dCamera.DAE
       uri: file
 
 worlds:
