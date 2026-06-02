@@ -27,14 +27,14 @@
 - ROS 2 Humble
 - Gazebo Harmonic / `gz sim 8`
 - MoveIt2
-- `colcon`、`rosdep`、`git`
+- `colcon`、`python3-colcon-override-check`、`rosdep`、`git`
 
 安装 Gazebo Harmonic 时需要 OSRF apt 源。完整依赖说明见 [docs/guide/prerequisites.md](docs/guide/prerequisites.md)。
 
 ## Quick Start
 
 ```bash
-git clone --recursive https://github.com/MzKyle/robot_sim.git robot_sim
+git clone https://github.com/MzKyle/robot_sim.git robot_sim
 cd robot_sim
 
 source /opt/ros/humble/setup.bash
@@ -131,7 +131,7 @@ robot-sim-check
 | `src/core/robot_sim_scenarios/` | scene library、base world、assets 和 world presets |
 | `src/sensors/` | camera、depth、lidar、imu 仿真 receiver |
 | `src/interfaces/` | 仿真 scenario 和任务上下文接口 |
-| `src/vendor/gz_ros2_control/` | `gz_ros2_control` submodule overlay |
+| `src/vendor/gz_ros2_control/` | vendored `gz_ros2_control` source overlay |
 | `docs/` | docsify 文档站点 |
 | `packaging/` | deb 打包脚本 |
 

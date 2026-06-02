@@ -63,6 +63,7 @@ jobs:
             libgz-plugin2-dev \
             libgz-sim8-dev \
             python3-colcon-common-extensions \
+            python3-colcon-override-check \
             python3-pytest \
             python3-rosdep \
             python3-yaml \
