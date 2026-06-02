@@ -1,34 +1,34 @@
 # 数据流
 
-## 主数据流
-
 ```mermaid
 flowchart LR
-    SimSim[gz sim 8 / Panda or Fanuc] --> SimLaunch[robot_sim_bringup]
-    SimLaunch --> SimNode3D[ros_gz_bridge sensor groups]
-    SimLaunch --> SimRobot[gz_ros2_control + ros2_control]
-    SimNode3D --> Receivers[robot_sim_sensors]
-    SimLaunch --> Quality[data_collect_quality]
+    Xacro[URDF/xacro]
+    Profile[sim_profile]
+    World[Generated world]
+    Gazebo[Gazebo Harmonic]
+    JointStates[/joint_states/]
+    Controllers[ros2_control controllers]
+    MoveGroup[move_group]
+    Bridge[ros_gz bridge]
+    Receivers[robot_sim_sensor_*]
+    Diagnostics[/diagnostics/]
 
-    SimRobot --> Collect
-    Quality --> Collect
-    Receivers --> Diagnostics[/diagnostics/]
-
-    Collect --> Status[/data_collect_status/]
-    Collect --> Acquisition[/acquisition/status/]
-    Collect --> Manifest[manifest.json]
-    Collect --> Media[Camera / PointCloud / CSV]
-
-    Acquisition --> UI[data_collect_ui]
-    Status --> UI
-    UI -->|开始/停止/参数修改| Collect
+    Profile --> Xacro
+    Profile --> World
+    Xacro --> Gazebo
+    World --> Gazebo
+    Gazebo --> JointStates
+    Gazebo --> Controllers
+    Controllers --> MoveGroup
+    Gazebo --> Bridge
+    Bridge --> Receivers
+    Receivers --> Diagnostics
 ```
 
-## 关键流程
+关键路径：
 
-1. `robot_sim_bringup` 会按 `mock`、`light`、`full` 模式启动控制链、Gazebo 和可选传感器组，并从 scenario YAML 组合 world。
-2. `sensor_receivers.launch.py` 根据同一个 `sim_profile` 启动 `robot_sim_sensors` receiver，订阅 bridge 后的仿真话题并发布 diagnostics。
-3. 旧 `data_collect_bringup` 硬件启动入口本轮暂不维护。
-4. `data_collect` 根据任务状态和采样间隔决定是否保存数据。
-5. `data_collect_ui` 订阅状态话题，并通过通用或旧兼容服务完成采集控制和任务录入。
-6. 每次采集结束后会生成标准元数据，供历史检索使用。
+1. profile 决定机器人、world、controller、MoveIt、传感器和 bridge。
+2. xacro 渲染出机器人描述并传给 `robot_state_publisher`、Gazebo 和 MoveIt。
+3. Gazebo 通过 `gz_ros2_control/GazeboSimSystem` 创建控制链。
+4. MoveIt 使用 controller action 执行规划轨迹。
+5. 传感器数据经 `ros_gz_bridge` 到 ROS 话题，再由 receiver 统计并发布 diagnostics。

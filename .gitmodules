@@ -1,0 +1,4 @@
+[submodule "src/vendor/gz_ros2_control"]
+	path = src/vendor/gz_ros2_control
+	url = https://github.com/ros-controls/gz_ros2_control.git
+	branch = humble

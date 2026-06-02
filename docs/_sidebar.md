@@ -1,46 +1,39 @@
 - **首页**
   - [项目简介](/)
 
-- **仿真运控**
+- **快速开始**
+  - [环境依赖](guide/prerequisites.md)
+  - [开发运行](guide/run-app.md)
   - [仿真方案](guide/simulation.md)
   - [ROS 2 录包](guide/rosbag-recording.md)
-  - [开发运行](guide/run-app.md)
-  - [环境依赖](guide/prerequisites.md)
-  - [安装与打包](guide/package-install.md)
+  - [Deb 打包与 Release](guide/package-install.md)
 
 - **系统架构**
   - [架构总览](architecture/README.md)
-  - [目标架构草案](architecture/target-architecture.md)
   - [模块全景](architecture/module-overview.md)
   - [数据流](architecture/data-flow.md)
-  - [状态模型](architecture/state-model.md)
+  - [仿真状态模型](architecture/state-model.md)
+  - [扩展方向](architecture/target-architecture.md)
 
-- **模块详解**
-  - [总览](modules/README.md)
-  - [仿真入口](modules/data-collect-sim.md)
-  - [2D 相机节点](modules/camera-pool-driver.md)
-  - [3D 相机节点](modules/camera-3d-driver.md)
-  - [Fanuc 机器人节点](modules/fanuc-robot.md)
-  - [采集质量节点](modules/data-collect-quality.md)
-  - [采集核心](modules/data-collect.md)
-  - [桌面操作台](modules/data-collect-ui.md)
-  - [Bringup 入口](modules/data-collect-bringup.md)
+- **模块**
+  - [模块总览](modules/README.md)
+  - [Bringup](modules/bringup.md)
+  - [机器人描述](modules/description.md)
+  - [控制配置](modules/control.md)
+  - [MoveIt 配置](modules/moveit.md)
+  - [场景库](modules/scenarios.md)
+  - [传感器 receiver](modules/sensors.md)
+  - [接口包](modules/interfaces.md)
 
-- **配置指南**
-  - [配置总览](configuration/settings.md)
-  - [生产部署建议](configuration/production-config.md)
+- **配置与接口**
+  - [Profile 配置](configuration/settings.md)
+  - [部署建议](configuration/production-config.md)
+  - [ROS API](interfaces/ros-api.md)
 
-- **接口参考**
-  - [ROS 主题与服务](interfaces/ros-api.md)
-
-- **工作流程**
-  - [后端启动](workflow/backend-launch.md)
-  - [UI 操作](workflow/ui-operation.md)
-  - [服务调用](workflow/service-calls.md)
+- **工作流**
   - [测试验收](workflow/testing.md)
+  - [CI/CD](workflow/ci-cd.md)
 
-- **数据与日志**
-  - [数据存储结构](logging/data-storage.md)
-
-- **故障排查**
+- **日志与排查**
+  - [日志与产物](logging/data-storage.md)
   - [常见问题](faq/troubleshooting.md)

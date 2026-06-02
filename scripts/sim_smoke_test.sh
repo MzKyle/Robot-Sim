@@ -113,9 +113,18 @@ fi
 if [[ -f "$ROOT_DIR/install/setup.bash" ]]; then
   source_setup "$ROOT_DIR/install/setup.bash"
 fi
-if [[ -d "$ROOT_DIR/src/robot_sim_bringup" ]]; then
-  export PYTHONPATH="$ROOT_DIR/src/robot_sim_bringup:${PYTHONPATH:-}"
-fi
+
+add_source_package_to_pythonpath() {
+  local package_name="$1"
+  local package_dir
+  package_dir="$(find "$ROOT_DIR/src" -path "*/${package_name}/package.xml" -printf '%h\n' -quit 2>/dev/null || true)"
+  if [[ -n "$package_dir" ]]; then
+    export PYTHONPATH="$package_dir${PYTHONPATH:+:$PYTHONPATH}"
+  fi
+}
+
+add_source_package_to_pythonpath robot_sim_bringup
+add_source_package_to_pythonpath robot_sim_scenarios
 export GZ_VERSION="${GZ_VERSION:-harmonic}"
 
 HELPER=(python3 -m robot_sim_bringup.sim_smoke_helper)

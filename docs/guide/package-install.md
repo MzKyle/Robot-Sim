@@ -1,35 +1,40 @@
-# 安装与打包
+# Deb 打包与 Release
 
-当前打包脚本面向通用 Gazebo 仿真主线，安装 `robot_sim_*` 包、场景资源和仿真传感器 receiver。
-
-## 打包命令
+## 本地构建 deb
 
 ```bash
-cd /home/kyle/sany/robot_sim
+source /opt/ros/humble/setup.bash
+export GZ_VERSION=harmonic
 bash packaging/build_deb.sh
 ```
 
-## 产物位置
+输出：
 
 ```text
-dist/robot-sim_0.1.0-1_amd64.deb
+dist/robot-sim_<version>-<revision>_<arch>.deb
 ```
 
-## 安装方式
+安装：
 
 ```bash
 sudo apt install ./dist/robot-sim_0.1.0-1_amd64.deb
 robot-sim-check
+robot-sim sim_profile:=panda sim_mode:=light
 ```
 
-## 安装后常用命令
+自定义版本：
 
 ```bash
-robot-sim sim_profile:=panda sim_mode:=light
-robot-sim sim_profile:=fanuc_m20id12l sim_mode:=full
+PACKAGE_VERSION=0.2.0 PACKAGE_REVISION=1 bash packaging/build_deb.sh
 ```
 
-## 打包注意事项
+## GitHub Release
 
-- 生产包建议在干净的 Ubuntu 22.04 + ROS 2 Humble 环境中重新构建。
-- 旧真实硬件驱动和采集链路不再由本项目 deb 打包。
+推送 tag 会触发 release workflow：
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+workflow 会构建 deb，并上传到对应 GitHub Release。

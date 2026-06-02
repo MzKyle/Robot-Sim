@@ -1,0 +1,89 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+    Property Tree Widget:
+      Expanded:
+        - /MotionPlanning1
+  - Class: moveit_rviz_plugin/MotionPlanning
+    Name: MotionPlanning
+  - Class: rviz_common/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Enabled: true
+      Name: Grid
+      Plane: XY
+      Cell Size: 0.5
+      Value: true
+    - Class: rviz_default_plugins/RobotModel
+      Enabled: true
+      Name: RobotModel
+      Robot Description: robot_description
+      TF Prefix: ""
+      Visual Enabled: true
+      Collision Enabled: false
+      Value: true
+    - Class: rviz_default_plugins/TF
+      Enabled: false
+      Name: TF
+    - Class: rviz_default_plugins/PointCloud2
+      Enabled: true
+      Name: Camera Points
+      Topic: /camera/points
+      Queue Size: 10
+      Style: Points
+      Size (m): 0.01
+      Value: true
+    - Class: rviz_default_plugins/LaserScan
+      Enabled: true
+      Name: 2D Scan
+      Topic: /scan
+      Queue Size: 10
+      Style: Points
+      Size (m): 0.02
+      Value: true
+    - Class: moveit_rviz_plugin/MotionPlanning
+      Enabled: true
+      Name: MotionPlanning
+      Move Group Namespace: ""
+      Planning Group: panda_arm
+      Planning Scene Topic: /monitored_planning_scene
+      Robot Description: robot_description
+      MoveIt_Planning_Time: 5
+      Planned Path:
+        Loop Animation: false
+        State Display Time: 0.05 s
+        Trajectory Topic: /display_planned_path
+      Scene Geometry:
+        Scene Alpha: 1
+      Scene Robot:
+        Robot Alpha: 0.5
+      Value: true
+  Enabled: true
+  Global Options:
+    Background Color: 35; 35; 38
+    Fixed Frame: world
+    Frame Rate: 30
+  Tools:
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 2.6
+      Focal Point:
+        X: 0.7
+        Y: 0
+        Z: 0.45
+      Name: Current View
+      Pitch: 0.45
+      Target Frame: world
+      Yaw: 3.7
+  Value: true
+Window Geometry:
+  Width: 1280
+  Height: 850

@@ -1,14 +1,21 @@
 # 模块总览
 
-本章节按包划分说明每个模块的职责和入口。当前项目以 `robot_sim_*` 仿真运控链路为主，旧硬件相机和 Fanuc 驱动包已移除；采集和 UI 模块作为旧业务链路测试辅助保留。
+本项目按职责组织 ROS 包：
 
-## 阅读建议
+- `core`：仿真主链路、机器人描述、控制、MoveIt 和场景。
+- `sensors`：仿真传感器 receiver。
+- `interfaces`：通用消息与服务。
+- `vendor`：外部源码 overlay。
 
-先看以下内容：
+## 包列表
 
-1. [仿真入口](data-collect-sim.md)
-2. [Bringup 入口](data-collect-bringup.md)
-3. [采集核心](data-collect.md)
-4. [采集质量节点](data-collect-quality.md)
-5. [桌面操作台](data-collect-ui.md)
-6. 仿真传感器 receiver：`src/robot_sim_sensors/robot_sim_sensor_*`
+| 包 | 路径 | 说明 |
+| --- | --- | --- |
+| `robot_sim_bringup` | `src/core/robot_sim_bringup` | 启动、profile、lint、smoke |
+| `robot_sim_description` | `src/core/robot_sim_description` | 机器人描述和模型资源 |
+| `robot_sim_control` | `src/core/robot_sim_control` | ros2_control 配置 |
+| `robot_sim_moveit_config` | `src/core/robot_sim_moveit_config` | MoveIt 与 RViz 配置 |
+| `robot_sim_scenarios` | `src/core/robot_sim_scenarios` | 场景库 |
+| `robot_sim_sensor_*` | `src/sensors` | 传感器 receiver |
+| `robot_task_interfaces` | `src/interfaces/robot_task_interfaces` | 任务上下文接口 |
+| `simulation_interfaces` | `src/interfaces/simulation_interfaces` | 仿真 scenario 接口 |

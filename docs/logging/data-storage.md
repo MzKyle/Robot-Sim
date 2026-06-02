@@ -1,38 +1,37 @@
-# 数据存储结构
+# 日志与产物
 
-## 采集目录
+## 本地目录
 
-每次采集会生成一个独立目录：
+| 目录 | 说明 |
+| --- | --- |
+| `build/` | colcon build 产物 |
+| `install/` | colcon install overlay |
+| `log/` | colcon 日志 |
+| `robot_sim_bags/` | 推荐 rosbag 输出目录 |
+| `dist/` | deb 打包输出 |
+
+这些目录默认不提交到 Git。
+
+## Smoke 日志
+
+`scripts/sim_smoke_test.sh --keep-logs` 会保留临时日志目录：
 
 ```text
-data/<YYYY-MM-DD>/<weld_id>/<weld_layer>/<HH-MM-SS>/
+/tmp/robot_sim_smoke.*
 ```
 
-这是当前焊接 adapter 的默认目录模板。如果启动采集时还没有收到焊接寄存器信息，会使用：
+目录内通常包含：
 
-```text
-data/<YYYY-MM-DD>/unknown/unknown/<HH-MM-SS>/
-```
+- `sim.launch.log`
+- `robot.urdf`
+- rosbag 检查日志
+- validation metrics
 
-## 典型内容
+## CI 产物
 
-```text
-camera/                 2D 图像
-camera_log/             图像日志
-height_log/             高度日志图像
-camera_depth/           深度图或深度相关保存目录
-camera_depth_log/       深度图日志目录
-scan_point_cloud/       3D 点云 PLY 文件
-robot_state/            TCP 位姿 CSV
-welding_state/          焊接 adapter 状态记录目录
-control_cmd/            控制命令记录目录
-state_type/             状态类型记录目录
-fanuc_robot_info/       Fanuc adapter 状态 CSV
-manifest.json           标准采集元数据
-meta.json               兼容旧流程的元数据文件
-```
+GitHub Actions 会在失败或完成后上传：
 
-## 其他日志
-
-- 终端输出是排查问题的第一手信息。
-- 如果使用 colcon 构建，构建日志会在工作空间的 `log/` 目录中保留。
+- colcon logs。
+- package test results。
+- full smoke logs。
+- release deb。

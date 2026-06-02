@@ -1,20 +1,25 @@
-# 生产部署建议
+# 部署建议
 
-## 安装后的默认路径
+## 推荐方式
 
-- 配置文件：`/etc/weld_data_collect/nodemanage.yaml`
-- 数据目录：`/var/lib/weld_data_collect/data`
+- 开发环境使用源码工作空间。
+- 发布环境使用 tag workflow 生成的 deb。
+- Gazebo full smoke 建议在有足够 CPU/GPU 资源的 runner 或本机执行。
 
-## 推荐做法
+## 环境变量
 
-- 先使用 `ros2 launch robot_sim_bringup sim.launch.py` 验证仿真控制链；需要完整感知数据时追加 `sim_mode:=full`。
-- 使用 `ros2 launch robot_sim_bringup sensor_receivers.launch.py sim_profile:=panda` 验证仿真传感器接收和 `/diagnostics`。
-- 旧真实相机/Fanuc 硬件驱动包已移除，`data_collect_bringup` 的旧硬件启动入口本轮暂不维护。
-- 仅调试部分功能时，可按需选择核心包重新编译。
-- 如果主机使用自定义 OpenCV，建议在干净系统中重新构建打包产物。
+| 变量 | 推荐值 | 说明 |
+| --- | --- | --- |
+| `ROS_DISTRO` | `humble` | ROS 发行版 |
+| `GZ_VERSION` | `harmonic` | `gz_ros2_control` 构建 ABI |
+| `GZ_SIM_RESOURCE_PATH` | 由 launch 注入 | Gazebo resource path |
+| `GZ_SIM_SYSTEM_PLUGIN_PATH` | 由 smoke/launch 注入 | Gazebo system plugin path |
 
-## 部署检查
+## 发布
 
-- profile 中 robot、controller、bridge、receiver 和 scenario 路径是否通过 lint。
-- 数据保存目录是否有写权限。
-- UI 所需的 Qt Python 绑定是否已安装。
+推送 `vMAJOR.MINOR.PATCH` tag 后，GitHub Actions 会构建 deb 并上传 Release。安装后可用：
+
+```bash
+robot-sim-check
+robot-sim sim_profile:=panda sim_mode:=light
+```

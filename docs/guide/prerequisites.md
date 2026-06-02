@@ -1,28 +1,57 @@
-# 环境依赖与准备
+# 环境依赖
 
 ## 基础环境
 
 - Ubuntu 22.04
 - ROS 2 Humble
-- `colcon`
-- OpenCV、PCL、cv_bridge、ros_gz_bridge、ros_gz_sim、rosbag2 等 ROS 依赖
+- Gazebo Harmonic / `gz sim 8`
+- MoveIt2
+- `colcon`、`rosdep`、`git`
 
-## 桌面界面依赖
+## 安装 Gazebo Harmonic
 
 ```bash
-sudo apt install python3-pyqt5 python3-yaml
+sudo apt-get update
+sudo apt-get install -y curl gnupg lsb-release
+sudo curl -fsSL https://packages.osrfoundation.org/gazebo.gpg \
+  -o /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] https://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" \
+  | sudo tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
+sudo apt-get update
+sudo apt-get install -y gz-harmonic libgz-sim8-dev libgz-plugin2-dev
 ```
 
-界面优先使用 PySide6；如果系统没有 PySide6，会自动尝试使用 PyQt5。生产安装建议使用 apt 安装 PyQt5，便于把依赖闭合到系统包管理中。
+## 安装 ROS 依赖
 
-## 仿真依赖
+```bash
+sudo apt-get install -y \
+  python3-colcon-common-extensions \
+  python3-rosdep \
+  python3-yaml \
+  ros-humble-moveit \
+  ros-humble-ros-gzharmonic \
+  ros-humble-ros2-control \
+  ros-humble-controller-manager \
+  ros-humble-joint-state-broadcaster \
+  ros-humble-joint-trajectory-controller \
+  ros-humble-robot-state-publisher \
+  ros-humble-rviz2 \
+  ros-humble-xacro \
+  ros-humble-urdfdom-py
+```
 
-- 运行仿真链路需要 gz sim 8 可用，并且主机具备可用的图形渲染环境。
-- ROS 2 Humble + gz sim 8/Harmonic 需要源码版 `gz_ros2_control` overlay；构建前设置 `GZ_VERSION=harmonic`。
-- 旧真实硬件驱动包已移除；旧 `data_collect` 硬件启动和 packaging 链路本轮暂不维护。
+首次使用 rosdep：
 
-## 建议准备项
+```bash
+sudo rosdep init 2>/dev/null || true
+rosdep update --rosdistro humble
+```
 
-- 有写权限的数据保存目录。
-- 建议先准备仿真链路和 `robot_sim_sensors` receiver，再逐步定义真实设备适配层。
-- 适合调试的终端环境，方便同时查看 ROS 日志和节点输出。
+## Gazebo ABI 约定
+
+本项目固定使用 `GZ_VERSION=harmonic`。Humble 与 Gazebo Harmonic 组合需要构建仓库内的 `src/vendor/gz_ros2_control` overlay，并在构建时使用：
+
+```bash
+export GZ_VERSION=harmonic
+colcon build --symlink-install --allow-overriding gz_ros2_control --packages-select gz_ros2_control
+```

@@ -1,15 +1,16 @@
-# Debian 打包说明
+# Debian Packaging
 
-`packaging/build_deb.sh` 打包当前通用仿真主线。
+`packaging/build_deb.sh` 会把当前工作空间构建为 `robot-sim` deb 包。
 
-## 构建
+## 本地构建
 
 ```bash
-cd /home/kyle/sany/robot_sim
+source /opt/ros/humble/setup.bash
+export GZ_VERSION=harmonic
 bash packaging/build_deb.sh
 ```
 
-输出位置：
+输出：
 
 ```text
 dist/robot-sim_<version>-<revision>_<arch>.deb
@@ -21,7 +22,7 @@ dist/robot-sim_<version>-<revision>_<arch>.deb
 PACKAGE_VERSION=0.2.0 PACKAGE_REVISION=1 bash packaging/build_deb.sh
 ```
 
-## 安装和运行
+## 安装
 
 ```bash
 sudo apt install ./dist/robot-sim_0.1.0-1_amd64.deb
@@ -30,4 +31,13 @@ robot-sim sim_profile:=panda sim_mode:=light
 robot-sim sim_profile:=fanuc_m20id12l sim_mode:=full
 ```
 
-当前 deb 安装到 `/opt/robot_sim`，提供 `robot-sim` 和 `robot-sim-check` 两个命令。
+## GitHub Release
+
+推送 `vMAJOR.MINOR.PATCH` tag 会触发 `.github/workflows/release.yml`：
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+workflow 会运行本脚本，并把 `dist/*.deb` 上传到对应 Release。

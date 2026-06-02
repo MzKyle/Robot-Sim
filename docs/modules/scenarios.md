@@ -1,0 +1,20 @@
+# 场景库
+
+`robot_sim_scenarios` 提供可组合的 Gazebo 场景。
+
+目录：
+
+```text
+worlds/base/
+assets/
+world_presets/
+scenes/
+```
+
+profile 可以引用 world preset 或 scene。启动时会生成临时 world 文件并交给 Gazebo。
+
+测试：
+
+```bash
+colcon test --packages-select robot_sim_scenarios
+```

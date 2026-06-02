@@ -1,39 +1,45 @@
 # 常见问题
 
-## 找不到 ROS 包
+## 找不到 robot_sim_bringup
 
-确认已经加载环境：
+确认已经构建并 source overlay：
 
 ```bash
 source /opt/ros/humble/setup.bash
-source /home/kyle/sany/robot_sim/install/setup.bash
+source install/setup.bash
+ros2 pkg prefix robot_sim_bringup
 ```
 
-## UI 无法启动
+## Gazebo 插件 ABI 不匹配
 
-如果提示缺少 PySide6：
+确认构建前设置了 `GZ_VERSION=harmonic`，并重新构建 `gz_ros2_control`：
 
 ```bash
-python3 -m pip install --user PySide6
+export GZ_VERSION=harmonic
+rm -rf build/gz_ros2_control install/gz_ros2_control
+colcon build --symlink-install --allow-overriding gz_ros2_control --packages-select gz_ros2_control
+source install/setup.bash
 ```
 
-如果按钮是灰色，通常表示对应 ROS 服务还没有启动。请先确认后端节点是否在线。
+检查插件：
 
-## 采集目录进入 unknown
+```bash
+gz plugin -p "$(ros2 pkg prefix gz_ros2_control)/lib/libgz_ros2_control-system.so" --info
+```
 
-说明启动采集时还没有收到焊接寄存器信息。请检查 Fanuc 节点或仿真节点是否启动、机器人连接是否正常、`target_register_index` 是否正确。
+## MoveIt 规划后有半透明轨迹
 
-## 没有点云或图像保存
+RViz 的 `Planned Path` 会显示规划预览。默认配置关闭循环播放；如果仍持续播放，检查 RViz 中 MotionPlanning 面板的 `Loop Animation`。
 
-请先确认采集状态为 `running`，再检查对应 topic 是否有数据。
+## Octomap 3D sensor 提示
 
-如果你跑的是仿真链路，还要确认 `robot_sim_bringup` 的 `sim_mode` 和对应传感器组开关是否开启，例如 `sim_mode:=full` 或 `sensor_overrides:=camera=true`。
+如果日志出现 `No 3D sensor plugin(s) defined for octomap updates`，表示当前没有启用 MoveIt octomap updater。它不影响本项目默认的轨迹规划和执行。
 
-## Fanuc 节点启动失败
+## Full smoke 在 CI 上失败
 
-优先检查：
+先查看上传的 smoke log artifact，重点检查：
 
-- `so_file_path` 是否指向真实存在的 `libFanucRobot.so`。
-- `robot_ip` 和 `robot_port` 是否正确。
-- 当前主机是否能访问机器人控制器。
-- Fanuc 共享库依赖是否完整。
+- `sim.launch.log`
+- Gazebo spawn 是否成功。
+- controller 是否 active。
+- `gz_ros2_control` 插件是否来自当前 workspace overlay。
