@@ -1,9 +1,7 @@
 # robot_sim
 
 <p align="center">
-  <a href="https://github.com/MzKyle/robot_sim/actions/workflows/ci.yml">
-    <img alt="CI" src="https://github.com/MzKyle/robot_sim/actions/workflows/ci.yml/badge.svg" />
-  </a>
+
   <img alt="ROS 2 Humble" src="https://img.shields.io/badge/ROS%202-Humble-00A6A6" />
   <img alt="Gazebo Harmonic" src="https://img.shields.io/badge/Gazebo-Harmonic%20%7C%20gz%20sim%208-F57C00" />
   <img alt="MoveIt2" src="https://img.shields.io/badge/Planning-MoveIt2-2D6CDF" />
