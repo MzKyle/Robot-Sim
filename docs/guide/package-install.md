@@ -20,6 +20,8 @@ dist/robot-sim_<version>-<revision>_<arch>.deb
 sudo apt install ./dist/robot-sim_0.1.0-1_amd64.deb
 robot-sim-check
 robot-sim run-case --case industrial_fixture_to_pallet
+robot-sim migrate-config --input old.yaml --output new.yaml
+robot-sim scaffold-robot --package my_robot_sim --robot-name my_robot --output /tmp --joint-names joint_1 joint_2 joint_3 joint_4 joint_5 joint_6
 robot-sim sim_profile:=panda sim_mode:=light
 ```
 

@@ -421,6 +421,13 @@ def _check_moveit(profile, errors, warnings):
     if not groups:
         return
     primary_group = groups[0]
+    expected_group = profile.get("end_effector", {}).get("planning_group")
+    if expected_group and expected_group not in groups:
+        errors.append(
+            f"end_effector.planning_group '{expected_group}' is not in MoveIt SRDF groups"
+        )
+    if expected_group:
+        primary_group = expected_group
 
     kinematics = _load_yaml(arguments["kinematics_yaml"])
     if primary_group not in kinematics:
@@ -497,6 +504,42 @@ def _check_moveit(profile, errors, warnings):
     _check_moveit_rviz(arguments["rviz_config"], primary_group, errors)
 
 
+def _check_reusable_contract(profile, errors, warnings):
+    metadata = profile.get("metadata", {})
+    for field in ("package", "robot_name"):
+        if not metadata.get(field):
+            errors.append(f"metadata.{field} is required")
+
+    capabilities = profile.get("capabilities", {})
+    task_families = capabilities.get("task_families", [])
+    if not task_families:
+        errors.append("capabilities.task_families must list at least one task family")
+    known = {
+        "empty_motion",
+        "obstacle_clearance",
+        "fixture_to_pallet",
+        "pick_place",
+        "sensor_calibration",
+        "conveyor_sorting",
+    }
+    unknown = sorted(set(task_families) - known)
+    if unknown:
+        errors.append("capabilities.task_families contains unknown values: " + ", ".join(unknown))
+
+    declared_sensors = set(capabilities.get("sensors", []))
+    missing_sensors = sorted(declared_sensors - set(profile.get("sensors", {})))
+    if missing_sensors:
+        errors.append("capabilities.sensors references unknown sensors: " + ", ".join(missing_sensors))
+
+    end_effector = profile.get("end_effector", {})
+    for field in ("planning_group", "tool_link"):
+        if not end_effector.get(field):
+            errors.append(f"end_effector.{field} is required")
+    tool_link = str(end_effector.get("tool_link", "")).lstrip("/")
+    if tool_link and profile.get("moveit") and "/" in tool_link:
+        warnings.append("end_effector.tool_link should usually be an unqualified link name")
+
+
 def _moveit_srdf_groups(path, errors):
     try:
         root = ET.parse(path).getroot()
@@ -553,6 +596,7 @@ def lint_profile(args):
         profile = load_sim_profile(
             args.profile,
             args.profile_file,
+            profile_package=args.profile_package,
             require_moveit=args.require_moveit,
             include_optional_moveit=True,
         )
@@ -570,6 +614,7 @@ def lint_profile(args):
         }
 
     urdf_links = _check_xacro(profile, mode, sensors, errors, warnings)
+    _check_reusable_contract(profile, errors, warnings)
     _check_controllers(profile, errors)
     _check_bridges(profile, errors)
     _check_receivers(profile, sensors, args.require_receivers, errors, warnings)
@@ -614,6 +659,7 @@ def build_parser():
     parser = argparse.ArgumentParser(description="Validate a robot_sim sim_profile")
     parser.add_argument("--profile", default="panda")
     parser.add_argument("--profile-file", default="")
+    parser.add_argument("--profile-package", default="")
     parser.add_argument("--mode", default="light", choices=("light", "full", "mock"))
     parser.add_argument("--sensor-overrides", default="")
     parser.add_argument("--require-moveit", action="store_true")

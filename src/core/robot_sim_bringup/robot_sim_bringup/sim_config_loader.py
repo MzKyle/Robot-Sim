@@ -10,6 +10,7 @@ import yaml
 from robot_sim_scenarios import build_world, load_scene
 from robot_sim_scenarios.schema_validation import validate_config_schema as validate_scenario_schema
 
+from robot_sim_bringup.registry import resolve_profile_path
 from robot_sim_bringup.schema_validation import SCHEMA_VERSION, validate_config_schema
 
 
@@ -46,10 +47,11 @@ def load_sim_mode(mode_name):
 def load_sim_profile(
     profile_name="panda",
     profile_file="",
+    profile_package="",
     require_moveit=False,
     include_optional_moveit=False,
 ):
-    profile_path = _profile_path(profile_name, profile_file)
+    profile_path = str(_profile_path(profile_name, profile_file, profile_package))
     raw = _load_yaml(profile_path, "sim_profile")
 
     validate_config_schema(raw, "sim_profile.schema.json", "sim_profile", profile_path)
@@ -59,6 +61,9 @@ def load_sim_profile(
     profile = {
         "name": name,
         "path": profile_path,
+        "metadata": _resolve_metadata(raw, name),
+        "capabilities": _resolve_capabilities(raw),
+        "end_effector": _resolve_end_effector(raw, profile_path),
         "robot": _resolve_robot(raw, profile_path),
         "layouts": _resolve_layouts(raw, profile_path),
         "worlds": _resolve_worlds(raw, profile_path),
@@ -74,20 +79,8 @@ def load_sim_profile(
     return profile
 
 
-def _profile_path(profile_name, profile_file):
-    if profile_file:
-        path = os.path.expanduser(os.path.expandvars(profile_file))
-        if not os.path.isabs(path):
-            path = os.path.abspath(path)
-    else:
-        if not profile_name:
-            profile_name = "panda"
-        path = os.path.join(
-            _package_share_directory("robot_sim_bringup"),
-            "config",
-            "sim_profiles",
-            f"{profile_name}.yaml",
-        )
+def _profile_path(profile_name, profile_file, profile_package=""):
+    path = resolve_profile_path(profile_name or "panda", profile_file, profile_package)
     _require_path(path, "sim_profile")
     return path
 
@@ -99,6 +92,59 @@ def _load_yaml(path, field_name):
     if not isinstance(raw, dict):
         raise RuntimeError(f"{field_name} must be a YAML mapping: {path}")
     return raw
+
+
+def _resolve_metadata(raw, profile_name):
+    metadata = dict(raw.get("metadata", {}))
+    metadata.setdefault("package", "robot_sim_bringup")
+    metadata.setdefault("robot_name", profile_name)
+    return {str(key): value for key, value in metadata.items()}
+
+
+def _resolve_capabilities(raw):
+    capabilities = raw.get("capabilities", {})
+    if not isinstance(capabilities, dict):
+        raise RuntimeError("capabilities must be a mapping")
+    return {
+        "task_families": [
+            str(item)
+            for item in capabilities.get("task_families", [])
+        ],
+        "sensors": [
+            str(item)
+            for item in capabilities.get("sensors", [])
+        ],
+        **{
+            str(key): value
+            for key, value in capabilities.items()
+            if key not in ("task_families", "sensors")
+        },
+    }
+
+
+def _resolve_end_effector(raw, profile_path):
+    end_effector = _section(raw, "end_effector", profile_path)
+    result = {
+        "planning_group": str(end_effector.get("planning_group", "manipulator")),
+        "tool_link": str(end_effector.get("tool_link", "tool0")),
+        "base_frame": str(end_effector.get("base_frame", "world")),
+    }
+    if "gripper" in end_effector:
+        gripper = end_effector["gripper"]
+        if not isinstance(gripper, dict):
+            raise RuntimeError(f"end_effector.gripper must be a mapping: {profile_path}")
+        result["gripper"] = {
+            "controller": str(gripper.get("controller", "")),
+            "open_positions": [
+                float(value)
+                for value in gripper.get("open_positions", [])
+            ],
+            "closed_positions": [
+                float(value)
+                for value in gripper.get("closed_positions", [])
+            ],
+        }
+    return result
 
 
 def _resolve_delays(raw, mode_name):
@@ -169,7 +215,9 @@ def _resolve_worlds(raw, profile_path):
 
 def _resolve_world_scene(spec, field_name):
     scene_ref = _resolve_scene_ref(spec, f"{field_name}.scene")
-    scene = load_scene(scene_ref)
+    variant = spec.get("variant", "") if isinstance(spec, dict) else ""
+    parameters = spec.get("parameters", {}) if isinstance(spec, dict) else {}
+    scene = load_scene(scene_ref, variant=variant, parameters=parameters)
     world_path = build_world(scene)
     return {
         "name": scene.name,
@@ -198,12 +246,20 @@ def _resolve_world_scene(spec, field_name):
                 for name, region in scene.regions.items()
             },
         },
+        "variant": str(variant or ""),
+        "parameters": dict(parameters or {}),
     }
 
 
 def _resolve_scene_ref(spec, field_name):
     if isinstance(spec, dict):
-        return _resolve_path(spec, field_name)
+        if spec.get("path"):
+            return _resolve_path(spec, field_name)
+        if spec.get("name"):
+            from robot_sim_bringup.registry import resolve_scene_path
+
+            return str(resolve_scene_path(str(spec["name"]), str(spec.get("package", ""))))
+        raise RuntimeError(f"{field_name} must define path or name")
     if isinstance(spec, str):
         candidate = os.path.expanduser(os.path.expandvars(spec))
         if os.path.isabs(candidate) or candidate.startswith("package://"):

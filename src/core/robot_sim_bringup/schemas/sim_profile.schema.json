@@ -8,6 +8,9 @@
     "schema",
     "kind",
     "name",
+    "metadata",
+    "capabilities",
+    "end_effector",
     "layouts",
     "robot",
     "worlds",
@@ -19,9 +22,70 @@
     "smoke"
   ],
   "properties": {
-    "schema": { "const": 2 },
+    "schema": { "const": 3 },
     "kind": { "const": "sim_profile" },
     "name": { "type": "string", "minLength": 1 },
+    "metadata": {
+      "type": "object",
+      "required": ["package", "robot_name"],
+      "properties": {
+        "package": { "type": "string", "minLength": 1 },
+        "robot_name": { "type": "string", "minLength": 1 },
+        "vendor": { "type": "string" },
+        "model": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "capabilities": {
+      "type": "object",
+      "required": ["task_families", "sensors"],
+      "properties": {
+        "task_families": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "empty_motion",
+              "obstacle_clearance",
+              "fixture_to_pallet",
+              "pick_place",
+              "sensor_calibration",
+              "conveyor_sorting"
+            ]
+          }
+        },
+        "sensors": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "end_effector": {
+      "type": "object",
+      "required": ["planning_group", "tool_link"],
+      "properties": {
+        "planning_group": { "type": "string", "minLength": 1 },
+        "tool_link": { "type": "string", "minLength": 1 },
+        "base_frame": { "type": "string" },
+        "gripper": {
+          "type": "object",
+          "required": ["controller"],
+          "properties": {
+            "controller": { "type": "string", "minLength": 1 },
+            "open_positions": {
+              "type": "array",
+              "items": { "type": "number" }
+            },
+            "closed_positions": {
+              "type": "array",
+              "items": { "type": "number" }
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
     "layouts": {
       "type": "object",
       "minProperties": 1,
@@ -93,7 +157,13 @@
       "required": ["package", "path"],
       "properties": {
         "package": { "type": "string", "minLength": 1 },
-        "path": { "type": "string", "minLength": 1 }
+        "path": { "type": "string", "minLength": 1 },
+        "name": { "type": "string" },
+        "variant": { "type": "string" },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": true
+        }
       },
       "additionalProperties": true
     }

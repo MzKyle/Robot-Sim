@@ -19,6 +19,8 @@
 - 仿真传感器 receiver 包，发布 `/diagnostics` 健康信息。
 - Profile lint、smoke test、GitHub Actions CI、GitHub Pages 文档和 tag deb release。
 - `run_case` 验收入口，生成 `manifest.json`、`metrics.json`、`report.md/html`、日志和 rosbag。
+- `schema: 3` 配置契约、scene 参数化、外部 profile/case/scene package 发现。
+- 机器人接入 scaffold，生成 description、control、MoveIt、sensor、smoke、profile 和 validation case 最小闭环。
 
 ## Requirements
 
@@ -85,8 +87,29 @@ src/core/robot_sim_bringup/config/sim_profiles/fanuc_m20id12l_industrial_cell.ya
 新机器人建议从模板开始：
 
 ```bash
-cp src/core/robot_sim_bringup/config/templates/template_robot.yaml custom_robot.yaml
-ros2 run robot_sim_bringup profile_lint --profile-file custom_robot.yaml --mode full --require-moveit
+ros2 run robot_sim_bringup scaffold_robot \
+  --package my_robot_sim \
+  --robot-name my_robot \
+  --output /tmp \
+  --planning-group manipulator \
+  --tool-link tool0 \
+  --joint-names joint_1 joint_2 joint_3 joint_4 joint_5 joint_6 \
+  --sensor-set camera,depth,lidar,imu \
+  --with-gripper true
+
+ros2 run robot_sim_bringup profile_lint \
+  --profile-package my_robot_sim \
+  --profile my_robot \
+  --mode full \
+  --require-moveit
+```
+
+外部包标准路径：
+
+```text
+share/<pkg>/robot_sim/profiles/*.yaml
+share/<pkg>/robot_sim/validation_cases/*.yaml
+share/<pkg>/robot_sim/scenes/*.yaml
 ```
 
 ## Test
@@ -102,6 +125,8 @@ scripts/sim_smoke_test.sh --profile panda --mode mock --timeout 60
 scripts/sim_smoke_test.sh --profile fanuc_m20id12l --mode full --with-moveit --timeout 120
 ros2 run robot_sim_bringup run_case --case industrial_fixture_to_pallet --output-dir robot_sim_runs --timeout 120
 ros2 run robot_sim_bringup run_case --case industrial_obstacle_clearance --output-dir robot_sim_runs --timeout 120
+ros2 run robot_sim_bringup run_case --case panda_pick_place --scene-variant extra_workpieces
+ros2 run robot_sim_bringup run_case --profile-package my_robot_sim --profile my_robot --case-package my_robot_sim --case smoke_empty_motion
 ```
 
 `mock` smoke 适合快速 CI；`full` smoke 会实际启动 Gazebo，耗时更长，适合手动或定时验证。

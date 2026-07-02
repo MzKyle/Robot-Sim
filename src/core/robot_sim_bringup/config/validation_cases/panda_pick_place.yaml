@@ -1,10 +1,10 @@
 schema: 3
 kind: validation_case
-name: industrial_obstacle_clearance
-description: Fanuc industrial cell planning move with explicit TCP clearance gate near obstacle region.
+name: panda_pick_place
+description: Panda gripper pick-place validation on the tabletop scene.
 
 launch:
-  profile: fanuc_m20id12l_industrial_cell
+  profile: panda
   mode: full
   layout: single
   timeout_sec: 120.0
@@ -12,20 +12,27 @@ launch:
 
 scene:
   package: robot_sim_scenarios
-  path: scenes/industrial_cell.yaml
+  path: scenes/tabletop_pick_place.yaml
 
 task:
-  type: obstacle_clearance
-  seed: 17
-  start_region: planning_start
-  goal_region: planning_goal
+  type: pick_place
+  seed: 13
+  pick_region: pick_spawn
+  place_region: place_target
+  object:
+    model: pick_red_cube
+    attach_link: panda_link8
+  gripper:
+    controller: gripper_controller
+    open_positions: [0.04, 0.04]
+    closed_positions: [0.0, 0.0]
   moveit:
-    group: manipulator
-    target_link: tool0
+    group: panda_arm
+    target_link: panda_link8
     frame: world
-    planning_time_sec: 10.0
-    velocity_scaling: 0.1
-    acceleration_scaling: 0.1
+    planning_time_sec: 8.0
+    velocity_scaling: 0.2
+    acceleration_scaling: 0.2
 
 planning_scene:
   apply: true
@@ -33,10 +40,10 @@ planning_scene:
   include_tags: []
 
 expect:
-  position_tolerance_m: 0.15
+  position_tolerance_m: 0.12
   orientation_tolerance_rad: 3.14159
-  max_goal_position_error_m: 0.30
-  min_tcp_clearance_m: 0.05
+  max_goal_position_error_m: 0.25
+  min_tcp_clearance_m: 0.01
   max_controller_error_rad: 0.50
   required_sensor_min_hz: 1.0
   require_tf_ok: true
@@ -44,10 +51,6 @@ expect:
     - name: /camera/color/image_raw
       min_hz: 1.0
     - name: /camera/points
-      min_hz: 1.0
-    - name: /scan
-      min_hz: 1.0
-    - name: /imu/data
       min_hz: 1.0
 
 artifacts:

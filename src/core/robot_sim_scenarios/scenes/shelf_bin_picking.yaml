@@ -1,4 +1,4 @@
-schema: 2
+schema: 3
 kind: scene
 name: shelf_bin_picking
 description: Shelf and tote bin picking scene with clutter, occlusions, depth camera rig, and multiple bin regions.

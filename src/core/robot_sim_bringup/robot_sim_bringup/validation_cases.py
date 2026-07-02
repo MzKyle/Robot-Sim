@@ -7,6 +7,8 @@ from typing import Any, Mapping
 import yaml
 from robot_sim_scenarios import load_scene
 
+from robot_sim_bringup.registry import resolve_scene_path
+from robot_sim_bringup.registry import resolve_validation_case_path as registry_case_path
 from robot_sim_bringup.schema_validation import validate_config_schema
 DEFAULT_EXCLUDE_TAGS = {
     "ground",
@@ -17,8 +19,25 @@ DEFAULT_EXCLUDE_TAGS = {
 }
 
 
-def load_validation_case(name_or_path: str | Path) -> dict[str, Any]:
-    path = resolve_validation_case_path(name_or_path)
+TASK_REGION_REQUIREMENTS = {
+    "empty_motion": ("waypoints",),
+    "obstacle_clearance": ("start_region", "goal_region"),
+    "fixture_to_pallet": ("start_region", "goal_region"),
+    "pick_place": ("pick_region", "place_region"),
+    "sensor_calibration": ("calibration_regions",),
+    "conveyor_sorting": ("start_region", "goal_region"),
+}
+
+
+def load_validation_case(
+    name_or_path: str | Path,
+    case_package: str = "",
+    scene_override: str = "",
+    scene_package: str = "",
+    scene_variant: str = "",
+    scene_parameters: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    path = resolve_validation_case_path(name_or_path, case_package=case_package)
     with path.open("r", encoding="utf-8") as handle:
         raw = yaml.safe_load(handle)
     if not isinstance(raw, dict):
@@ -29,6 +48,7 @@ def load_validation_case(name_or_path: str | Path) -> dict[str, Any]:
     launch = _required_mapping(raw, "launch", path)
     profile = _required_string(launch, "profile", path)
     profile_file = str(launch.get("profile_file", ""))
+    profile_package = str(launch.get("profile_package", ""))
     mode = str(launch.get("mode", "full"))
     if mode not in ("full", "light", "mock"):
         raise RuntimeError(f"mode must be full, light, or mock: {path}")
@@ -36,20 +56,20 @@ def load_validation_case(name_or_path: str | Path) -> dict[str, Any]:
     if layout not in ("single", "distributed"):
         raise RuntimeError(f"launch.layout must be single or distributed: {path}")
 
-    scene_ref = _resolve_scene_ref(raw.get("scene"), "scene")
-    scene = load_scene(scene_ref)
+    scene_spec = _scene_spec(raw.get("scene"), scene_override, scene_package, scene_variant, scene_parameters)
+    scene_ref = _resolve_scene_ref(scene_spec, "scene")
+    scene = load_scene(
+        scene_ref,
+        variant=scene_spec.get("variant", ""),
+        parameters=scene_spec.get("parameters", {}),
+    )
 
     task = _required_mapping(raw, "task", path)
     task_type = _required_string(task, "type", path)
-    start_region = _required_string(task, "start_region", path)
-    goal_region = _required_string(task, "goal_region", path)
-    for region_name in (start_region, goal_region):
-        if region_name not in scene.regions:
-            valid = ", ".join(sorted(scene.regions))
-            raise RuntimeError(
-                f"validation case region '{region_name}' is not in scene "
-                f"'{scene.name}'. Valid regions: {valid}"
-            )
+    _validate_task_shape(task_type, task, path)
+    task_regions = _task_regions(task_type, task)
+    for region_name in task_regions:
+        _validate_region(scene, region_name)
 
     moveit = _required_mapping(task, "moveit", path)
     moveit_config = {
@@ -71,17 +91,20 @@ def load_validation_case(name_or_path: str | Path) -> dict[str, Any]:
         "path": str(path),
         "profile": profile,
         "profile_file": profile_file,
+        "profile_package": profile_package,
         "mode": mode,
         "layout": layout,
         "timeout_sec": float(launch.get("timeout_sec", 120.0)),
         "scene": scene,
         "scene_ref": str(scene_ref),
+        "scene_spec": scene_spec,
         "seed": int(task.get("seed", 1)),
         "sensor_overrides": _sensor_overrides_text(launch.get("sensor_overrides", "")),
         "moveit": moveit_config,
         "task_type": task_type,
-        "start_region": start_region,
-        "goal_region": goal_region,
+        "start_region": _first_region(task_type, task),
+        "goal_region": _last_region(task_type, task),
+        "task_regions": task_regions,
         "planning_scene": {
             "apply": bool(planning_scene.get("apply", True)),
             "exclude_tags": [
@@ -131,6 +154,7 @@ def load_validation_case(name_or_path: str | Path) -> dict[str, Any]:
     case["launch"] = {
         "profile": profile,
         "profile_file": profile_file,
+        "profile_package": profile_package,
         "mode": mode,
         "layout": layout,
         "timeout_sec": case["timeout_sec"],
@@ -139,9 +163,12 @@ def load_validation_case(name_or_path: str | Path) -> dict[str, Any]:
     case["task"] = {
         "type": task_type,
         "seed": case["seed"],
-        "start_region": start_region,
-        "goal_region": goal_region,
+        **_normalized_task_regions(task_type, task),
         "moveit": moveit_config,
+        "object": dict(task.get("object", {})),
+        "gripper": dict(task.get("gripper", {})),
+        "conveyor": dict(task.get("conveyor", {})),
+        "sort_targets": dict(task.get("sort_targets", {})),
     }
     case["expect"] = {
         **case["pass_criteria"],
@@ -150,18 +177,107 @@ def load_validation_case(name_or_path: str | Path) -> dict[str, Any]:
     return case
 
 
-def resolve_validation_case_path(name_or_path: str | Path) -> Path:
-    candidate = Path(name_or_path).expanduser()
-    if candidate.exists():
-        return candidate.resolve()
-    if candidate.suffix in (".yaml", ".yml") or candidate.parent != Path("."):
-        raise RuntimeError(f"validation case file does not exist: {candidate}")
+def resolve_validation_case_path(name_or_path: str | Path, case_package: str = "") -> Path:
+    return registry_case_path(name_or_path, case_package)
 
-    name = str(name_or_path)
-    package_path = _bringup_share_dir() / "config" / "validation_cases" / f"{name}.yaml"
-    if not package_path.exists():
-        raise RuntimeError(f"unknown validation case '{name}': {package_path}")
-    return package_path.resolve()
+
+def _scene_spec(
+    raw_scene: Any,
+    scene_override: str,
+    scene_package: str,
+    scene_variant: str,
+    scene_parameters: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    if scene_override:
+        spec: dict[str, Any] = {"name": scene_override}
+        if scene_package:
+            spec["package"] = scene_package
+    elif isinstance(raw_scene, dict):
+        spec = dict(raw_scene)
+    else:
+        spec = {"name": str(raw_scene or "")}
+
+    if scene_package and "package" not in spec:
+        spec["package"] = scene_package
+    if scene_variant:
+        spec["variant"] = scene_variant
+    if scene_parameters:
+        merged = dict(spec.get("parameters", {}) or {})
+        merged.update(scene_parameters)
+        spec["parameters"] = merged
+    return spec
+
+
+def _validate_task_shape(task_type: str, task: Mapping[str, Any], path: Path) -> None:
+    if task_type not in TASK_REGION_REQUIREMENTS:
+        valid = ", ".join(sorted(TASK_REGION_REQUIREMENTS))
+        raise RuntimeError(f"task.type must be one of {valid}: {path}")
+    missing = [
+        field
+        for field in TASK_REGION_REQUIREMENTS[task_type]
+        if field not in task or task[field] in ("", None, [])
+    ]
+    if missing:
+        raise RuntimeError(
+            f"validation_case task '{task_type}' missing required fields: "
+            + ", ".join(missing)
+            + f": {path}"
+        )
+
+
+def _task_regions(task_type: str, task: Mapping[str, Any]) -> list[str]:
+    if task_type == "empty_motion":
+        return [str(name) for name in task.get("waypoints", [])]
+    if task_type == "pick_place":
+        return [str(task["pick_region"]), str(task["place_region"])]
+    if task_type == "sensor_calibration":
+        return [str(name) for name in task.get("calibration_regions", [])]
+    return [str(task["start_region"]), str(task["goal_region"])]
+
+
+def _normalized_task_regions(task_type: str, task: Mapping[str, Any]) -> dict[str, Any]:
+    if task_type == "empty_motion":
+        waypoints = [str(name) for name in task.get("waypoints", [])]
+        return {
+            "waypoints": waypoints,
+            "start_region": waypoints[0],
+            "goal_region": waypoints[-1],
+        }
+    if task_type == "pick_place":
+        return {
+            "pick_region": str(task["pick_region"]),
+            "place_region": str(task["place_region"]),
+            "start_region": str(task["pick_region"]),
+            "goal_region": str(task["place_region"]),
+        }
+    if task_type == "sensor_calibration":
+        regions = [str(name) for name in task.get("calibration_regions", [])]
+        return {
+            "calibration_regions": regions,
+            "start_region": regions[0],
+            "goal_region": regions[-1],
+        }
+    return {
+        "start_region": str(task["start_region"]),
+        "goal_region": str(task["goal_region"]),
+    }
+
+
+def _first_region(task_type: str, task: Mapping[str, Any]) -> str:
+    return _task_regions(task_type, task)[0]
+
+
+def _last_region(task_type: str, task: Mapping[str, Any]) -> str:
+    return _task_regions(task_type, task)[-1]
+
+
+def _validate_region(scene, region_name: str) -> None:
+    if region_name not in scene.regions:
+        valid = ", ".join(sorted(scene.regions))
+        raise RuntimeError(
+            f"validation case region '{region_name}' is not in scene "
+            f"'{scene.name}'. Valid regions: {valid}"
+        )
 
 
 def collision_primitives_from_scene(
@@ -423,13 +539,16 @@ def _sensor_overrides_text(value):
 
 def _resolve_scene_ref(spec, field_name):
     if isinstance(spec, dict):
-        package_name = spec.get("package")
-        if not package_name:
-            raise RuntimeError(f"{field_name}.package is required")
-        return os.path.join(
-            _package_share_directory(package_name),
-            spec.get("path", ""),
-        )
+        if spec.get("path"):
+            package_name = spec.get("package")
+            if not package_name:
+                raise RuntimeError(f"{field_name}.package is required")
+            from robot_sim_bringup.registry import package_share_directory
+
+            return package_share_directory(str(package_name)) / str(spec["path"])
+        if spec.get("name"):
+            return resolve_scene_path(str(spec["name"]), str(spec.get("package", "")))
+        raise RuntimeError(f"{field_name} must define path or name")
     if isinstance(spec, str) and spec:
         return spec
     raise RuntimeError(f"{field_name} must be a non-empty string or mapping")

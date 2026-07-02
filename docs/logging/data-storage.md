@@ -33,6 +33,7 @@
 `ros2 run robot_sim_bringup run_case --case <name>` 会为每次运行创建独立目录：
 
 - `manifest.json`：case、profile、scene、命令、时间和产物路径。
+- `effective_case.yaml` / `effective_profile.yaml`：应用 CLI 覆盖、scene variant 和 scene 参数后的运行配置。
 - `metrics.json`：步骤状态、controller、TF、sensor Hz、MoveIt、误差和 clearance 指标。
 - `report.md` / `report.html`：同一报告模型生成的人工可读报告。
 - `logs/`：各步骤日志，包含 `sim.launch.log`。

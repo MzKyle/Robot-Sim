@@ -14,8 +14,10 @@ install(DIRECTORY
 )
 
 install(PROGRAMS
+  scripts/migrate_config
   scripts/profile_lint
   scripts/run_case
+  scripts/scaffold_robot
   DESTINATION lib/${PROJECT_NAME}
 )
 

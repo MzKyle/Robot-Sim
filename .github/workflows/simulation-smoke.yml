@@ -106,19 +106,29 @@ jobs:
           source install/setup.bash
           scripts/sim_smoke_test.sh ${{ matrix.args }} --keep-logs
 
-      - name: Run industrial validation cases
+      - name: Run Panda standard validation cases
+        if: matrix.profile == 'panda'
+        run: |
+          source "/opt/ros/${ROS_DISTRO}/setup.bash"
+          source install/setup.bash
+          for case in empty_motion panda_pick_place sensor_calibration conveyor_sorting; do
+            ros2 run robot_sim_bringup run_case \
+              --case "${case}" \
+              --output-dir robot_sim_runs \
+              --timeout 120
+          done
+
+      - name: Run Fanuc industrial validation cases
         if: matrix.profile == 'fanuc_m20id12l'
         run: |
           source "/opt/ros/${ROS_DISTRO}/setup.bash"
           source install/setup.bash
-          ros2 run robot_sim_bringup run_case \
-            --case industrial_fixture_to_pallet \
-            --output-dir robot_sim_runs \
-            --timeout 120
-          ros2 run robot_sim_bringup run_case \
-            --case industrial_obstacle_clearance \
-            --output-dir robot_sim_runs \
-            --timeout 120
+          for case in industrial_fixture_to_pallet industrial_obstacle_clearance; do
+            ros2 run robot_sim_bringup run_case \
+              --case "${case}" \
+              --output-dir robot_sim_runs \
+              --timeout 120
+          done
 
       - name: Upload smoke logs
         uses: actions/upload-artifact@v4

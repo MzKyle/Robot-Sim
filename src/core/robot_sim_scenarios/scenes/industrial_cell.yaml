@@ -1,7 +1,72 @@
-schema: 2
+schema: 3
 kind: scene
 name: industrial_cell
 description: Industrial robot cell with safety fencing, fixed obstacles, fixtures, pallets, and planning targets.
+
+parameters:
+  seed:
+    type: integer
+    default: 17
+    description: Deterministic seed for generated obstacles.
+  generated_obstacle_count:
+    type: integer
+    default: 0
+    description: Number of generated box obstacles in obstacle_test.
+  generated_obstacle_size_x:
+    type: number
+    default: 0.16
+  generated_obstacle_size_y:
+    type: number
+    default: 0.16
+  generated_obstacle_size_z:
+    type: number
+    default: 0.36
+  fixture_x:
+    type: number
+    default: 1.20
+  fixture_y:
+    type: number
+    default: -0.95
+  planning_columns_x:
+    type: number
+    default: 0.95
+  planning_columns_y:
+    type: number
+    default: 0.82
+
+variants:
+  dense_obstacles:
+    description: Adds deterministic temporary obstacles for clearance regression.
+    parameters:
+      generated_obstacle_count: 4
+      seed: 31
+  fixture_offset_demo:
+    description: Moves the fixture station and planning columns within the cell.
+    parameters:
+      fixture_x: 1.28
+      fixture_y: -0.88
+      planning_columns_x: 1.02
+      planning_columns_y: 0.76
+
+generators:
+  - type: random_boxes
+    enabled: true
+    name_prefix: generated_obstacle
+    count: "${generated_obstacle_count}"
+    seed: "${seed}"
+    region: obstacle_test
+    z: 0.68
+    geometry:
+      type: box
+      size: ["${generated_obstacle_size_x}", "${generated_obstacle_size_y}", "${generated_obstacle_size_z}"]
+    material:
+      ambient: [0.46, 0.12, 0.08, 1.0]
+      diffuse: [0.82, 0.22, 0.14, 1.0]
+      specular: [0.08, 0.03, 0.02, 1.0]
+    tags: [obstacle, generated, planning]
+    static: true
+    collision: true
+    visual_only: false
 
 world:
   name: industrial_cell
@@ -374,7 +439,7 @@ objects:
   - name: fixture_station
     type: model
     static: true
-    pose: [1.20, -0.95, 0.0, 0.0, 0.0, 0.0]
+    pose: ["${fixture_x}", "${fixture_y}", 0.0, 0.0, 0.0, 0.0]
     tags: [fixture, table, obstacle]
     links:
       - name: tabletop
@@ -438,7 +503,7 @@ objects:
   - name: planning_columns
     type: model
     static: true
-    pose: [0.95, 0.82, 0.0, 0.0, 0.0, 0.0]
+    pose: ["${planning_columns_x}", "${planning_columns_y}", 0.0, 0.0, 0.0, 0.0]
     tags: [obstacle, planning]
     links:
       - name: near_column

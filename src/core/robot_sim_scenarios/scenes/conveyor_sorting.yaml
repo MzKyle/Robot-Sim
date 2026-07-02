@@ -1,4 +1,4 @@
-schema: 2
+schema: 3
 kind: scene
 name: conveyor_sorting
 description: Conveyor sorting cell with moving packages, bins, diverters, camera rig, and robot pick window.

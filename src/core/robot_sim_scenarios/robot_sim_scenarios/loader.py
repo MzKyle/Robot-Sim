@@ -11,16 +11,22 @@ from robot_sim_scenarios.models import (
     pose_from_sequence,
     vector3_from_sequence,
 )
+from robot_sim_scenarios.parameters import materialize_scene_config
 from robot_sim_scenarios.schema_validation import validate_config_schema
 
 
-def load_scene(name_or_path: str | Path) -> Scene:
+def load_scene(
+    name_or_path: str | Path,
+    variant: str = "",
+    parameters: Mapping[str, Any] | None = None,
+) -> Scene:
     path = _resolve_scene_path(name_or_path)
     with path.open("r", encoding="utf-8") as handle:
         raw = yaml.safe_load(handle)
 
     if not isinstance(raw, dict):
         raise RuntimeError(f"scene YAML must be a mapping: {path}")
+    raw = materialize_scene_config(raw, path, variant=variant, parameters=parameters)
     validate_config_schema(raw, "scene.schema.json", "scene", path)
     if "startup_commands" in raw:
         _validate_startup_commands(

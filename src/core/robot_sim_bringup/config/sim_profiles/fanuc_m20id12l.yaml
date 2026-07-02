@@ -1,6 +1,26 @@
-schema: 2
+schema: 3
 kind: sim_profile
 name: fanuc_m20id12l
+
+metadata:
+  package: robot_sim_bringup
+  robot_name: fanuc_m20id12l
+  vendor: FANUC
+  model: M-20iD/12L
+
+capabilities:
+  task_families:
+    - empty_motion
+    - obstacle_clearance
+    - fixture_to_pallet
+    - sensor_calibration
+    - conveyor_sorting
+  sensors: [camera, depth, lidar, imu]
+
+end_effector:
+  planning_group: manipulator
+  tool_link: tool0
+  base_frame: world
 
 layouts:
   single:

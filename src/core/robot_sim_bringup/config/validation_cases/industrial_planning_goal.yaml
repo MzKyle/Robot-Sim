@@ -1,4 +1,4 @@
-schema: 2
+schema: 3
 kind: validation_case
 name: industrial_planning_goal
 description: Fanuc industrial cell obstacle-aware move from planning start to planning goal.
@@ -15,7 +15,7 @@ scene:
   path: scenes/industrial_cell.yaml
 
 task:
-  type: moveit_region_to_region
+  type: obstacle_clearance
   seed: 11
   start_region: planning_start
   goal_region: planning_goal

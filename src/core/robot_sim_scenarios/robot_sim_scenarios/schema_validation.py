@@ -3,14 +3,20 @@ from pathlib import Path
 from typing import Any, Mapping
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 def validate_config_schema(raw: Mapping[str, Any], schema_name: str, kind: str, path: Path) -> None:
     if raw.get("schema") != SCHEMA_VERSION:
+        detected = raw.get("schema")
+        migrate_hint = (
+            "Run: ros2 run robot_sim_bringup migrate_config --input "
+            f"{path} --output <schema3.yaml>"
+        )
         raise RuntimeError(
             f"{kind} schema must be {SCHEMA_VERSION}: {path}. "
-            "schema v1 is no longer supported; migrate to schema: 2 and add kind."
+            f"Detected schema: {detected!r}. schema v1/v2 is no longer supported. "
+            + migrate_hint
         )
     if raw.get("kind") != kind:
         raise RuntimeError(f"{kind} YAML must define kind: {kind}: {path}")

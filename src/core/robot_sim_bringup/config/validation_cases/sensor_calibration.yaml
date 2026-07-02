@@ -1,10 +1,10 @@
 schema: 3
 kind: validation_case
-name: industrial_obstacle_clearance
-description: Fanuc industrial cell planning move with explicit TCP clearance gate near obstacle region.
+name: sensor_calibration
+description: Multi-view sensor calibration validation using TF, CameraInfo, and simulated target regions.
 
 launch:
-  profile: fanuc_m20id12l_industrial_cell
+  profile: panda
   mode: full
   layout: single
   timeout_sec: 120.0
@@ -12,20 +12,23 @@ launch:
 
 scene:
   package: robot_sim_scenarios
-  path: scenes/industrial_cell.yaml
+  path: scenes/tabletop_pick_place.yaml
+  variant: shifted_target
 
 task:
-  type: obstacle_clearance
-  seed: 17
-  start_region: planning_start
-  goal_region: planning_goal
+  type: sensor_calibration
+  seed: 19
+  calibration_regions: [pick_spawn, random_tabletop, place_target]
+  object:
+    target_model: place_target_area
+    camera_frame: camera_color_frame
   moveit:
-    group: manipulator
-    target_link: tool0
+    group: panda_arm
+    target_link: panda_link8
     frame: world
-    planning_time_sec: 10.0
-    velocity_scaling: 0.1
-    acceleration_scaling: 0.1
+    planning_time_sec: 8.0
+    velocity_scaling: 0.15
+    acceleration_scaling: 0.15
 
 planning_scene:
   apply: true
@@ -33,21 +36,17 @@ planning_scene:
   include_tags: []
 
 expect:
-  position_tolerance_m: 0.15
+  position_tolerance_m: 0.14
   orientation_tolerance_rad: 3.14159
   max_goal_position_error_m: 0.30
-  min_tcp_clearance_m: 0.05
+  min_tcp_clearance_m: 0.01
   max_controller_error_rad: 0.50
   required_sensor_min_hz: 1.0
   require_tf_ok: true
   topics:
     - name: /camera/color/image_raw
       min_hz: 1.0
-    - name: /camera/points
-      min_hz: 1.0
-    - name: /scan
-      min_hz: 1.0
-    - name: /imu/data
+    - name: /camera/color/camera_info
       min_hz: 1.0
 
 artifacts:

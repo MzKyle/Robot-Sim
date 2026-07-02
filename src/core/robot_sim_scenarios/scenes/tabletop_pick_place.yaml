@@ -1,7 +1,53 @@
-schema: 2
+schema: 3
 kind: scene
 name: tabletop_pick_place
 description: Tabletop pick, place, sorting, stacking, visual servoing, and gripper test scene.
+
+parameters:
+  seed:
+    type: integer
+    default: 7
+  generated_workpiece_count:
+    type: integer
+    default: 0
+  place_target_x:
+    type: number
+    default: 1.15
+  place_target_y:
+    type: number
+    default: 0.24
+
+variants:
+  extra_workpieces:
+    description: Adds deterministic extra workpieces in the random tabletop region.
+    parameters:
+      generated_workpiece_count: 3
+      seed: 23
+  shifted_target:
+    description: Moves the place target inside the tabletop workspace.
+    parameters:
+      place_target_x: 1.08
+      place_target_y: 0.31
+
+generators:
+  - type: random_boxes
+    enabled: true
+    name_prefix: generated_workpiece
+    count: "${generated_workpiece_count}"
+    seed: "${seed}"
+    region: random_tabletop
+    z: 0.835
+    geometry:
+      type: box
+      size: [0.075, 0.075, 0.075]
+    material:
+      ambient: [0.78, 0.58, 0.08, 1.0]
+      diffuse: [0.95, 0.70, 0.12, 1.0]
+      specular: [0.14, 0.10, 0.04, 1.0]
+    tags: [pick_object, generated, workpiece]
+    static: false
+    collision: true
+    visual_only: false
 
 world:
   name: tabletop_pick_place
@@ -316,7 +362,7 @@ objects:
     static: true
     collision: false
     visual_only: true
-    pose: [1.15, 0.24, 0.765, 0.0, 0.0, 0.0]
+    pose: ["${place_target_x}", "${place_target_y}", 0.765, 0.0, 0.0, 0.0]
     geometry:
       type: box
       size: [0.34, 0.26, 0.01]

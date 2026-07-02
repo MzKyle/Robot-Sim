@@ -1,6 +1,30 @@
-schema: 2
+schema: 3
 kind: sim_profile
 name: panda
+
+metadata:
+  package: robot_sim_bringup
+  robot_name: panda
+  vendor: Franka Emika
+  model: Panda
+
+capabilities:
+  task_families:
+    - empty_motion
+    - obstacle_clearance
+    - pick_place
+    - sensor_calibration
+    - conveyor_sorting
+  sensors: [camera, depth, lidar, imu]
+
+end_effector:
+  planning_group: panda_arm
+  tool_link: panda_link8
+  base_frame: world
+  gripper:
+    controller: gripper_controller
+    open_positions: [0.04, 0.04]
+    closed_positions: [0.0, 0.0]
 
 layouts:
   single:

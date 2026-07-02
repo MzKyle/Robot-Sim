@@ -44,6 +44,11 @@ ros2 run robot_sim_bringup run_case \
   --case industrial_obstacle_clearance \
   --output-dir robot_sim_runs \
   --timeout 120
+
+ros2 run robot_sim_bringup run_case --case empty_motion --output-dir robot_sim_runs --timeout 120
+ros2 run robot_sim_bringup run_case --case panda_pick_place --output-dir robot_sim_runs --timeout 120
+ros2 run robot_sim_bringup run_case --case sensor_calibration --output-dir robot_sim_runs --timeout 120
+ros2 run robot_sim_bringup run_case --case conveyor_sorting --output-dir robot_sim_runs --timeout 120
 ```
 
 每次运行会创建：
@@ -55,6 +60,8 @@ robot_sim_runs/<timestamp>_<case>_<profile>/
   report.md
   report.html
   robot.urdf
+  effective_case.yaml
+  effective_profile.yaml
   logs/
   rosbag/
 ```

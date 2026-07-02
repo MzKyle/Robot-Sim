@@ -121,7 +121,7 @@ def test_all_scene_yamls_load():
     assert load_scene("shelf_bin_picking").robot_mount_pose == (-0.55, -1.05, 0.18, 0.0, 0.0, 0.0)
 
 
-def test_all_scene_and_world_preset_schemas_are_v2():
+def test_all_scene_and_world_preset_schemas_are_v3():
     package_root = Path(__file__).resolve().parents[1]
     for path in sorted((package_root / "scenes").glob("*.yaml")):
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -137,8 +137,35 @@ def test_scene_schema_rejects_v1_files(tmp_path):
     path = tmp_path / "legacy_scene.yaml"
     path.write_text(yaml.safe_dump(raw), encoding="utf-8")
 
-    with pytest.raises(RuntimeError, match="schema v1 is no longer supported"):
+    with pytest.raises(RuntimeError, match="schema v1/v2 is no longer supported|migrate_config"):
         validate_config_schema(raw, "scene.schema.json", "scene", path)
+
+
+def test_scene_parameters_variants_and_generators_are_deterministic():
+    first = load_scene("industrial_cell", variant="dense_obstacles")
+    second = load_scene("industrial_cell", variant="dense_obstacles")
+
+    generated_first = [
+        scene_object
+        for scene_object in first.objects
+        if "generated" in scene_object.tags
+    ]
+    generated_second = [
+        scene_object
+        for scene_object in second.objects
+        if "generated" in scene_object.tags
+    ]
+
+    assert len(generated_first) == 4
+    assert [item.pose for item in generated_first] == [item.pose for item in generated_second]
+    assert first.raw["_resolved_parameters"]["generated_obstacle_count"] == 4
+
+
+def test_scene_parameter_override_moves_fixture_without_variant():
+    scene = load_scene("industrial_cell", parameters={"fixture_x": 1.33, "fixture_y": -0.84})
+    fixture = next(scene_object for scene_object in scene.objects if scene_object.name == "fixture_station")
+
+    assert fixture.pose[:2] == pytest.approx((1.33, -0.84))
 
 
 def test_new_scene_workspaces_and_regions_are_readable():

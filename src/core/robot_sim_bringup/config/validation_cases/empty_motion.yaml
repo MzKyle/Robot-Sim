@@ -1,10 +1,10 @@
 schema: 3
 kind: validation_case
-name: industrial_fixture_to_pallet
-description: Fanuc industrial cell move from fixture pick area to pallet drop area.
+name: empty_motion
+description: Panda empty-scene smoke motion through deterministic workspace waypoints.
 
 launch:
-  profile: fanuc_m20id12l_industrial_cell
+  profile: panda
   mode: full
   layout: single
   timeout_sec: 120.0
@@ -12,28 +12,22 @@ launch:
 
 scene:
   package: robot_sim_scenarios
-  path: scenes/industrial_cell.yaml
+  path: scenes/debug_empty.yaml
 
 task:
-  type: fixture_to_pallet
-  seed: 11
-  start_region: fixture_pick
-  goal_region: pallet_drop
-  object:
-    model: pallet_and_parts
-    attach_link: tool0
-    source: fixture_station
-    target: pallet_and_parts
+  type: empty_motion
+  seed: 5
+  waypoints: [workspace_sample, workspace_sample]
   moveit:
-    group: manipulator
-    target_link: tool0
+    group: panda_arm
+    target_link: panda_link8
     frame: world
-    planning_time_sec: 10.0
+    planning_time_sec: 6.0
     velocity_scaling: 0.2
     acceleration_scaling: 0.2
 
 planning_scene:
-  apply: true
+  apply: false
   exclude_tags: [ground, robot_mount, pedestal, visual_marker, optional]
   include_tags: []
 
@@ -41,18 +35,12 @@ expect:
   position_tolerance_m: 0.18
   orientation_tolerance_rad: 3.14159
   max_goal_position_error_m: 0.35
-  min_tcp_clearance_m: 0.01
+  min_tcp_clearance_m: 0.0
   max_controller_error_rad: 0.60
   required_sensor_min_hz: 1.0
   require_tf_ok: true
   topics:
     - name: /camera/color/image_raw
-      min_hz: 1.0
-    - name: /camera/points
-      min_hz: 1.0
-    - name: /scan
-      min_hz: 1.0
-    - name: /imu/data
       min_hz: 1.0
 
 artifacts:

@@ -1,4 +1,4 @@
-schema: 2
+schema: 3
 kind: scene
 name: debug_empty
 description: Empty open scene for robot loading, motion, IK, trajectory, and collision debugging.

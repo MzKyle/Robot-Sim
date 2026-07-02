@@ -6,7 +6,7 @@
   "additionalProperties": true,
   "required": ["schema", "kind", "name", "world_name", "base", "scenario", "assets"],
   "properties": {
-    "schema": { "const": 2 },
+    "schema": { "const": 3 },
     "kind": { "const": "world_preset" },
     "name": { "type": "string", "minLength": 1 },
     "world_name": { "type": "string", "minLength": 1 },

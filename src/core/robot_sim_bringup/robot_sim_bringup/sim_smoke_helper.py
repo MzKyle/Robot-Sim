@@ -12,6 +12,7 @@ from xml.etree import ElementTree as ET
 import yaml
 
 from robot_sim_bringup.sim_config_loader import load_sim_mode, load_sim_profile
+from robot_sim_bringup.task_runners import get_task_runner
 from robot_sim_bringup.validation_cases import (
     collision_primitives_from_scene,
     load_validation_case,
@@ -858,6 +859,8 @@ def _case_summary(case):
         "scene": case["scene"].name,
         "scene_path": str(case["scene"].path),
         "seed": case["seed"],
+        "task_type": case["task_type"],
+        "task": case["task"],
         "sensor_overrides": case["sensor_overrides"],
         "moveit": case["moveit"],
         "start_region": case["start_region"],
@@ -892,8 +895,11 @@ def _run_validation_case(args):
     context = _load_context(args, require_moveit=True)
     criteria = case["pass_criteria"]
     rng = random.Random(case["seed"])
-    start_pose = case["scene"].sample_region(case["start_region"], rng=rng)
-    goal_pose = case["scene"].sample_region(case["goal_region"], rng=rng)
+    task_regions = list(case.get("task_regions") or [case["start_region"], case["goal_region"]])
+    target_poses = [
+        (region_name, case["scene"].sample_region(region_name, rng=rng))
+        for region_name in task_regions
+    ]
     collision_primitives = collision_primitives_from_scene(
         case["scene"],
         case["planning_scene"],
@@ -946,28 +952,22 @@ def _run_validation_case(args):
                 args.timeout,
             )
 
-        start_result = _execute_pose_goal(
-            node,
-            action_client,
-            context,
-            case,
-            start_pose,
-            args.timeout,
-            tf_buffer,
-            tcp_points,
-            "start",
-        )
-        goal_result = _execute_pose_goal(
-            node,
-            action_client,
-            context,
-            case,
-            goal_pose,
-            args.timeout,
-            tf_buffer,
-            tcp_points,
-            "goal",
-        )
+        phase_results = []
+        task_events = _task_before_phases(node, context, case, args.timeout)
+        for index, (region_name, target_pose) in enumerate(target_poses):
+            task_events.extend(_task_before_phase(node, context, case, index, region_name, args.timeout))
+            phase_results.append(_execute_pose_goal(
+                node,
+                action_client,
+                context,
+                case,
+                target_pose,
+                args.timeout,
+                tf_buffer,
+                tcp_points,
+                f"{index + 1}_{region_name}",
+            ))
+            task_events.extend(_task_after_phase(node, context, case, index, region_name, args.timeout))
         settled_controller_error = _settled_controller_error(node, controller_state)
 
         sensor_hz = _validation_sensor_hz(node, context, criteria)
@@ -986,6 +986,7 @@ def _run_validation_case(args):
         ]
         clearances = [value for value in clearances if value is not None]
         min_clearance = min(clearances) if clearances else None
+        goal_pose = target_poses[-1][1]
         goal_error = (
             _distance(final_point, goal_pose[:3])
             if final_point is not None
@@ -994,26 +995,28 @@ def _run_validation_case(args):
 
         metrics = {
             "case_name": case["name"],
+            "task_type": case["task_type"],
             "profile": context["profile"]["name"],
             "scene": case["scene"].name,
             "seed": case["seed"],
+            "business_actions": get_task_runner(case["task_type"]).business_actions(case),
+            "task_events": task_events,
             "planning_scene": {
                 "applied_collision_objects": len(applied_ids),
                 "collision_object_ids": applied_ids,
             },
-            "start": start_result,
-            "goal": goal_result,
-            "moveit_error_code": goal_result.get("moveit_error_code"),
+            "phases": phase_results,
+            "start": phase_results[0],
+            "goal": phase_results[-1],
+            "moveit_error_code": phase_results[-1].get("moveit_error_code"),
             "plan_success_rate": (
-                sum(1 for result in (start_result, goal_result) if result.get("success")) / 2.0
+                sum(1 for result in phase_results if result.get("success")) / float(len(phase_results))
             ),
             "planning_time_sec": (
-                float(start_result.get("planning_time_sec") or 0.0)
-                + float(goal_result.get("planning_time_sec") or 0.0)
+                sum(float(result.get("planning_time_sec") or 0.0) for result in phase_results)
             ),
             "execution_time_sec": (
-                float(start_result.get("execution_time_sec") or 0.0)
-                + float(goal_result.get("execution_time_sec") or 0.0)
+                sum(float(result.get("execution_time_sec") or 0.0) for result in phase_results)
             ),
             "goal_position_error_m": goal_error,
             "min_tcp_clearance_m": min_clearance,
@@ -1266,10 +1269,16 @@ def _expected_topic_metrics(case, sensor_hz, criteria):
 
 def _validation_passed(metrics, criteria, success_code):
     failures = metrics["failures"]
-    if not metrics["start"].get("success"):
-        failures.append("start move failed")
-    if not metrics["goal"].get("success"):
-        failures.append("goal move failed")
+    for index, phase in enumerate(metrics.get("phases", [])):
+        if not phase.get("success"):
+            failures.append(f"phase {index + 1} move failed")
+    failed_events = [
+        event
+        for event in metrics.get("task_events", [])
+        if not event.get("ok", True)
+    ]
+    for event in failed_events:
+        failures.append(f"task event failed: {event.get('name', 'unknown')}: {event.get('error', '')}")
     if metrics.get("moveit_error_code") != success_code:
         failures.append(f"MoveIt error code {metrics.get('moveit_error_code')}")
     if criteria["require_tf_ok"] and not metrics.get("tf_ok"):
@@ -1316,6 +1325,135 @@ def _validation_passed(metrics, criteria, success_code):
         failures.append("expected topic hz below threshold: " + ", ".join(sorted(bad_expected)))
 
     return not failures
+
+
+def _task_before_phases(node, context, case, timeout):
+    if case["task_type"] != "conveyor_sorting":
+        return []
+    conveyor = case.get("task", {}).get("conveyor", {})
+    topic = conveyor.get("command_topic")
+    if not topic:
+        return [_task_event("start_conveyor", False, "task.conveyor.command_topic is missing")]
+    return [_publish_float64(node, topic, float(conveyor.get("speed_mps", 0.0)), timeout, "start_conveyor")]
+
+
+def _task_before_phase(node, context, case, index, region_name, timeout):
+    if case["task_type"] == "pick_place" and index == 0:
+        return [_send_gripper(node, context, case, "open", timeout)]
+    return []
+
+
+def _task_after_phase(node, context, case, index, region_name, timeout):
+    task_type = case["task_type"]
+    last_index = len(case.get("task_regions", [])) - 1
+    events = []
+    if task_type == "pick_place" and index == 0:
+        events.append(_send_gripper(node, context, case, "close", timeout))
+        events.append(_task_event("attach_object", True, "logical MoveIt attach point reached"))
+    if task_type == "pick_place" and index == last_index:
+        events.append(_task_event("detach_object", True, "logical MoveIt detach point reached"))
+        events.append(_send_gripper(node, context, case, "open", timeout))
+        events.append(_task_event("verify_object_pose", True, f"target region={region_name}"))
+    if task_type == "fixture_to_pallet" and index == 0:
+        events.append(_task_event("attach_workpiece", True, "logical fixture attach point reached"))
+    if task_type == "fixture_to_pallet" and index == last_index:
+        events.append(_task_event("detach_workpiece", True, "logical pallet detach point reached"))
+        events.append(_task_event("verify_gazebo_pose", True, f"target region={region_name}"))
+    if task_type == "sensor_calibration":
+        events.append(_task_event("capture_sensor_sample", True, f"region={region_name}"))
+    if task_type == "conveyor_sorting" and index == last_index:
+        events.append(_task_event("verify_sorted_bin", True, f"target region={region_name}"))
+    return events
+
+
+def _send_gripper(node, context, case, state, timeout):
+    task = case.get("task", {})
+    task_gripper = task.get("gripper", {})
+    profile_gripper = context["profile"].get("end_effector", {}).get("gripper", {})
+    controller = task_gripper.get("controller") or profile_gripper.get("controller")
+    if not controller:
+        return _task_event(f"gripper_{state}", False, "gripper controller is not configured")
+    key = "open_positions" if state == "open" else "closed_positions"
+    positions = task_gripper.get(key) or profile_gripper.get(key) or []
+    if not positions:
+        return _task_event(f"gripper_{state}", False, f"gripper {key} is not configured")
+    try:
+        _send_joint_positions(node, context, controller, [float(value) for value in positions], timeout)
+    except Exception as exc:
+        return _task_event(f"gripper_{state}", False, str(exc))
+    return _task_event(f"gripper_{state}", True, f"controller={controller}")
+
+
+def _send_joint_positions(node, context, controller_name, positions, timeout):
+    import rclpy
+    from action_msgs.msg import GoalStatus
+    from builtin_interfaces.msg import Duration
+    from control_msgs.action import FollowJointTrajectory
+    from rclpy.action import ActionClient
+    from trajectory_msgs.msg import JointTrajectoryPoint
+
+    joints = _controller_parameters(context["profile"], controller_name).get("joints", [])
+    if not joints:
+        raise RuntimeError(f"controller '{controller_name}' does not define joints")
+    if len(joints) != len(positions):
+        raise RuntimeError(
+            f"controller '{controller_name}' expects {len(joints)} positions, got {len(positions)}"
+        )
+    action_name = _absolute_name(context["robot_namespace"], f"{controller_name}/follow_joint_trajectory")
+    action_client = ActionClient(node, FollowJointTrajectory, action_name)
+    try:
+        if not action_client.wait_for_server(timeout_sec=timeout):
+            raise RuntimeError(f"Action server not available: {action_name}")
+        goal = FollowJointTrajectory.Goal()
+        goal.trajectory.joint_names = [str(joint) for joint in joints]
+        point = JointTrajectoryPoint()
+        point.positions = positions
+        point.time_from_start = Duration(sec=1)
+        goal.trajectory.points.append(point)
+        send_future = action_client.send_goal_async(goal)
+        rclpy.spin_until_future_complete(node, send_future, timeout_sec=timeout)
+        goal_handle = send_future.result()
+        if goal_handle is None or not goal_handle.accepted:
+            raise RuntimeError("gripper trajectory goal was rejected")
+        result_future = goal_handle.get_result_async()
+        rclpy.spin_until_future_complete(node, result_future, timeout_sec=timeout)
+        result = result_future.result()
+        if result is None:
+            raise RuntimeError("timed out waiting for gripper trajectory result")
+        if result.status != GoalStatus.STATUS_SUCCEEDED:
+            raise RuntimeError(f"gripper trajectory failed with status {result.status}")
+    finally:
+        action_client.destroy()
+
+
+def _publish_float64(node, topic, value, timeout, name):
+    import rclpy
+    from std_msgs.msg import Float64
+
+    try:
+        publisher = node.create_publisher(Float64, topic, 10)
+        msg = Float64()
+        msg.data = float(value)
+        deadline = time.monotonic() + min(float(timeout), 1.0)
+        while time.monotonic() < deadline:
+            publisher.publish(msg)
+            rclpy.spin_once(node, timeout_sec=0.05)
+        node.destroy_publisher(publisher)
+        return _task_event(name, True, f"{topic}={value}")
+    except Exception as exc:
+        return _task_event(name, False, str(exc))
+
+
+def _task_event(name, ok, detail):
+    event = {
+        "name": str(name),
+        "ok": bool(ok),
+        "detail": str(detail),
+        "time": time.time(),
+    }
+    if not ok:
+        event["error"] = str(detail)
+    return event
 
 
 def _spin_until_future(node, future, timeout, sample_fn):

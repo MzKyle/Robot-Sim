@@ -11,6 +11,10 @@ import subprocess
 import sys
 import time
 
+import yaml
+
+from robot_sim_bringup.registry import resolve_profile_path
+from robot_sim_bringup.task_runners import get_task_runner
 from robot_sim_bringup.validation_cases import load_validation_case
 
 
@@ -55,9 +59,15 @@ class CommandRunner:
 def build_parser():
     parser = argparse.ArgumentParser(description="Run one robot_sim validation case and write artifacts.")
     parser.add_argument("--case", required=True, help="Validation case name or YAML path.")
+    parser.add_argument("--case-package", default="", help="ROS package containing robot_sim/validation_cases/<case>.yaml.")
     parser.add_argument("--output-dir", default="robot_sim_runs", help="Parent directory for run artifacts.")
     parser.add_argument("--profile", default="", help="Override case launch.profile.")
     parser.add_argument("--profile-file", default="", help="Override or provide an external sim_profile YAML.")
+    parser.add_argument("--profile-package", default="", help="ROS package containing robot_sim/profiles/<profile>.yaml.")
+    parser.add_argument("--scene", default="", help="Override case scene by name or YAML path.")
+    parser.add_argument("--scene-package", default="", help="ROS package containing robot_sim/scenes/<scene>.yaml.")
+    parser.add_argument("--scene-variant", default="", help="Scene variant to apply.")
+    parser.add_argument("--scene-param", action="append", default=[], help="Scene parameter override as name=value. Repeatable.")
     parser.add_argument("--mode", default=None, choices=("full", "light", "mock"), help="Override case launch.mode.")
     parser.add_argument("--sensor-overrides", default=None, help="Override case launch.sensor_overrides.")
     parser.add_argument("--timeout", type=float, default=None, help="Override case launch.timeout_sec.")
@@ -78,12 +88,23 @@ def main(argv=None):
 
 
 def run_case(args, runner):
-    case = load_validation_case(args.case)
+    scene_parameters = _parse_scene_params(args.scene_param)
+    case = load_validation_case(
+        args.case,
+        case_package=args.case_package,
+        scene_override=args.scene,
+        scene_package=args.scene_package,
+        scene_variant=args.scene_variant,
+        scene_parameters=scene_parameters,
+    )
     effective = _effective_launch(case, args)
     run_dir = _create_run_dir(args.output_dir, case["name"], effective["profile"])
     logs_dir = run_dir / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
     rosbag_dir = run_dir / "rosbag"
+    effective_case_file = _write_effective_case(case, effective, run_dir)
+    effective["case_file"] = str(effective_case_file)
+    effective["profile_file"] = str(_write_effective_profile(case, effective, run_dir))
 
     manifest = _initial_manifest(case, effective, args, run_dir)
     metrics = {
@@ -148,20 +169,19 @@ def run_case(args, runner):
         _run_step(metrics, runner, "moveit_plan_execute", helper + ["moveit", *common_args, "--timeout", str(effective["timeout"])], logs_dir / "moveit.log")
 
         validation_metrics_path = run_dir / "validation_metrics.json"
+        task_runner = get_task_runner(case["task_type"])
+        metrics["task_type"] = case["task_type"]
+        metrics["business_actions"] = task_runner.business_actions(case)
         _run_step(
             metrics,
             runner,
-            "validation_case",
-            helper + [
-                "validate-case",
-                *common_args,
-                "--validation-case",
-                args.case,
-                "--metrics-output",
-                str(validation_metrics_path),
-                "--timeout",
-                str(effective["timeout"]),
-            ],
+            f"validation_case:{case['task_type']}",
+            task_runner.validation_command(
+                common_args,
+                effective["case_file"],
+                validation_metrics_path,
+                effective["timeout"],
+            ),
             logs_dir / "validation_case.log",
         )
         validation_metrics = _load_json_file(validation_metrics_path)
@@ -209,9 +229,15 @@ def run_case(args, runner):
 
 
 def _effective_launch(case, args):
+    profile = args.profile or case["profile"]
+    profile_package = args.profile_package or case.get("profile_package", "")
+    profile_file = args.profile_file or case.get("profile_file", "")
+    if profile_package and not profile_file:
+        profile_file = str(resolve_profile_path(profile, "", profile_package))
     return {
-        "profile": args.profile or case["profile"],
-        "profile_file": args.profile_file or case.get("profile_file", ""),
+        "profile": profile,
+        "profile_file": profile_file,
+        "profile_package": profile_package,
         "mode": args.mode or case["mode"],
         "layout": case.get("layout", "single"),
         "timeout": float(args.timeout if args.timeout is not None else case.get("timeout_sec", 120.0)),
@@ -221,6 +247,100 @@ def _effective_launch(case, args):
             else case.get("sensor_overrides", "")
         ),
     }
+
+
+def _parse_scene_params(items):
+    result = {}
+    for item in items or []:
+        if "=" not in item:
+            raise RuntimeError("--scene-param must use name=value")
+        name, value = item.split("=", 1)
+        name = name.strip()
+        if not name:
+            raise RuntimeError("--scene-param contains an empty name")
+        result[name] = _typed_value(value.strip())
+    return result
+
+
+def _typed_value(value):
+    lowered = value.lower()
+    if lowered in ("true", "false"):
+        return lowered == "true"
+    try:
+        if re.fullmatch(r"[-+]?[0-9]+", value):
+            return int(value)
+        if re.fullmatch(r"[-+]?[0-9]*\.[0-9]+", value):
+            return float(value)
+    except ValueError:
+        pass
+    return value
+
+
+def _write_effective_case(case, effective, run_dir):
+    raw = dict(case.get("raw", {}))
+    raw["scene"] = _scene_spec_for_yaml(case["scene_spec"])
+    raw.setdefault("launch", {})
+    raw["launch"]["profile"] = effective["profile"]
+    raw["launch"]["profile_file"] = effective.get("profile_file", "")
+    raw["launch"]["profile_package"] = effective.get("profile_package", "")
+    raw["launch"]["mode"] = effective["mode"]
+    raw["launch"]["layout"] = effective.get("layout", "single")
+    raw["launch"]["timeout_sec"] = effective["timeout"]
+    raw["launch"]["sensor_overrides"] = effective.get("sensor_overrides", "")
+    path = run_dir / "effective_case.yaml"
+    with path.open("w", encoding="utf-8") as handle:
+        yaml.safe_dump(raw, handle, sort_keys=False)
+    return path
+
+
+def _write_effective_profile(case, effective, run_dir):
+    profile_path = resolve_profile_path(
+        effective["profile"],
+        effective.get("profile_file", ""),
+        effective.get("profile_package", ""),
+    )
+    with profile_path.open("r", encoding="utf-8") as handle:
+        raw = yaml.safe_load(handle)
+    if not isinstance(raw, dict):
+        raise RuntimeError(f"sim_profile YAML must be a mapping: {profile_path}")
+    layout_name = effective.get("layout", "single")
+    layouts = raw.get("layouts", {})
+    if layout_name not in layouts:
+        valid = ", ".join(sorted(layouts))
+        raise RuntimeError(f"profile '{effective['profile']}' missing layout '{layout_name}'. Valid layouts: {valid}")
+    world_name = layouts[layout_name].get("world", layout_name)
+    raw.setdefault("worlds", {})
+    raw["worlds"][world_name] = {
+        "scene": _scene_spec_for_yaml(case["scene_spec"]),
+    }
+    path = run_dir / "effective_profile.yaml"
+    with path.open("w", encoding="utf-8") as handle:
+        yaml.safe_dump(raw, handle, sort_keys=False)
+    return path
+
+
+def _scene_spec_for_yaml(scene_spec):
+    if scene_spec.get("name") and _looks_like_path(scene_spec["name"]):
+        return str(scene_spec["name"])
+    if scene_spec.get("name") and not scene_spec.get("path"):
+        package_name = scene_spec.get("package") or "robot_sim_scenarios"
+        path = (
+            f"scenes/{scene_spec['name']}.yaml"
+            if package_name == "robot_sim_scenarios"
+            else f"robot_sim/scenes/{scene_spec['name']}.yaml"
+        )
+        scene_spec = {**scene_spec, "package": package_name, "path": path}
+    result = {}
+    for key in ("package", "path", "variant", "parameters"):
+        value = scene_spec.get(key)
+        if value not in (None, "", {}):
+            result[key] = value
+    return result
+
+
+def _looks_like_path(value):
+    path = Path(str(value)).expanduser()
+    return path.exists() or path.suffix in (".yaml", ".yml") or path.parent != Path(".")
 
 
 def _common_helper_args(effective):
@@ -275,6 +395,12 @@ def _initial_manifest(case, effective, args, run_dir):
         "scene": {
             "name": case["scene"].name,
             "path": str(case["scene"].path),
+            "variant": case.get("scene_spec", {}).get("variant", ""),
+            "parameters": case.get("scene_spec", {}).get("parameters", {}),
+        },
+        "task": {
+            "type": case.get("task_type", ""),
+            "regions": case.get("task_regions", []),
         },
         "command": [sys.argv[0], *(sys.argv[1:] if args else [])],
         "git_commit": _git_commit(),
@@ -450,6 +576,9 @@ def _validation_metrics_summary(validation_metrics):
         "tf_ok": validation_metrics.get("tf_ok"),
         "moveit_error_code": validation_metrics.get("moveit_error_code"),
         "validation_failures": validation_metrics.get("failures", []),
+        "phases": validation_metrics.get("phases", []),
+        "business_actions": validation_metrics.get("business_actions", []),
+        "task_events": validation_metrics.get("task_events", []),
     }
 
 
@@ -469,6 +598,7 @@ def _render_markdown_report(manifest, metrics):
         f"- Profile: `{manifest['launch']['profile']}`",
         f"- Mode: `{manifest['launch']['mode']}`",
         f"- Scene: `{manifest['scene']['name']}`",
+        f"- Task: `{manifest.get('task', {}).get('type', metrics.get('task_type', ''))}`",
         f"- Started: `{manifest.get('started_at')}`",
         f"- Finished: `{manifest.get('finished_at')}`",
         f"- Run directory: `{manifest['run_dir']}`",
@@ -488,6 +618,33 @@ def _render_markdown_report(manifest, metrics):
         duration = step.get("duration_sec")
         duration_text = f"{duration:.2f}s" if isinstance(duration, (int, float)) else ""
         lines.append(f"| {step['name']} | {step_status} | {duration_text} | `{step.get('log', '')}` |")
+
+    lines.extend([
+        "",
+        "## Business Actions",
+        "",
+        "| Action | Type | Detail |",
+        "| --- | --- | --- |",
+    ])
+    for action in metrics.get("business_actions", []):
+        detail = ", ".join(
+            f"{key}={value}"
+            for key, value in action.items()
+            if key not in ("name", "type")
+        )
+        lines.append(f"| {action.get('name', '')} | {action.get('type', '')} | `{detail}` |")
+
+    lines.extend([
+        "",
+        "## Task Events",
+        "",
+        "| Event | OK | Detail |",
+        "| --- | --- | --- |",
+    ])
+    for event in metrics.get("task_events", []):
+        lines.append(
+            f"| {event.get('name', '')} | {event.get('ok', '')} | `{event.get('detail', '')}` |"
+        )
 
     lines.extend([
         "",
@@ -518,6 +675,8 @@ def _render_markdown_report(manifest, metrics):
         "",
         f"- Manifest: `{manifest['artifacts'].get('manifest', '')}`",
         f"- Metrics: `{manifest['artifacts'].get('metrics', '')}`",
+        f"- Effective case: `{manifest['artifacts'].get('effective_case', '')}`",
+        f"- Effective profile: `{manifest['artifacts'].get('effective_profile', '')}`",
         f"- Rosbag: `{manifest['artifacts'].get('rosbag', '')}`",
         f"- Simulation log: `{manifest['artifacts'].get('simulation_log', '')}`",
         "",
@@ -545,6 +704,8 @@ def _artifact_manifest(run_dir):
     return {
         "manifest": str(run_dir / "manifest.json"),
         "metrics": str(run_dir / "metrics.json"),
+        "effective_case": str(run_dir / "effective_case.yaml"),
+        "effective_profile": str(run_dir / "effective_profile.yaml"),
         "report_md": str(run_dir / "report.md"),
         "report_html": str(run_dir / "report.html"),
         "robot_urdf": str(run_dir / "robot.urdf"),

@@ -1,6 +1,23 @@
-schema: 2
+schema: 3
 kind: sim_profile
 name: custom_robot
+
+metadata:
+  package: your_robot_bringup
+  robot_name: custom_robot
+  vendor: custom
+  model: custom_robot
+
+capabilities:
+  task_families:
+    - empty_motion
+    - obstacle_clearance
+  sensors: [camera, depth, lidar, imu]
+
+end_effector:
+  planning_group: manipulator
+  tool_link: tool0
+  base_frame: world
 
 layouts:
   single:
