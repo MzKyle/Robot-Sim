@@ -20,9 +20,11 @@
 ```bash
 scripts/sim_smoke_test.sh --profile panda --mode full --timeout 120
 scripts/sim_smoke_test.sh --profile fanuc_m20id12l --mode full --with-moveit --timeout 120
+ros2 run robot_sim_bringup run_case --case industrial_fixture_to_pallet --output-dir robot_sim_runs --timeout 120
+ros2 run robot_sim_bringup run_case --case industrial_obstacle_clearance --output-dir robot_sim_runs --timeout 120
 ```
 
-失败时会上传 colcon 与 smoke 日志。
+失败时会上传 colcon、smoke 日志和 `robot_sim_runs/` 验收产物。
 
 ## Docs
 

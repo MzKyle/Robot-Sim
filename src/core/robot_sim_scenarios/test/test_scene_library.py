@@ -5,10 +5,14 @@ import subprocess
 import sys
 from xml.etree import ElementTree as ET
 
+import pytest
+import yaml
+
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from robot_sim_scenarios import build_world, load_scene
+from robot_sim_scenarios.schema_validation import validate_config_schema
 
 
 SCENE_NAMES = [
@@ -115,6 +119,26 @@ def test_all_scene_yamls_load():
     assert load_scene("industrial_cell").robot_mount_pose == (0.0, 0.0, 0.18, 0.0, 0.0, 0.0)
     assert load_scene("conveyor_sorting").robot_mount_pose == (-0.25, -1.15, 0.18, 0.0, 0.0, 0.0)
     assert load_scene("shelf_bin_picking").robot_mount_pose == (-0.55, -1.05, 0.18, 0.0, 0.0, 0.0)
+
+
+def test_all_scene_and_world_preset_schemas_are_v2():
+    package_root = Path(__file__).resolve().parents[1]
+    for path in sorted((package_root / "scenes").glob("*.yaml")):
+        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+        validate_config_schema(raw, "scene.schema.json", "scene", path)
+    for path in sorted((package_root / "world_presets").glob("*.yaml")):
+        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+        validate_config_schema(raw, "world_preset.schema.json", "world_preset", path)
+
+
+def test_scene_schema_rejects_v1_files(tmp_path):
+    raw = yaml.safe_load((Path(__file__).resolve().parents[1] / "scenes" / "debug_empty.yaml").read_text(encoding="utf-8"))
+    raw["schema"] = 1
+    path = tmp_path / "legacy_scene.yaml"
+    path.write_text(yaml.safe_dump(raw), encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="schema v1 is no longer supported"):
+        validate_config_schema(raw, "scene.schema.json", "scene", path)
 
 
 def test_new_scene_workspaces_and_regions_are_readable():

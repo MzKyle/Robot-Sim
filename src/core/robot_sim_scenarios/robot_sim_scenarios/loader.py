@@ -11,9 +11,7 @@ from robot_sim_scenarios.models import (
     pose_from_sequence,
     vector3_from_sequence,
 )
-
-
-CONFIG_SCHEMA_VERSION = 1
+from robot_sim_scenarios.schema_validation import validate_config_schema
 
 
 def load_scene(name_or_path: str | Path) -> Scene:
@@ -23,8 +21,7 @@ def load_scene(name_or_path: str | Path) -> Scene:
 
     if not isinstance(raw, dict):
         raise RuntimeError(f"scene YAML must be a mapping: {path}")
-    if raw.get("schema") != CONFIG_SCHEMA_VERSION:
-        raise RuntimeError(f"scene schema must be {CONFIG_SCHEMA_VERSION}: {path}")
+    validate_config_schema(raw, "scene.schema.json", "scene", path)
     if "startup_commands" in raw:
         _validate_startup_commands(
             _required_list(raw, "startup_commands", path),

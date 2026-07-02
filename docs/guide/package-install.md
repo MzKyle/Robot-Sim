@@ -19,6 +19,7 @@ dist/robot-sim_<version>-<revision>_<arch>.deb
 ```bash
 sudo apt install ./dist/robot-sim_0.1.0-1_amd64.deb
 robot-sim-check
+robot-sim run-case --case industrial_fixture_to_pallet
 robot-sim sim_profile:=panda sim_mode:=light
 ```
 

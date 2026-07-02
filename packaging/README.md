@@ -27,6 +27,7 @@ PACKAGE_VERSION=0.2.0 PACKAGE_REVISION=1 bash packaging/build_deb.sh
 ```bash
 sudo apt install ./dist/robot-sim_0.1.0-1_amd64.deb
 robot-sim-check
+robot-sim run-case --case industrial_fixture_to_pallet
 robot-sim sim_profile:=panda sim_mode:=light
 robot-sim sim_profile:=fanuc_m20id12l sim_mode:=full
 ```

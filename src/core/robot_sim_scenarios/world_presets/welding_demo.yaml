@@ -1,4 +1,5 @@
-schema: 1
+schema: 2
+kind: world_preset
 name: welding_demo
 world_name: robot_lab
 description: Welding adapter scene; uses the same base world plus workpiece assets.

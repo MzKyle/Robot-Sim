@@ -67,3 +67,12 @@ scripts/sim_smoke_test.sh --profile fanuc_m20id12l --mode full --with-moveit --t
 - `assets/`：桌子、目标物、障碍物等可复用 SDF。
 - `world_presets/`：组合 base world 与 assets 的启动 preset。
 - `scenes/`：可复用 scene library YAML。
+
+## 验收用例
+
+工业 validation case 使用 `run_case` 执行：
+
+```bash
+ros2 run robot_sim_bringup run_case --case industrial_fixture_to_pallet --output-dir robot_sim_runs
+ros2 run robot_sim_bringup run_case --case industrial_obstacle_clearance --output-dir robot_sim_runs
+```

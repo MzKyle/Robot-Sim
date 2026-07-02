@@ -30,6 +30,35 @@ scripts/sim_smoke_test.sh --profile panda --mode full --timeout 120
 scripts/sim_smoke_test.sh --profile fanuc_m20id12l --mode full --with-moveit --timeout 120
 ```
 
+## Validation Case
+
+验收用例会启动仿真、执行 MoveIt 任务、检查控制链/TF/传感器/碰撞指标，并生成结构化产物：
+
+```bash
+ros2 run robot_sim_bringup run_case \
+  --case industrial_fixture_to_pallet \
+  --output-dir robot_sim_runs \
+  --timeout 120
+
+ros2 run robot_sim_bringup run_case \
+  --case industrial_obstacle_clearance \
+  --output-dir robot_sim_runs \
+  --timeout 120
+```
+
+每次运行会创建：
+
+```text
+robot_sim_runs/<timestamp>_<case>_<profile>/
+  manifest.json
+  metrics.json
+  report.md
+  report.html
+  robot.urdf
+  logs/
+  rosbag/
+```
+
 失败排查时保留日志：
 
 ```bash

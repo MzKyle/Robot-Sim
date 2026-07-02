@@ -21,5 +21,6 @@
 
 ```bash
 robot-sim-check
+robot-sim run-case --case industrial_fixture_to_pallet
 robot-sim sim_profile:=panda sim_mode:=light
 ```

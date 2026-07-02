@@ -5,11 +5,9 @@ from pathlib import Path
 from typing import Any, Mapping
 
 import yaml
-from ament_index_python.packages import get_package_share_directory
 from robot_sim_scenarios import load_scene
 
-
-CONFIG_SCHEMA_VERSION = 1
+from robot_sim_bringup.schema_validation import validate_config_schema
 DEFAULT_EXCLUDE_TAGS = {
     "ground",
     "robot_mount",
@@ -25,20 +23,26 @@ def load_validation_case(name_or_path: str | Path) -> dict[str, Any]:
         raw = yaml.safe_load(handle)
     if not isinstance(raw, dict):
         raise RuntimeError(f"validation case YAML must be a mapping: {path}")
-    if raw.get("schema") != CONFIG_SCHEMA_VERSION:
-        raise RuntimeError(f"validation case schema must be {CONFIG_SCHEMA_VERSION}: {path}")
+    validate_config_schema(raw, "validation_case.schema.json", "validation_case", path)
 
     name = str(raw.get("name") or path.stem)
-    profile = _required_string(raw, "profile", path)
-    mode = str(raw.get("mode", "full"))
+    launch = _required_mapping(raw, "launch", path)
+    profile = _required_string(launch, "profile", path)
+    profile_file = str(launch.get("profile_file", ""))
+    mode = str(launch.get("mode", "full"))
     if mode not in ("full", "light", "mock"):
         raise RuntimeError(f"mode must be full, light, or mock: {path}")
+    layout = str(launch.get("layout", "single"))
+    if layout not in ("single", "distributed"):
+        raise RuntimeError(f"launch.layout must be single or distributed: {path}")
 
     scene_ref = _resolve_scene_ref(raw.get("scene"), "scene")
     scene = load_scene(scene_ref)
 
-    start_region = _required_string(raw, "start_region", path)
-    goal_region = _required_string(raw, "goal_region", path)
+    task = _required_mapping(raw, "task", path)
+    task_type = _required_string(task, "type", path)
+    start_region = _required_string(task, "start_region", path)
+    goal_region = _required_string(task, "goal_region", path)
     for region_name in (start_region, goal_region):
         if region_name not in scene.regions:
             valid = ", ".join(sorted(scene.regions))
@@ -47,7 +51,7 @@ def load_validation_case(name_or_path: str | Path) -> dict[str, Any]:
                 f"'{scene.name}'. Valid regions: {valid}"
             )
 
-    moveit = _required_mapping(raw, "moveit", path)
+    moveit = _required_mapping(task, "moveit", path)
     moveit_config = {
         "group": str(moveit.get("group") or "manipulator"),
         "target_link": str(moveit.get("target_link") or "tool0"),
@@ -57,28 +61,25 @@ def load_validation_case(name_or_path: str | Path) -> dict[str, Any]:
         "acceleration_scaling": float(moveit.get("acceleration_scaling", 0.2)),
     }
 
-    planning_scene = raw.get("planning_scene", {})
-    if planning_scene is None:
-        planning_scene = {}
-    if not isinstance(planning_scene, dict):
-        raise RuntimeError(f"planning_scene must be a mapping: {path}")
+    planning_scene = _required_mapping(raw, "planning_scene", path)
+    expect = _required_mapping(raw, "expect", path)
+    artifacts = _required_mapping(raw, "artifacts", path)
+    rosbag = _required_mapping(artifacts, "rosbag", path)
 
-    pass_criteria = raw.get("pass_criteria", {})
-    if pass_criteria is None:
-        pass_criteria = {}
-    if not isinstance(pass_criteria, dict):
-        raise RuntimeError(f"pass_criteria must be a mapping: {path}")
-
-    return {
+    case = {
         "name": name,
         "path": str(path),
         "profile": profile,
+        "profile_file": profile_file,
         "mode": mode,
+        "layout": layout,
+        "timeout_sec": float(launch.get("timeout_sec", 120.0)),
         "scene": scene,
         "scene_ref": str(scene_ref),
-        "seed": int(raw.get("seed", 1)),
-        "sensor_overrides": _sensor_overrides_text(raw.get("sensor_overrides", "")),
+        "seed": int(task.get("seed", 1)),
+        "sensor_overrides": _sensor_overrides_text(launch.get("sensor_overrides", "")),
         "moveit": moveit_config,
+        "task_type": task_type,
         "start_region": start_region,
         "goal_region": goal_region,
         "planning_scene": {
@@ -94,22 +95,59 @@ def load_validation_case(name_or_path: str | Path) -> dict[str, Any]:
         },
         "pass_criteria": {
             "max_goal_position_error_m": float(
-                pass_criteria.get("max_goal_position_error_m", 0.20)
+                expect.get("max_goal_position_error_m", 0.20)
             ),
-            "min_tcp_clearance_m": float(pass_criteria.get("min_tcp_clearance_m", 0.02)),
+            "min_tcp_clearance_m": float(expect.get("min_tcp_clearance_m", 0.02)),
             "max_controller_error_rad": float(
-                pass_criteria.get("max_controller_error_rad", 0.50)
+                expect.get("max_controller_error_rad", 0.50)
             ),
-            "position_tolerance_m": float(pass_criteria.get("position_tolerance_m", 0.10)),
+            "position_tolerance_m": float(expect.get("position_tolerance_m", 0.10)),
             "orientation_tolerance_rad": float(
-                pass_criteria.get("orientation_tolerance_rad", math.pi)
+                expect.get("orientation_tolerance_rad", math.pi)
             ),
             "required_sensor_min_hz": float(
-                pass_criteria.get("required_sensor_min_hz", 1.0)
+                expect.get("required_sensor_min_hz", 1.0)
             ),
-            "require_tf_ok": bool(pass_criteria.get("require_tf_ok", True)),
+            "require_tf_ok": bool(expect.get("require_tf_ok", True)),
         },
+        "expected_topics": [
+            {
+                "name": str(topic["name"]),
+                "min_hz": float(topic.get("min_hz", expect.get("required_sensor_min_hz", 1.0))),
+            }
+            for topic in expect.get("topics", [])
+        ],
+        "artifacts": {
+            "rosbag": {
+                "enabled": bool(rosbag.get("enabled", True)),
+                "topic_group": str(rosbag.get("topic_group", "all")),
+                "compression": bool(rosbag.get("compression", False)),
+                "extra_topics": [str(topic) for topic in rosbag.get("extra_topics", [])],
+            },
+            "reports": [str(report) for report in artifacts.get("reports", ["md", "html"])],
+        },
+        "raw": raw,
     }
+    case["launch"] = {
+        "profile": profile,
+        "profile_file": profile_file,
+        "mode": mode,
+        "layout": layout,
+        "timeout_sec": case["timeout_sec"],
+        "sensor_overrides": case["sensor_overrides"],
+    }
+    case["task"] = {
+        "type": task_type,
+        "seed": case["seed"],
+        "start_region": start_region,
+        "goal_region": goal_region,
+        "moveit": moveit_config,
+    }
+    case["expect"] = {
+        **case["pass_criteria"],
+        "topics": case["expected_topics"],
+    }
+    return case
 
 
 def resolve_validation_case_path(name_or_path: str | Path) -> Path:
@@ -389,7 +427,7 @@ def _resolve_scene_ref(spec, field_name):
         if not package_name:
             raise RuntimeError(f"{field_name}.package is required")
         return os.path.join(
-            get_package_share_directory(package_name),
+            _package_share_directory(package_name),
             spec.get("path", ""),
         )
     if isinstance(spec, str) and spec:
@@ -401,7 +439,32 @@ def _bringup_share_dir():
     source_root = Path(__file__).resolve().parents[1]
     if (source_root / "config" / "validation_cases").exists():
         return source_root
-    return Path(get_package_share_directory("robot_sim_bringup"))
+    return Path(_package_share_directory("robot_sim_bringup"))
+
+
+def _package_share_directory(package_name):
+    source_path = _source_package_directory(package_name)
+    if source_path is not None:
+        return str(source_path)
+
+    from ament_index_python.packages import get_package_share_directory
+
+    return get_package_share_directory(package_name)
+
+
+def _source_package_directory(package_name):
+    current = Path(__file__).resolve()
+    for ancestor in current.parents:
+        src_dir = ancestor / "src"
+        if not src_dir.exists():
+            continue
+        matches = sorted(src_dir.glob(f"**/{package_name}/package.xml"))
+        if matches:
+            return matches[0].parent
+    package_root = current.parents[1]
+    if package_root.name == package_name and (package_root / "package.xml").exists():
+        return package_root
+    return None
 
 
 def _required_string(raw: Mapping[str, Any], key: str, path: Path) -> str:

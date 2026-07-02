@@ -14,6 +14,7 @@ WITH_ROSBAG=false
 KEEP_SIM=false
 KEEP_LOGS=false
 TIMEOUT=120
+TIMEOUT_SET=false
 VALIDATION_CASE=""
 METRICS_OUTPUT=""
 
@@ -85,6 +86,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     --timeout)
       TIMEOUT="${2:?--timeout requires a value}"
+      TIMEOUT_SET=true
       shift 2
       ;;
     -h|--help)
@@ -135,11 +137,17 @@ if [[ -n "$VALIDATION_CASE" ]]; then
   if [[ "$PROFILE_SET" != true ]]; then
     PROFILE="$VALIDATION_CASE_PROFILE"
   fi
+  if [[ -z "$PROFILE_FILE" ]]; then
+    PROFILE_FILE="$VALIDATION_CASE_PROFILE_FILE"
+  fi
   if [[ "$MODE_SET" != true ]]; then
     MODE="$VALIDATION_CASE_MODE"
   fi
   if [[ "$SENSOR_OVERRIDES_SET" != true ]]; then
     SENSOR_OVERRIDES="$VALIDATION_CASE_SENSOR_OVERRIDES"
+  fi
+  if [[ "$TIMEOUT_SET" != true ]]; then
+    TIMEOUT="$VALIDATION_CASE_TIMEOUT"
   fi
   WITH_MOVEIT=true
 fi

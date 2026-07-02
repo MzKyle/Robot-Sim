@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://robot-sim.local/schemas/sim_profile.schema.json",
+  "title": "robot_sim sim profile",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema",
+    "kind",
+    "name",
+    "layouts",
+    "robot",
+    "worlds",
+    "gazebo",
+    "control",
+    "bridges",
+    "bridge_groups",
+    "sensors",
+    "smoke"
+  ],
+  "properties": {
+    "schema": { "const": 2 },
+    "kind": { "const": "sim_profile" },
+    "name": { "type": "string", "minLength": 1 },
+    "layouts": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": ["world", "namespaces"]
+      }
+    },
+    "robot": {
+      "type": "object",
+      "required": ["xacro", "spawn_name", "spawn_node_name", "allow_renaming"],
+      "properties": {
+        "xacro": { "$ref": "#/$defs/package_ref" }
+      }
+    },
+    "worlds": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": ["scene"],
+            "properties": { "scene": { "$ref": "#/$defs/package_ref" } },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": ["world_preset"],
+            "properties": { "world_preset": { "$ref": "#/$defs/package_ref" } },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": ["file"],
+            "properties": { "file": { "$ref": "#/$defs/package_ref" } },
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "gazebo": {
+      "type": "object",
+      "required": ["launch", "gz_version", "args", "resource_paths"]
+    },
+    "control": {
+      "type": "object",
+      "required": ["controllers_file", "controller_manager_name", "hardware_plugins", "spawners"]
+    },
+    "bridges": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "bridge_groups": {
+      "type": "object",
+      "minProperties": 1
+    },
+    "sensors": {
+      "type": "object"
+    },
+    "smoke": {
+      "type": "object",
+      "required": ["controllers", "sensors", "tf"]
+    }
+  },
+  "$defs": {
+    "package_ref": {
+      "type": "object",
+      "required": ["package", "path"],
+      "properties": {
+        "package": { "type": "string", "minLength": 1 },
+        "path": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
+    }
+  }
+}

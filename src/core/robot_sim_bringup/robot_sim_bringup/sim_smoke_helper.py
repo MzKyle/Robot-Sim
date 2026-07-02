@@ -806,7 +806,10 @@ def command_validation_case_env(args):
     values = {
         "VALIDATION_CASE_NAME": case["name"],
         "VALIDATION_CASE_PROFILE": case["profile"],
+        "VALIDATION_CASE_PROFILE_FILE": case.get("profile_file", ""),
         "VALIDATION_CASE_MODE": case["mode"],
+        "VALIDATION_CASE_LAYOUT": case.get("layout", "single"),
+        "VALIDATION_CASE_TIMEOUT": case.get("timeout_sec", 120.0),
         "VALIDATION_CASE_SENSOR_OVERRIDES": case["sensor_overrides"],
     }
     for name, value in values.items():
@@ -848,7 +851,10 @@ def _case_summary(case):
         "name": case["name"],
         "path": case["path"],
         "profile": case["profile"],
+        "profile_file": case.get("profile_file", ""),
         "mode": case["mode"],
+        "layout": case.get("layout", "single"),
+        "timeout_sec": case.get("timeout_sec", 120.0),
         "scene": case["scene"].name,
         "scene_path": str(case["scene"].path),
         "seed": case["seed"],
@@ -858,6 +864,8 @@ def _case_summary(case):
         "goal_region": case["goal_region"],
         "planning_scene": case["planning_scene"],
         "pass_criteria": case["pass_criteria"],
+        "expected_topics": case.get("expected_topics", []),
+        "artifacts": case.get("artifacts", {}),
     }
 
 
@@ -996,6 +1004,9 @@ def _run_validation_case(args):
             "start": start_result,
             "goal": goal_result,
             "moveit_error_code": goal_result.get("moveit_error_code"),
+            "plan_success_rate": (
+                sum(1 for result in (start_result, goal_result) if result.get("success")) / 2.0
+            ),
             "planning_time_sec": (
                 float(start_result.get("planning_time_sec") or 0.0)
                 + float(goal_result.get("planning_time_sec") or 0.0)
@@ -1009,6 +1020,7 @@ def _run_validation_case(args):
             "max_controller_error_rad": settled_controller_error,
             "peak_controller_error_rad": controller_state["peak_error"],
             "sensor_hz": sensor_hz,
+            "expected_topics": _expected_topic_metrics(case, sensor_hz, criteria),
             "tf_ok": tf_ok,
             "passed": False,
             "failures": [],
@@ -1236,6 +1248,22 @@ def _validation_sensor_hz(node, context, criteria):
     return result
 
 
+def _expected_topic_metrics(case, sensor_hz, criteria):
+    result = {}
+    for topic in case.get("expected_topics", []):
+        name = topic["name"]
+        min_hz = float(topic.get("min_hz", criteria["required_sensor_min_hz"]))
+        measured = sensor_hz.get(name, {})
+        hz = measured.get("hz")
+        result[name] = {
+            "min_hz": min_hz,
+            "hz": hz,
+            "samples": measured.get("samples"),
+            "ok": hz is not None and hz >= min_hz,
+        }
+    return result
+
+
 def _validation_passed(metrics, criteria, success_code):
     failures = metrics["failures"]
     if not metrics["start"].get("success"):
@@ -1278,6 +1306,14 @@ def _validation_passed(metrics, criteria, success_code):
     ]
     if bad_topics:
         failures.append("sensor hz below threshold: " + ", ".join(sorted(bad_topics)))
+
+    bad_expected = [
+        name
+        for name, topic_metrics in metrics.get("expected_topics", {}).items()
+        if not topic_metrics.get("ok", False)
+    ]
+    if bad_expected:
+        failures.append("expected topic hz below threshold: " + ", ".join(sorted(bad_expected)))
 
     return not failures
 

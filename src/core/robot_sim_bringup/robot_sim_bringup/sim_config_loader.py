@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import re
 import tempfile
 from copy import deepcopy
@@ -6,22 +7,25 @@ from hashlib import sha256
 from xml.etree import ElementTree as ET
 
 import yaml
-from ament_index_python.packages import get_package_share_directory
 from robot_sim_scenarios import build_world, load_scene
+from robot_sim_scenarios.schema_validation import validate_config_schema as validate_scenario_schema
+
+from robot_sim_bringup.schema_validation import SCHEMA_VERSION, validate_config_schema
 
 
-CONFIG_SCHEMA_VERSION = 1
+SIM_MODES_SCHEMA_VERSION = 1
+BRIDGE_GROUP_SCHEMA_VERSION = 1
 
 
 def load_sim_mode(mode_name):
     modes_path = os.path.join(
-        get_package_share_directory("robot_sim_bringup"),
+        _package_share_directory("robot_sim_bringup"),
         "config",
         "sim_modes.yaml",
     )
     raw = _load_yaml(modes_path, "sim_modes")
-    if raw.get("schema") != CONFIG_SCHEMA_VERSION:
-        raise RuntimeError(f"sim_modes schema must be {CONFIG_SCHEMA_VERSION}: {modes_path}")
+    if raw.get("schema") != SIM_MODES_SCHEMA_VERSION:
+        raise RuntimeError(f"sim_modes schema must be {SIM_MODES_SCHEMA_VERSION}: {modes_path}")
 
     modes = raw.get("modes")
     if not isinstance(modes, dict):
@@ -48,10 +52,7 @@ def load_sim_profile(
     profile_path = _profile_path(profile_name, profile_file)
     raw = _load_yaml(profile_path, "sim_profile")
 
-    if raw.get("schema") != CONFIG_SCHEMA_VERSION:
-        raise RuntimeError(
-            f"sim_profile schema must be {CONFIG_SCHEMA_VERSION}: {profile_path}"
-        )
+    validate_config_schema(raw, "sim_profile.schema.json", "sim_profile", profile_path)
 
     name = raw.get("name") or os.path.splitext(os.path.basename(profile_path))[0]
     startup_bridges = _resolve_startup_bridges(raw, profile_path)
@@ -82,7 +83,7 @@ def _profile_path(profile_name, profile_file):
         if not profile_name:
             profile_name = "panda"
         path = os.path.join(
-            get_package_share_directory("robot_sim_bringup"),
+            _package_share_directory("robot_sim_bringup"),
             "config",
             "sim_profiles",
             f"{profile_name}.yaml",
@@ -151,14 +152,18 @@ def _resolve_worlds(raw, profile_path):
         field_name = f"worlds.{name}"
         if isinstance(spec, dict) and "scene" in spec:
             resolved[name] = _resolve_world_scene(spec["scene"], field_name)
-        elif isinstance(spec, dict) and "scenario" in spec:
-            resolved[name] = _resolve_world_scenario(spec["scenario"], field_name)
-        else:
+        elif isinstance(spec, dict) and "world_preset" in spec:
+            resolved[name] = _resolve_world_preset(spec["world_preset"], field_name)
+        elif isinstance(spec, dict) and "file" in spec:
             resolved[name] = {
                 "name": name,
                 "source": "file",
-                "path": _resolve_path(spec, field_name),
+                "path": _resolve_path(spec["file"], f"{field_name}.file"),
             }
+        else:
+            raise RuntimeError(
+                f"{field_name} must define exactly one of scene, world_preset, or file: {profile_path}"
+            )
     return resolved
 
 
@@ -207,28 +212,25 @@ def _resolve_scene_ref(spec, field_name):
     raise RuntimeError(f"{field_name} must be a string or mapping")
 
 
-def _resolve_world_scenario(spec, field_name):
-    scenario_path = _resolve_path(spec, f"{field_name}.scenario")
-    scenario = _load_yaml(scenario_path, f"{field_name}.scenario")
-    if scenario.get("schema") != CONFIG_SCHEMA_VERSION:
-        raise RuntimeError(
-            f"{field_name}.scenario schema must be {CONFIG_SCHEMA_VERSION}: {scenario_path}"
-        )
+def _resolve_world_preset(spec, field_name):
+    preset_path = _resolve_path(spec, f"{field_name}.world_preset")
+    scenario = _load_yaml(preset_path, f"{field_name}.world_preset")
+    validate_scenario_schema(scenario, "world_preset.schema.json", "world_preset", preset_path)
 
     base = scenario.get("base")
     if not isinstance(base, dict):
-        raise RuntimeError(f"{field_name}.scenario.base must be a mapping: {scenario_path}")
-    base_path = _resolve_path(base, f"{field_name}.scenario.base")
+        raise RuntimeError(f"{field_name}.world_preset.base must be a mapping: {preset_path}")
+    base_path = _resolve_path(base, f"{field_name}.world_preset.base")
 
     assets = scenario.get("assets", [])
     if not isinstance(assets, list):
-        raise RuntimeError(f"{field_name}.scenario.assets must be a list: {scenario_path}")
+        raise RuntimeError(f"{field_name}.world_preset.assets must be a list: {preset_path}")
 
     resolved_assets = []
     for index, asset in enumerate(assets):
-        asset_field = f"{field_name}.scenario.assets[{index}]"
+        asset_field = f"{field_name}.world_preset.assets[{index}]"
         if not isinstance(asset, dict):
-            raise RuntimeError(f"{asset_field} must be a mapping: {scenario_path}")
+            raise RuntimeError(f"{asset_field} must be a mapping: {preset_path}")
         resolved_assets.append({
             "name": str(asset.get("name") or f"asset_{index}"),
             "type": str(asset.get("type", "model")),
@@ -238,7 +240,7 @@ def _resolve_world_scenario(spec, field_name):
         })
 
     world_path = _compose_world_scenario(
-        scenario_path,
+        preset_path,
         scenario,
         base_path,
         resolved_assets,
@@ -249,11 +251,11 @@ def _resolve_world_scenario(spec, field_name):
         scenario_meta = {}
 
     return {
-        "name": str(scenario.get("name") or os.path.splitext(os.path.basename(scenario_path))[0]),
-        "source": "scenario",
+        "name": str(scenario.get("name") or os.path.splitext(os.path.basename(preset_path))[0]),
+        "source": "world_preset",
         "path": world_path,
-        "scenario": {
-            "path": scenario_path,
+        "world_preset": {
+            "path": preset_path,
             "base": base_path,
             "world_name": str(scenario.get("world_name", "default")),
             "type": str(scenario_meta.get("type", "")),
@@ -464,14 +466,14 @@ def _resolve_bridge_groups(raw, startup_bridges, profile_path):
 
 def _load_bridge_group(name):
     path = os.path.join(
-        get_package_share_directory("robot_sim_bringup"),
+        _package_share_directory("robot_sim_bringup"),
         "config",
         "bridge_groups",
         f"{name}.yaml",
     )
     raw = _load_yaml(path, f"bridge_group.{name}")
-    if raw.get("schema") != CONFIG_SCHEMA_VERSION:
-        raise RuntimeError(f"bridge_group schema must be {CONFIG_SCHEMA_VERSION}: {path}")
+    if raw.get("schema") != BRIDGE_GROUP_SCHEMA_VERSION:
+        raise RuntimeError(f"bridge_group schema must be {BRIDGE_GROUP_SCHEMA_VERSION}: {path}")
 
     config = _resolve_path(raw.get("config"), f"bridge_group.{name}.config")
     return {
@@ -743,13 +745,13 @@ def _resolve_path(spec, field_name, must_exist=True):
         package_name = spec.get("package")
         if not package_name:
             raise RuntimeError(f"{field_name}.package is required")
-        base = get_package_share_directory(package_name)
+        base = _package_share_directory(package_name)
         rel_path = spec.get("path", "")
         path = os.path.join(base, rel_path)
     elif isinstance(spec, str):
         if spec.startswith("package://"):
             package_name, rel_path = _split_package_uri(spec, field_name)
-            path = os.path.join(get_package_share_directory(package_name), rel_path)
+            path = os.path.join(_package_share_directory(package_name), rel_path)
         else:
             path = os.path.expanduser(os.path.expandvars(spec))
             if not os.path.isabs(path):
@@ -769,6 +771,31 @@ def _split_package_uri(uri, field_name):
         raise RuntimeError(f"{field_name} package URI must include a relative path")
     package_name, rel_path = remainder.split("/", 1)
     return package_name, rel_path
+
+
+def _package_share_directory(package_name):
+    source_path = _source_package_directory(package_name)
+    if source_path is not None:
+        return str(source_path)
+
+    from ament_index_python.packages import get_package_share_directory
+
+    return get_package_share_directory(package_name)
+
+
+def _source_package_directory(package_name):
+    current = Path(__file__).resolve()
+    for ancestor in current.parents:
+        src_dir = ancestor / "src"
+        if not src_dir.exists():
+            continue
+        matches = sorted(src_dir.glob(f"**/{package_name}/package.xml"))
+        if matches:
+            return matches[0].parent
+    package_root = current.parents[1]
+    if package_root.name == package_name and (package_root / "package.xml").exists():
+        return package_root
+    return None
 
 
 def _require_path(path, field_name):

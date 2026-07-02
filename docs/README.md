@@ -1,12 +1,13 @@
 # robot_sim 文档
 
-> ROS 2 Humble + Gazebo Harmonic 的机器人仿真、控制、传感器和规划验证工作空间。
+> ROS 2 Humble + Gazebo Harmonic 的工业机器人仿真验收与回归测试平台。
 
-`robot_sim` 将机器人描述、Gazebo 场景、ros2_control、MoveIt2、RViz2、ros_gz bridge 和仿真传感器 receiver 组织成一条可复用的仿真链路。当前内置 Panda 与 Fanuc M-20iD/12L profile。
+`robot_sim` 将机器人描述、Gazebo 场景、ros2_control、MoveIt2、RViz2、ros_gz bridge、仿真传感器 receiver 和 validation case 组织成一条可复用的验收链路。当前内置 Panda 与 Fanuc M-20iD/12L profile。
 
 ## 快速入口
 
 - [环境依赖](guide/prerequisites.md)
+- [产品路线图](roadmap.md)
 - [开发运行](guide/run-app.md)
 - [仿真方案](guide/simulation.md)
 - [测试验收](workflow/testing.md)
@@ -41,6 +42,7 @@ colcon build --symlink-install --allow-overriding gz_ros2_control --packages-sel
 
 source install/setup.bash
 ros2 launch robot_sim_bringup sim.launch.py sim_profile:=fanuc_m20id12l sim_mode:=full
+ros2 run robot_sim_bringup run_case --case industrial_fixture_to_pallet --output-dir robot_sim_runs
 ```
 
 ## CI/CD

@@ -1,4 +1,5 @@
-schema: 1
+schema: 2
+kind: sim_profile
 name: fanuc_m20id12l
 
 layouts:
@@ -51,11 +52,11 @@ robot:
 
 worlds:
   single:
-    scenario:
+    world_preset:
       package: robot_sim_scenarios
       path: world_presets/lab_demo.yaml
   distributed:
-    scenario:
+    world_preset:
       package: robot_sim_scenarios
       path: world_presets/lab_demo.yaml
 

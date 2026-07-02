@@ -71,6 +71,7 @@ jobs:
             libgz-sim8-dev \
             python3-colcon-common-extensions \
             python3-colcon-override-check \
+            python3-jsonschema \
             python3-pytest \
             python3-rosdep \
             python3-yaml \
@@ -105,6 +106,20 @@ jobs:
           source install/setup.bash
           scripts/sim_smoke_test.sh ${{ matrix.args }} --keep-logs
 
+      - name: Run industrial validation cases
+        if: matrix.profile == 'fanuc_m20id12l'
+        run: |
+          source "/opt/ros/${ROS_DISTRO}/setup.bash"
+          source install/setup.bash
+          ros2 run robot_sim_bringup run_case \
+            --case industrial_fixture_to_pallet \
+            --output-dir robot_sim_runs \
+            --timeout 120
+          ros2 run robot_sim_bringup run_case \
+            --case industrial_obstacle_clearance \
+            --output-dir robot_sim_runs \
+            --timeout 120
+
       - name: Upload smoke logs
         uses: actions/upload-artifact@v4
         if: always()
@@ -113,5 +128,6 @@ jobs:
           path: |
             log/
             /tmp/robot_sim_smoke.*
+            robot_sim_runs/
           if-no-files-found: ignore
           retention-days: 14

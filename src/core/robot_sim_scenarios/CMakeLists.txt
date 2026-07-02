@@ -9,6 +9,7 @@ ament_python_install_package(${PROJECT_NAME})
 install(DIRECTORY
   assets
   examples
+  schemas
   scenes
   world_presets
   worlds

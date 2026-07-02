@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://robot-sim.local/schemas/scene.schema.json",
+  "title": "robot_sim scene",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema",
+    "kind",
+    "name",
+    "world",
+    "ground",
+    "lights",
+    "robot_mount_pose",
+    "workspace",
+    "objects",
+    "regions"
+  ],
+  "properties": {
+    "schema": { "const": 2 },
+    "kind": { "const": "scene" },
+    "name": { "type": "string", "minLength": 1 },
+    "description": { "type": "string" },
+    "world": {
+      "type": "object",
+      "required": ["name", "sdf_version", "gravity", "physics", "plugins", "scene", "gui"]
+    },
+    "ground": {
+      "type": "object",
+      "required": ["name", "static", "collision", "visual_only", "pose", "geometry", "material"]
+    },
+    "lights": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "type", "pose"]
+      }
+    },
+    "robot_mount_pose": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "items": { "type": "number" }
+    },
+    "workspace": {
+      "type": "object",
+      "required": ["frame", "bounds"],
+      "properties": {
+        "frame": { "type": "string", "minLength": 1 },
+        "bounds": { "$ref": "#/$defs/bounds3" }
+      }
+    },
+    "objects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "type", "pose", "tags"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "type": { "type": "string", "minLength": 1 },
+          "pose": { "$ref": "#/$defs/pose6" },
+          "tags": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "regions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["frame", "bounds", "orientation_rpy"],
+        "properties": {
+          "frame": { "type": "string", "minLength": 1 },
+          "bounds": { "$ref": "#/$defs/bounds3" },
+          "orientation_rpy": { "$ref": "#/$defs/vector3" }
+        }
+      }
+    },
+    "startup_commands": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["command", "args"]
+      }
+    }
+  },
+  "$defs": {
+    "pose6": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "items": { "type": "number" }
+    },
+    "vector3": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": { "type": "number" }
+    },
+    "bounds3": {
+      "type": "object",
+      "required": ["min", "max"],
+      "properties": {
+        "min": { "$ref": "#/$defs/vector3" },
+        "max": { "$ref": "#/$defs/vector3" }
+      }
+    }
+  }
+}

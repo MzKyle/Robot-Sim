@@ -6,6 +6,7 @@ dist/
 *.deb
 bags/
 robot_sim_bags/
+robot_sim_runs/
 
 # IDE and local history
 .vscode/

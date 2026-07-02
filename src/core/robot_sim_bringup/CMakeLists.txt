@@ -9,11 +9,13 @@ ament_python_install_package(${PROJECT_NAME})
 install(DIRECTORY
   config
   launch
+  schemas
   DESTINATION share/${PROJECT_NAME}
 )
 
 install(PROGRAMS
   scripts/profile_lint
+  scripts/run_case
   DESTINATION lib/${PROJECT_NAME}
 )
 

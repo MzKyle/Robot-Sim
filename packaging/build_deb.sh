@@ -77,6 +77,11 @@ source "/opt/ros/${ROS_DISTRO}/setup.bash"
 source "${INSTALL_PREFIX}/setup.bash"
 set -u
 
+if [[ "${1:-}" == "run-case" ]]; then
+  shift
+  exec ros2 run robot_sim_bringup run_case "$@"
+fi
+
 exec ros2 launch robot_sim_bringup sim.launch.py "$@"
 EOF
 
@@ -126,7 +131,7 @@ Section: robotics
 Priority: optional
 Architecture: ${ARCH}
 Maintainer: MzKyle <19862681939@163.com>
-Depends: bash, python3, python3-yaml, gz-harmonic, ros-${ROS_DISTRO}-rclcpp, ros-${ROS_DISTRO}-rclpy, ros-${ROS_DISTRO}-sensor-msgs, ros-${ROS_DISTRO}-trajectory-msgs, ros-${ROS_DISTRO}-control-msgs, ros-${ROS_DISTRO}-controller-manager, ros-${ROS_DISTRO}-joint-state-broadcaster, ros-${ROS_DISTRO}-joint-trajectory-controller, ros-${ROS_DISTRO}-robot-state-publisher, ros-${ROS_DISTRO}-ros-gzharmonic, ros-${ROS_DISTRO}-moveit, ros-${ROS_DISTRO}-rviz2, ros-${ROS_DISTRO}-xacro
+Depends: bash, python3, python3-jsonschema, python3-yaml, gz-harmonic, ros-${ROS_DISTRO}-rclcpp, ros-${ROS_DISTRO}-rclpy, ros-${ROS_DISTRO}-sensor-msgs, ros-${ROS_DISTRO}-trajectory-msgs, ros-${ROS_DISTRO}-control-msgs, ros-${ROS_DISTRO}-controller-manager, ros-${ROS_DISTRO}-joint-state-broadcaster, ros-${ROS_DISTRO}-joint-trajectory-controller, ros-${ROS_DISTRO}-robot-state-publisher, ros-${ROS_DISTRO}-ros-gzharmonic, ros-${ROS_DISTRO}-moveit, ros-${ROS_DISTRO}-rviz2, ros-${ROS_DISTRO}-xacro
 Description: Generic ROS 2 robot simulation stack
  Gazebo and MoveIt2 simulation workspace with Panda and Fanuc M20iD/12L
  profiles, reusable robot assets, scenarios, and simulated sensor receivers.
@@ -141,6 +146,7 @@ robot-sim installed.
 
 Useful commands:
   robot-sim-check
+  robot-sim run-case --case industrial_fixture_to_pallet
   robot-sim sim_profile:=panda sim_mode:=light
   robot-sim sim_profile:=fanuc_m20id12l sim_mode:=full
 MSG

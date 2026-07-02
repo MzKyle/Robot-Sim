@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://robot-sim.local/schemas/validation_case.schema.json",
+  "title": "robot_sim validation case",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "kind",
+    "name",
+    "description",
+    "launch",
+    "scene",
+    "task",
+    "planning_scene",
+    "expect",
+    "artifacts"
+  ],
+  "properties": {
+    "schema": { "const": 2 },
+    "kind": { "const": "validation_case" },
+    "name": { "type": "string", "minLength": 1 },
+    "description": { "type": "string" },
+    "launch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profile", "mode", "layout", "timeout_sec", "sensor_overrides"],
+      "properties": {
+        "profile": { "type": "string", "minLength": 1 },
+        "profile_file": { "type": "string" },
+        "mode": { "enum": ["full", "light", "mock"] },
+        "layout": { "enum": ["single", "distributed"] },
+        "timeout_sec": { "type": "number" },
+        "sensor_overrides": {
+          "oneOf": [
+            { "type": "string" },
+            {
+              "type": "object",
+              "additionalProperties": { "type": "boolean" }
+            }
+          ]
+        }
+      }
+    },
+    "scene": { "$ref": "#/$defs/package_ref" },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "seed", "start_region", "goal_region", "moveit"],
+      "properties": {
+        "type": { "type": "string", "minLength": 1 },
+        "seed": { "type": "integer" },
+        "start_region": { "type": "string", "minLength": 1 },
+        "goal_region": { "type": "string", "minLength": 1 },
+        "moveit": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "group",
+            "target_link",
+            "frame",
+            "planning_time_sec",
+            "velocity_scaling",
+            "acceleration_scaling"
+          ],
+          "properties": {
+            "group": { "type": "string", "minLength": 1 },
+            "target_link": { "type": "string", "minLength": 1 },
+            "frame": { "type": "string", "minLength": 1 },
+            "planning_time_sec": { "type": "number" },
+            "velocity_scaling": { "type": "number" },
+            "acceleration_scaling": { "type": "number" }
+          }
+        }
+      }
+    },
+    "planning_scene": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["apply", "exclude_tags", "include_tags"],
+      "properties": {
+        "apply": { "type": "boolean" },
+        "exclude_tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "include_tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "expect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "position_tolerance_m",
+        "orientation_tolerance_rad",
+        "max_goal_position_error_m",
+        "min_tcp_clearance_m",
+        "max_controller_error_rad",
+        "required_sensor_min_hz",
+        "require_tf_ok",
+        "topics"
+      ],
+      "properties": {
+        "position_tolerance_m": { "type": "number" },
+        "orientation_tolerance_rad": { "type": "number" },
+        "max_goal_position_error_m": { "type": "number" },
+        "min_tcp_clearance_m": { "type": "number" },
+        "max_controller_error_rad": { "type": "number" },
+        "required_sensor_min_hz": { "type": "number" },
+        "require_tf_ok": { "type": "boolean" },
+        "topics": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "min_hz"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "min_hz": { "type": "number" }
+            },
+            "additionalProperties": true
+          }
+        }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rosbag", "reports"],
+      "properties": {
+        "rosbag": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "topic_group", "compression", "extra_topics"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "topic_group": { "enum": ["control", "sensors", "all", "distributed", "custom"] },
+            "compression": { "type": "boolean" },
+            "extra_topics": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        },
+        "reports": {
+          "type": "array",
+          "items": { "enum": ["md", "html"] }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "package_ref": {
+      "type": "object",
+      "required": ["package", "path"],
+      "properties": {
+        "package": { "type": "string", "minLength": 1 },
+        "path": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -8,7 +8,7 @@
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/License-Apache--2.0-blue" /></a>
 </p>
 
-`robot_sim` 是一个面向 ROS 2 Humble、Gazebo Harmonic、ros2_control 和 MoveIt2 的机器人仿真工作空间。它提供 Panda 与 Fanuc M-20iD/12L 两套 profile，可用于验证模型、场景、控制器、传感器桥接、MoveIt 规划执行、RViz 可视化和 rosbag 录制链路。
+`robot_sim` 是一个面向 ROS 2 Humble、Gazebo Harmonic、ros2_control 和 MoveIt2 的工业机器人仿真验收与回归测试平台。它提供 Panda 与 Fanuc M-20iD/12L profile，可用于验证模型、场景、控制器、传感器桥接、MoveIt 规划执行、RViz 可视化、rosbag 录制和 validation case 验收链路。
 
 ## Features
 
@@ -18,6 +18,7 @@
 - RGB、深度、点云、2D LaserScan、3D lidar 点云和 IMU bridge。
 - 仿真传感器 receiver 包，发布 `/diagnostics` 健康信息。
 - Profile lint、smoke test、GitHub Actions CI、GitHub Pages 文档和 tag deb release。
+- `run_case` 验收入口，生成 `manifest.json`、`metrics.json`、`report.md/html`、日志和 rosbag。
 
 ## Requirements
 
@@ -99,6 +100,8 @@ ros2 run robot_sim_bringup profile_lint --profile fanuc_m20id12l --mode full --r
 
 scripts/sim_smoke_test.sh --profile panda --mode mock --timeout 60
 scripts/sim_smoke_test.sh --profile fanuc_m20id12l --mode full --with-moveit --timeout 120
+ros2 run robot_sim_bringup run_case --case industrial_fixture_to_pallet --output-dir robot_sim_runs --timeout 120
+ros2 run robot_sim_bringup run_case --case industrial_obstacle_clearance --output-dir robot_sim_runs --timeout 120
 ```
 
 `mock` smoke 适合快速 CI；`full` smoke 会实际启动 Gazebo，耗时更长，适合手动或定时验证。
@@ -106,7 +109,7 @@ scripts/sim_smoke_test.sh --profile fanuc_m20id12l --mode full --with-moveit --t
 ## CI/CD
 
 - `ci.yml`：PR 和 `main` push 执行构建、测试、profile lint 和 mock smoke。
-- `simulation-smoke.yml`：手动或每周定时执行 Gazebo full smoke。
+- `simulation-smoke.yml`：手动或每周定时执行 Gazebo full smoke 和工业 validation case。
 - `docs.yml`：`main` 更新后部署 `docs/` 到 GitHub Pages。
 - `release.yml`：推送 `vMAJOR.MINOR.PATCH` tag 后构建 deb 并上传 GitHub Release。
 
@@ -116,6 +119,7 @@ scripts/sim_smoke_test.sh --profile fanuc_m20id12l --mode full --with-moveit --t
 bash packaging/build_deb.sh
 sudo apt install ./dist/robot-sim_0.1.0-1_amd64.deb
 robot-sim-check
+robot-sim run-case --case industrial_fixture_to_pallet
 ```
 
 ## Repository Layout
@@ -140,6 +144,7 @@ robot-sim-check
 - [环境依赖](docs/guide/prerequisites.md)
 - [仿真运行](docs/guide/simulation.md)
 - [测试验收](docs/workflow/testing.md)
+- [产品路线图](docs/roadmap.md)
 - [ROS API](docs/interfaces/ros-api.md)
 - [故障排查](docs/faq/troubleshooting.md)
 

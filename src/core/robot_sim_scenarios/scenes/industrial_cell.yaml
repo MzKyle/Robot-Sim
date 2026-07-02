@@ -1,4 +1,5 @@
-schema: 1
+schema: 2
+kind: scene
 name: industrial_cell
 description: Industrial robot cell with safety fencing, fixed obstacles, fixtures, pallets, and planning targets.
 
