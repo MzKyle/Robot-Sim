@@ -1,0 +1,151 @@
+schema: 3
+kind: validation_case
+name: weld_2d_lateral_correction_dry_run
+description: Validate an external 2D welding lateral-correction executor in dry-run mode with synthetic vision input.
+
+launch:
+  profile: fanuc_m20id12l_industrial_cell
+  mode: full
+  layout: single
+  timeout_sec: 120.0
+  sensor_overrides: ""
+
+scene:
+  package: robot_sim_scenarios
+  path: scenes/industrial_cell.yaml
+
+task:
+  type: module_validation
+  seed: 43
+  start_region: planning_start
+  goal_region: planning_goal
+  moveit:
+    group: manipulator
+    target_link: tool0
+    frame: world
+    planning_time_sec: 10.0
+    velocity_scaling: 0.2
+    acceleration_scaling: 0.2
+    execute: true
+
+planning_scene:
+  apply: true
+  exclude_tags: [ground, robot_mount, pedestal, visual_marker, optional]
+  include_tags: []
+
+module:
+  startup_delay_sec: 4.0
+  commands:
+    - name: welding_executor_dry_run
+      command:
+        - ros2
+        - run
+        - welding_executor
+        - welding_executor_node
+        - --ros-args
+        - --params-file
+        - /home/kyle/sany/ROS2_Motion_Planner/src/welding_executor/config/welding_execution_control_tower_2d.yaml
+        - --params-file
+        - /home/kyle/sany/ROS2_Motion_Planner/src/camera_pool_driver/config/pool_camera_calibration_tower.yaml
+        - -p
+        - motion_control.enable_robot_command:=false
+  wait_services:
+    - name: /welding_executor/start
+      type: std_srvs/srv/Trigger
+      timeout_sec: 30.0
+  actions:
+    - name: start_dry_run
+      type: service_call
+      service: /welding_executor/start
+      service_type: std_srvs/srv/Trigger
+      timeout_sec: 30.0
+      expect:
+        success_field: success
+
+adapters:
+  - name: tool_pos_from_tf
+    type: tf_to_tcp_pos
+    topic: /tool_pos
+    parent_frame: world
+    child_frame: tool0
+    rate_hz: 30.0
+    fallback_pose:
+      x: 0.74
+      y: -0.10
+      z: 0.90
+      rx: 3.14159
+      ry: 0.0
+      rz: 0.0
+  - name: synthetic_welding_vision
+    type: synthetic_weld_vision
+    topic: /welding/vision_result
+    tcp_pose_topic: /tool_pos
+    rate_hz: 15.0
+    image_width: 1280
+    image_height: 1024
+    frame_id: pool_camera
+    line:
+      a: 1.0
+      b: 0.0
+      c: -645.0
+  - name: loop_motion_noop
+    type: loop_motion_services
+    position_service: /any_mov_loop_position_set
+    rate_service: /any_mov_loop_rate_set
+    enable_service: /any_mov_loop_sign_set
+    stop_service: /stop_mov_jog
+
+expect:
+  position_tolerance_m: 0.18
+  orientation_tolerance_rad: 3.14159
+  max_goal_position_error_m: 0.35
+  min_tcp_clearance_m: 0.01
+  max_controller_error_rad: 0.60
+  required_sensor_min_hz: 1.0
+  require_tf_ok: true
+  topics:
+    - name: /camera/color/image_raw
+      min_hz: 1.0
+    - name: /camera/points
+      min_hz: 1.0
+    - name: /scan
+      min_hz: 1.0
+    - name: /imu/data
+      min_hz: 1.0
+  module:
+    required_actions: [start_dry_run]
+    topics:
+      - name: /welding_executor/state
+        type: std_msgs/msg/String
+        min_count: 2
+        timeout_sec: 30.0
+        expect:
+          data:
+            contains: RUNNING
+      - name: /welding_executor/lateral_error
+        type: std_msgs/msg/Float64
+        min_count: 3
+        timeout_sec: 30.0
+        expect:
+          data:
+            abs_max: 0.02
+      - name: /welding_executor/target_tcp
+        type: weld_interface/msg/TcpPos
+        min_count: 3
+        timeout_sec: 30.0
+        expect:
+          x:
+            exists: true
+
+artifacts:
+  rosbag:
+    enabled: true
+    topic_group: all
+    compression: false
+    extra_topics:
+      - /tool_pos
+      - /welding/vision_result
+      - /welding_executor/state
+      - /welding_executor/lateral_error
+      - /welding_executor/target_tcp
+  reports: [md, html]

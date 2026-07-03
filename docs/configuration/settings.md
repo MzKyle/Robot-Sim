@@ -205,7 +205,10 @@ fixture_to_pallet
 pick_place
 sensor_calibration
 conveyor_sorting
+module_validation
 ```
+
+`module_validation` 用于接入外部 ROS2 模块，可选字段包括 `module`、`adapters` 和 `expect.module`。详见 [外部模块接入指南](../guide/external-modules.md)。
 
 `task.moveit.execute: false` 表示只做规划、场景、TF、传感器和业务事件级验收，不向控制器发送最终执行轨迹。内置 `panda_pick_place`、`sensor_calibration`、`conveyor_sorting` 默认使用这个模式。
 

@@ -1,0 +1,143 @@
+schema: 3
+kind: validation_case
+name: weld_pre_positioning_scan_and_move
+description: Validate an external pre-weld 3D localization module with replayed scan data and simulated Fanuc motion.
+
+launch:
+  profile: fanuc_m20id12l_industrial_cell
+  mode: full
+  layout: single
+  timeout_sec: 180.0
+  sensor_overrides: ""
+
+scene:
+  package: robot_sim_scenarios
+  path: scenes/industrial_cell.yaml
+
+task:
+  type: module_validation
+  seed: 41
+  start_region: fixture_pick
+  goal_region: planning_goal
+  moveit:
+    group: manipulator
+    target_link: tool0
+    frame: world
+    planning_time_sec: 10.0
+    velocity_scaling: 0.2
+    acceleration_scaling: 0.2
+    execute: true
+
+planning_scene:
+  apply: true
+  exclude_tags: [ground, robot_mount, pedestal, visual_marker, optional]
+  include_tags: []
+
+module:
+  startup_delay_sec: 8.0
+  launch:
+    name: coarse_localization_offline
+    package: coarse_localization_offline
+    file: coarse_localization_offline.launch.py
+    arguments:
+      config_path: /home/kyle/sany/ROS2_Motion_Planner/src/pre_weld_positioning/config/cover_rough_localization_algorithm_config.yaml
+  wait_services:
+    - name: /scan_and_detect_welding_seam
+      type: weld_interface/srv/ScanAndDetectWeldingSeam
+      timeout_sec: 60.0
+    - name: /move_to_detected_welding_seam
+      type: weld_interface/srv/MoveToDetectedWeldingSeam
+      timeout_sec: 60.0
+  actions:
+    - name: scan_and_detect
+      type: service_call
+      service: /scan_and_detect_welding_seam
+      service_type: weld_interface/srv/ScanAndDetectWeldingSeam
+      timeout_sec: 90.0
+      expect:
+        success_field: success
+    - name: move_to_detected
+      type: service_call
+      service: /move_to_detected_welding_seam
+      service_type: weld_interface/srv/MoveToDetectedWeldingSeam
+      timeout_sec: 120.0
+      expect:
+        success_field: success
+
+adapters:
+  - name: tool_pos_from_tf
+    type: tf_to_tcp_pos
+    topic: /tool_pos
+    parent_frame: world
+    child_frame: tool0
+    rate_hz: 20.0
+    fallback_pose:
+      x: 0.82
+      y: -0.12
+      z: 1.05
+      rx: 3.14159
+      ry: 0.0
+      rz: 0.0
+  - name: replay_scan3d
+    type: scan3d_service
+    service: /scan_3d
+    source:
+      type: replay
+      record_path: /home/kyle/sany/ROS2_Motion_Planner/debug_data/coarse_localization_offline/sam2_template_captures/scan3d_20260626_143237.json
+      image_frame_id: camera_frame
+      point_cloud_frame_id: camera_frame
+      scan_pose:
+        x: 0.82
+        y: -0.12
+        z: 1.05
+        rx: 3.14159
+        ry: 0.0
+        rz: 0.0
+  - name: fanuc_pose_jog_to_moveit
+    type: moveit_pose_service
+    service: /any_mov_jog
+    execute_moveit: true
+    timeout_sec: 80.0
+    position_tolerance_m: 0.08
+    orientation_tolerance_rad: 3.14159
+
+expect:
+  position_tolerance_m: 0.18
+  orientation_tolerance_rad: 3.14159
+  max_goal_position_error_m: 0.35
+  min_tcp_clearance_m: 0.01
+  max_controller_error_rad: 0.60
+  required_sensor_min_hz: 1.0
+  require_tf_ok: true
+  topics:
+    - name: /camera/color/image_raw
+      min_hz: 1.0
+    - name: /camera/points
+      min_hz: 1.0
+    - name: /scan
+      min_hz: 1.0
+    - name: /imu/data
+      min_hz: 1.0
+  module:
+    required_actions: [scan_and_detect, move_to_detected]
+    services:
+      - name: /scan_3d
+        type: weld_interface/srv/Scan3d
+        timeout_sec: 10.0
+    topics:
+      - name: /tool_pos
+        type: weld_interface/msg/TcpPos
+        min_count: 3
+        timeout_sec: 10.0
+        expect:
+          header.frame_id:
+            equals: world
+
+artifacts:
+  rosbag:
+    enabled: true
+    topic_group: all
+    compression: false
+    extra_topics:
+      - /tool_pos
+  reports: [md, html]

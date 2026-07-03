@@ -88,7 +88,8 @@
             "fixture_to_pallet",
             "pick_place",
             "sensor_calibration",
-            "conveyor_sorting"
+            "conveyor_sorting",
+            "module_validation"
           ]
         },
         "seed": { "type": "integer" },
@@ -191,7 +192,149 @@
             },
             "additionalProperties": true
           }
+        },
+        "module": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "required_actions": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "services": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["name", "type"],
+                "properties": {
+                  "name": { "type": "string", "minLength": 1 },
+                  "type": { "type": "string", "minLength": 1 },
+                  "timeout_sec": { "type": "number" }
+                },
+                "additionalProperties": true
+              }
+            },
+            "topics": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["name", "type"],
+                "properties": {
+                  "name": { "type": "string", "minLength": 1 },
+                  "type": { "type": "string", "minLength": 1 },
+                  "timeout_sec": { "type": "number" },
+                  "min_count": { "type": "integer" },
+                  "expect": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                },
+                "additionalProperties": true
+              }
+            }
+          }
         }
+      }
+    },
+    "module": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "launch": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["package", "file"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "name": { "type": "string" },
+            "package": { "type": "string", "minLength": 1 },
+            "file": { "type": "string", "minLength": 1 },
+            "arguments": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "env": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        },
+        "commands": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "command"],
+            "properties": {
+              "enabled": { "type": "boolean" },
+              "name": { "type": "string", "minLength": 1 },
+              "command": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "env": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "wait_services": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "type"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "type": { "type": "string", "minLength": 1 },
+              "timeout_sec": { "type": "number" }
+            },
+            "additionalProperties": true
+          }
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "type", "service", "service_type"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "type": { "enum": ["service_call"] },
+              "service": { "type": "string", "minLength": 1 },
+              "service_type": { "type": "string", "minLength": 1 },
+              "timeout_sec": { "type": "number" },
+              "request": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "expect": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            "additionalProperties": true
+          }
+        }
+      }
+    },
+    "adapters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type"],
+        "properties": {
+          "name": { "type": "string" },
+          "type": {
+            "enum": [
+              "tf_to_tcp_pos",
+              "moveit_pose_service",
+              "scan3d_service",
+              "synthetic_weld_vision",
+              "loop_motion_services"
+            ]
+          }
+        },
+        "additionalProperties": true
       }
     },
     "artifacts": {

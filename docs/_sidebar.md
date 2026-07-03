@@ -7,6 +7,7 @@
   - [环境依赖](guide/prerequisites.md)
   - [开发运行](guide/run-app.md)
   - [仿真方案](guide/simulation.md)
+  - [外部模块接入](guide/external-modules.md)
   - [ROS 2 录包](guide/rosbag-recording.md)
   - [Deb 打包与 Release](guide/package-install.md)
 

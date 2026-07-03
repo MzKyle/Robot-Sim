@@ -26,6 +26,7 @@ TASK_REGION_REQUIREMENTS = {
     "pick_place": ("pick_region", "place_region"),
     "sensor_calibration": ("calibration_regions",),
     "conveyor_sorting": ("start_region", "goal_region"),
+    "module_validation": (),
 }
 
 
@@ -150,6 +151,8 @@ def load_validation_case(
             },
             "reports": [str(report) for report in artifacts.get("reports", ["md", "html"])],
         },
+        "module": dict(raw.get("module", {})),
+        "adapters": [dict(adapter) for adapter in raw.get("adapters", [])],
         "raw": raw,
     }
     case["launch"] = {
@@ -174,6 +177,7 @@ def load_validation_case(
     case["expect"] = {
         **case["pass_criteria"],
         "topics": case["expected_topics"],
+        "module": dict(expect.get("module", {})),
     }
     return case
 
@@ -229,6 +233,12 @@ def _validate_task_shape(task_type: str, task: Mapping[str, Any], path: Path) ->
 def _task_regions(task_type: str, task: Mapping[str, Any]) -> list[str]:
     if task_type == "empty_motion":
         return [str(name) for name in task.get("waypoints", [])]
+    if task_type == "module_validation":
+        if task.get("waypoints"):
+            return [str(name) for name in task.get("waypoints", [])]
+        if task.get("start_region") and task.get("goal_region"):
+            return [str(task["start_region"]), str(task["goal_region"])]
+        return []
     if task_type == "pick_place":
         return [str(task["pick_region"]), str(task["place_region"])]
     if task_type == "sensor_calibration":
@@ -258,6 +268,15 @@ def _normalized_task_regions(task_type: str, task: Mapping[str, Any]) -> dict[st
             "start_region": regions[0],
             "goal_region": regions[-1],
         }
+    if task_type == "module_validation":
+        regions = _task_regions(task_type, task)
+        result = {}
+        if task.get("waypoints"):
+            result["waypoints"] = regions
+        if regions:
+            result["start_region"] = regions[0]
+            result["goal_region"] = regions[-1]
+        return result
     return {
         "start_region": str(task["start_region"]),
         "goal_region": str(task["goal_region"]),
@@ -265,11 +284,13 @@ def _normalized_task_regions(task_type: str, task: Mapping[str, Any]) -> dict[st
 
 
 def _first_region(task_type: str, task: Mapping[str, Any]) -> str:
-    return _task_regions(task_type, task)[0]
+    regions = _task_regions(task_type, task)
+    return regions[0] if regions else ""
 
 
 def _last_region(task_type: str, task: Mapping[str, Any]) -> str:
-    return _task_regions(task_type, task)[-1]
+    regions = _task_regions(task_type, task)
+    return regions[-1] if regions else ""
 
 
 def _validate_region(scene, region_name: str) -> None:

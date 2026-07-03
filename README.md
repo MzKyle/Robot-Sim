@@ -9,7 +9,7 @@
 
 `robot_sim` 是一个面向工业机器人项目的仿真验收与回归测试平台。它把机器人 profile、Gazebo 工况场景、ros2_control、MoveIt2、传感器桥接和 validation case 串成一条可重复执行的验收链路：一次命令启动仿真、检查控制器/TF/传感器、执行规划任务、录 rosbag，并生成可交付的报告。
 
-项目当前内置 Panda 与 Fanuc M-20iD/12L，可直接用于空场运动、障碍避让、fixture-to-pallet、pick-place、传感器标定和 conveyor sorting 等典型任务的仿真验收。
+项目当前内置 Panda 与 Fanuc M-20iD/12L，可直接用于空场运动、障碍避让、fixture-to-pallet、pick-place、传感器标定和 conveyor sorting 等典型任务的仿真验收；也可以通过 `module_validation` 接入外部 ROS2 模块，例如焊前 3D 定位和 2D 纠偏干运行。
 
 ## 适合谁用
 
@@ -102,6 +102,7 @@ ros2 launch robot_sim_bringup sim.launch.py sim_profile:=fanuc_m20id12l_industri
 | 验收指标 | 启动、controller active、joint state、TF、sensor Hz、MoveIt 规划/执行、控制误差、TCP clearance |
 | 配置契约 | `schema: 3` + JSON Schema，覆盖 `sim_profile`、`scene`、`world_preset`、`validation_case` |
 | 报告产物 | `manifest.json`、日志、URDF、rosbag、`metrics.json`、`report.md`、`report.html` |
+| 外部模块验收 | `module_validation`、adapter runtime、服务/topic 断言、External Module 报告章节 |
 | 可扩展性 | 外部 profile/case/scene package 发现，机器人接入 scaffold，v2 到 v3 迁移工具 |
 
 ## 内置验收用例
@@ -115,6 +116,8 @@ ros2 launch robot_sim_bringup sim.launch.py sim_profile:=fanuc_m20id12l_industri
 | `panda_pick_place` | `panda` | `tabletop_pick_place` | `pick_place` | 规划验收，`task.moveit.execute: false` |
 | `sensor_calibration` | `panda` | `tabletop_pick_place` | `sensor_calibration` | 规划/传感器验收，`task.moveit.execute: false` |
 | `conveyor_sorting` | `panda` | `conveyor_sorting` | `conveyor_sorting` | 规划/业务事件验收，`task.moveit.execute: false` |
+| `weld_pre_positioning_scan_and_move` | `fanuc_m20id12l_industrial_cell` | `industrial_cell` | `module_validation` | 外部焊前 3D 定位 + replay `/scan_3d` + MoveIt jog |
+| `weld_2d_lateral_correction_dry_run` | `fanuc_m20id12l_industrial_cell` | `industrial_cell` | `module_validation` | 外部 2D 纠偏干运行 + 合成视觉 topic |
 
 工业 Fanuc 用例和 `empty_motion` 会实际执行轨迹；Panda 的 pick-place、sensor calibration、conveyor sorting 当前默认做规划、TF、传感器和业务步骤级验收，适合在不引入额外 Gazebo 插件或视觉库的前提下做回归。
 
@@ -126,6 +129,14 @@ ros2 launch robot_sim_bringup sim.launch.py sim_profile:=fanuc_m20id12l_industri
 ros2 run robot_sim_bringup run_case --case industrial_fixture_to_pallet --output-dir robot_sim_runs --timeout 120
 ros2 run robot_sim_bringup run_case --case industrial_obstacle_clearance --output-dir robot_sim_runs --timeout 120
 ros2 run robot_sim_bringup run_case --case panda_pick_place --scene-variant extra_workpieces
+```
+
+接入 `/home/kyle/sany/ROS2_Motion_Planner` 后运行外部模块验收：
+
+```bash
+source /home/kyle/sany/ROS2_Motion_Planner/install/setup.bash
+ros2 run robot_sim_bringup run_case --case weld_pre_positioning_scan_and_move --output-dir robot_sim_runs --timeout 180
+ros2 run robot_sim_bringup run_case --case weld_2d_lateral_correction_dry_run --output-dir robot_sim_runs --timeout 120
 ```
 
 校验 profile：
@@ -198,6 +209,7 @@ ros2 run robot_sim_bringup run_case \
 - [快速上手](docs/guide/quick-start.md)
 - [环境依赖](docs/guide/prerequisites.md)
 - [仿真运行](docs/guide/simulation.md)
+- [外部模块接入](docs/guide/external-modules.md)
 - [测试验收](docs/workflow/testing.md)
 - [配置说明](docs/configuration/settings.md)
 - [日志与产物](docs/logging/data-storage.md)

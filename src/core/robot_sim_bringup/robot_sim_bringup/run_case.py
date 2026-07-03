@@ -119,6 +119,11 @@ def run_case(args, runner):
             "logs_dir": str(logs_dir),
             "rosbag_dir": str(rosbag_dir),
         },
+        "adapter_health": [],
+        "module_services": [],
+        "module_topics": [],
+        "module_events": [],
+        "module_failures": [],
     }
     sim_process = None
     bag_process = None
@@ -174,22 +179,30 @@ def run_case(args, runner):
         metrics["task_type"] = case["task_type"]
         metrics["business_actions"] = task_runner.business_actions(case)
         validation_timeout = effective["timeout"] * max(len(case.get("task_regions", [])), 1) + 45.0
-        _run_step(
-            metrics,
-            runner,
-            f"validation_case:{case['task_type']}",
-            task_runner.validation_command(
-                common_args,
-                effective["case_file"],
-                validation_metrics_path,
-                effective["timeout"],
-            ),
-            logs_dir / "validation_case.log",
-            timeout=validation_timeout,
-        )
-        validation_metrics = _load_json_file(validation_metrics_path)
-        metrics.update(_validation_metrics_summary(validation_metrics))
-        metrics["validation"] = validation_metrics
+        try:
+            _run_step(
+                metrics,
+                runner,
+                f"validation_case:{case['task_type']}",
+                task_runner.validation_command(
+                    common_args,
+                    effective["case_file"],
+                    validation_metrics_path,
+                    effective["timeout"],
+                ),
+                logs_dir / "validation_case.log",
+                timeout=validation_timeout,
+            )
+        except Exception:
+            if validation_metrics_path.exists():
+                validation_metrics = _load_json_file(validation_metrics_path)
+                metrics.update(_validation_metrics_summary(validation_metrics))
+                metrics["validation"] = validation_metrics
+            raise
+        else:
+            validation_metrics = _load_json_file(validation_metrics_path)
+            metrics.update(_validation_metrics_summary(validation_metrics))
+            metrics["validation"] = validation_metrics
 
         if case["artifacts"]["rosbag"]["enabled"] and not args.no_rosbag:
             bag_process = _record_rosbag(
@@ -388,6 +401,8 @@ def _create_run_dir(output_dir, case_name, profile):
 
 
 def _initial_manifest(case, effective, args, run_dir):
+    module = dict(case.get("module", {}))
+    adapters = [dict(adapter) for adapter in case.get("adapters", [])]
     return {
         "schema": 1,
         "case": {
@@ -406,6 +421,10 @@ def _initial_manifest(case, effective, args, run_dir):
             "type": case.get("task_type", ""),
             "regions": case.get("task_regions", []),
         },
+        "module": module,
+        "adapters": adapters,
+        "external_packages": _external_packages(case, effective),
+        "external_launches": _external_launches(module),
         "command": [sys.argv[0], *(sys.argv[1:] if args else [])],
         "git_commit": _git_commit(),
         "started_at": _utc_now(),
@@ -593,6 +612,11 @@ def _validation_metrics_summary(validation_metrics):
         "phases": validation_metrics.get("phases", []),
         "business_actions": validation_metrics.get("business_actions", []),
         "task_events": validation_metrics.get("task_events", []),
+        "adapter_health": validation_metrics.get("adapter_health", []),
+        "module_services": validation_metrics.get("module_services", []),
+        "module_topics": validation_metrics.get("module_topics", []),
+        "module_events": validation_metrics.get("module_events", []),
+        "module_failures": validation_metrics.get("module_failures", []),
     }
 
 
@@ -660,6 +684,55 @@ def _render_markdown_report(manifest, metrics):
             f"| {event.get('name', '')} | {event.get('ok', '')} | `{event.get('detail', '')}` |"
         )
 
+    if _has_module_metrics(metrics):
+        lines.extend([
+            "",
+            "## External Module",
+            "",
+        ])
+        failures = metrics.get("module_failures", [])
+        lines.append(f"- Module failures: `{len(failures)}`")
+        for failure in failures:
+            lines.append(f"  - `{failure}`")
+        lines.extend([
+            "",
+            "| Adapter | Type | Status | Log |",
+            "| --- | --- | --- | --- |",
+        ])
+        for adapter in metrics.get("adapter_health", []):
+            lines.append(
+                f"| {adapter.get('name', '')} | {adapter.get('type', '')} | {adapter.get('status', '')} | `{adapter.get('log', '')}` |"
+            )
+        lines.extend([
+            "",
+            "| Service/Action | Type | OK | Duration |",
+            "| --- | --- | --- | ---: |",
+        ])
+        for service in metrics.get("module_services", []):
+            duration = service.get("duration_sec")
+            duration_text = f"{duration:.2f}s" if isinstance(duration, (int, float)) else ""
+            lines.append(
+                f"| {service.get('name') or service.get('service', '')} | {service.get('service_type', '')} | {service.get('ok', '')} | {duration_text} |"
+            )
+        lines.extend([
+            "",
+            "| Topic | Type | Count | OK |",
+            "| --- | --- | ---: | --- |",
+        ])
+        for topic in metrics.get("module_topics", []):
+            lines.append(
+                f"| `{topic.get('name', '')}` | `{topic.get('type', '')}` | {topic.get('count', '')} | {topic.get('ok', '')} |"
+            )
+        lines.extend([
+            "",
+            "| Event | Type | OK |",
+            "| --- | --- | --- |",
+        ])
+        for event in metrics.get("module_events", []):
+            lines.append(
+                f"| {event.get('name', '')} | {event.get('type', '')} | {event.get('ok', '')} |"
+            )
+
     lines.extend([
         "",
         "## Metrics",
@@ -726,6 +799,47 @@ def _artifact_manifest(run_dir):
         "simulation_log": str(run_dir / "logs" / "sim.launch.log"),
         "rosbag": rosbag,
     }
+
+
+def _external_packages(case, effective):
+    packages = set()
+    if effective.get("profile_package"):
+        packages.add(str(effective["profile_package"]))
+    module = case.get("module", {})
+    launch = module.get("launch", {})
+    if isinstance(launch, dict) and launch.get("package"):
+        packages.add(str(launch["package"]))
+    for command_spec in module.get("commands", []) if isinstance(module, dict) else []:
+        if not isinstance(command_spec, dict):
+            continue
+        command = command_spec.get("command", [])
+        if len(command) >= 3 and command[0] == "ros2" and command[1] == "run":
+            packages.add(str(command[2]))
+    return sorted(packages)
+
+
+def _external_launches(module):
+    launch = module.get("launch", {}) if isinstance(module, dict) else {}
+    if not isinstance(launch, dict) or not launch.get("package") or not launch.get("file"):
+        return []
+    return [{
+        "package": str(launch["package"]),
+        "file": str(launch["file"]),
+        "arguments": dict(launch.get("arguments", {})),
+    }]
+
+
+def _has_module_metrics(metrics):
+    return any(
+        metrics.get(key)
+        for key in (
+            "adapter_health",
+            "module_services",
+            "module_topics",
+            "module_events",
+            "module_failures",
+        )
+    )
 
 
 def _load_json_file(path):

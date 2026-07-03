@@ -12,8 +12,11 @@ sys.path.insert(0, str(SRC_ROOT / "robot_sim_scenarios"))
 
 from robot_sim_bringup.sim_config_loader import load_sim_profile
 from robot_sim_bringup.schema_validation import validate_config_schema
+from robot_sim_bringup.module_adapter import adapter_dependencies
+from robot_sim_bringup.module_runner import _matches_expectation
 from robot_sim_bringup.run_case import FAILURE, _record_rosbag, run_case
 from robot_sim_bringup.scaffold_robot import scaffold_robot
+from robot_sim_bringup.task_runners import get_task_runner
 from robot_sim_bringup.validation_cases import (
     collision_primitives_from_scene,
     load_validation_case,
@@ -77,6 +80,50 @@ def test_validation_case_parses_plan_only_moveit():
     assert case["moveit"]["execute"] is False
 
 
+def test_module_validation_case_loads_external_contract():
+    case = load_validation_case("weld_pre_positioning_scan_and_move")
+
+    assert case["task_type"] == "module_validation"
+    assert case["module"]["launch"]["package"] == "coarse_localization_offline"
+    assert [action["name"] for action in case["module"]["actions"]] == [
+        "scan_and_detect",
+        "move_to_detected",
+    ]
+    assert [adapter["type"] for adapter in case["adapters"]] == [
+        "tf_to_tcp_pos",
+        "scan3d_service",
+        "moveit_pose_service",
+    ]
+    assert case["expect"]["module"]["required_actions"] == [
+        "scan_and_detect",
+        "move_to_detected",
+    ]
+
+
+def test_module_validation_runner_dispatches_module_runner(tmp_path):
+    case = load_validation_case("weld_2d_lateral_correction_dry_run")
+    runner = get_task_runner(case["task_type"])
+    metrics_path = tmp_path / "validation_metrics.json"
+
+    command = runner.validation_command(
+        ["--profile", "ignored"],
+        case["path"],
+        metrics_path,
+        12.0,
+    )
+
+    assert "robot_sim_bringup.module_runner" in command
+    assert "--validation-case" in command
+    assert str(metrics_path) in command
+    assert runner.business_actions(case) == [
+        {
+            "name": "start_dry_run",
+            "type": "service_call",
+            "service": "/welding_executor/start",
+        }
+    ]
+
+
 def test_all_built_in_schema_files_are_v3():
     for path in sorted((PACKAGE_ROOT / "config" / "sim_profiles").glob("*.yaml")):
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -110,6 +157,30 @@ def test_schema_v2_reports_migration_hint(tmp_path):
 
     with pytest.raises(RuntimeError, match="migrate_config"):
         validate_config_schema(raw, "validation_case.schema.json", "validation_case", path)
+
+
+def test_validation_case_schema_rejects_unknown_adapter(tmp_path):
+    source = PACKAGE_ROOT / "config" / "validation_cases" / "weld_2d_lateral_correction_dry_run.yaml"
+    raw = yaml.safe_load(source.read_text(encoding="utf-8"))
+    raw["adapters"][0]["type"] = "not_an_adapter"
+    path = tmp_path / "bad_module_case.yaml"
+    path.write_text(yaml.safe_dump(raw), encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="validation failed|not_an_adapter"):
+        validate_config_schema(raw, "validation_case.schema.json", "validation_case", path)
+
+
+def test_adapter_registry_declares_dynamic_ros_dependencies():
+    assert adapter_dependencies({"type": "tf_to_tcp_pos"}) == ["weld_interface/msg/TcpPos"]
+    assert "weld_interface/srv/Scan3d" in adapter_dependencies({"type": "scan3d_service"})
+    assert "std_srvs/srv/SetBool" in adapter_dependencies({"type": "loop_motion_services"})
+
+
+def test_module_topic_expectation_predicates():
+    assert _matches_expectation("RUNNING", {"contains": "RUN"})[0] is True
+    assert _matches_expectation(0.012, {"abs_max": 0.02})[0] is True
+    assert _matches_expectation(None, {"exists": True})[0] is False
+    assert _matches_expectation(0.08, {"max": 0.02})[0] is False
 
 
 def test_validation_case_rejects_unknown_region(tmp_path):

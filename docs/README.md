@@ -11,6 +11,7 @@
 | 新机器人接入 | 用 scaffold 生成外部 package，补齐 description、control、MoveIt、sensor 和 smoke case |
 | 日常仿真调试 | 用 `sim.launch.py` 的 `mock`、`light`、`full` 模式分别验证 launch、控制链和完整仿真 |
 | 工业验收 | 用 `run_case` 执行 fixture-to-pallet、障碍避让、pick-place 等 validation case |
+| 外部模块验收 | 用 `module_validation` 接入定位、纠偏、视觉、分拣等外部 ROS2 模块 |
 | 回归测试 | 在 CI 或定时任务中保存 `robot_sim_runs/`，通过 `metrics.json` 和 `report.html` 比较结果 |
 | 交付排查 | 通过 `logs/sim.launch.log`、step log、rosbag 和报告定位失败步骤 |
 
@@ -21,7 +22,7 @@
 | 配置契约 | `schema: 3` + `kind`，覆盖 `sim_profile`、`scene`、`world_preset`、`validation_case` |
 | 内置机器人 | Panda、Fanuc M-20iD/12L、Fanuc 工业单元 |
 | 场景库 | 空场、工业单元、桌面抓取、传送带分拣、货架料箱 |
-| 任务族 | `empty_motion`、`obstacle_clearance`、`fixture_to_pallet`、`pick_place`、`sensor_calibration`、`conveyor_sorting` |
+| 任务族 | `empty_motion`、`obstacle_clearance`、`fixture_to_pallet`、`pick_place`、`sensor_calibration`、`conveyor_sorting`、`module_validation` |
 | 验收指标 | 启动、controller active、joint state、TF、sensor Hz、MoveIt、控制误差、目标误差、TCP clearance |
 | 产物 | manifest、effective YAML、URDF、日志、rosbag、metrics、Markdown/HTML 报告 |
 | 扩展 | 外部 package 发现、scene 参数/variant/generator、机器人模板生成、配置迁移 |
@@ -37,6 +38,7 @@ run_case
   -> 启动 Gazebo/MoveIt/传感器链路
   -> 等待 spawn、controller、joint state、TF、sensor topic
   -> 按 task.type 分发标准任务族 runner
+  -> 可选启动外部模块和仿真 adapter，执行服务/topic 验收
   -> 录制 rosbag，生成 metrics.json、report.md、report.html
   -> 失败也保留 manifest、日志和报告
 ```
@@ -48,6 +50,7 @@ run_case
 - [快速上手](guide/quick-start.md)
 - [环境依赖](guide/prerequisites.md)
 - [仿真运行](guide/simulation.md)
+- [外部模块接入](guide/external-modules.md)
 - [测试验收](workflow/testing.md)
 - [配置说明](configuration/settings.md)
 - [日志与产物](logging/data-storage.md)

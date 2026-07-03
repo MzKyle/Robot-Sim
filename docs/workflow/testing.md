@@ -32,7 +32,8 @@ colcon test-result --verbose
 - scene 参数、variant、generator 在固定 seed 下可复现。
 - 外部 package registry 能发现 profile/case/scene。
 - scaffold 生成的 package 文件能通过 schema 和 profile lint。
-- task runner registry 能按 `task.type` 分发六类任务族。
+- task runner registry 能按 `task.type` 分发标准任务族和 `module_validation`。
+- module adapter registry、动态类型依赖和 topic 断言规则。
 - runner 失败时仍生成 artifact、manifest、metrics 和报告。
 
 ## Profile Lint
@@ -142,6 +143,8 @@ ros2 run robot_sim_bringup run_case \
 | `panda_pick_place` | `panda` | `tabletop_pick_place` | `pick_place` | 规划验收，`execute: false` |
 | `sensor_calibration` | `panda` | `tabletop_pick_place` | `sensor_calibration` | 规划/传感器验收，`execute: false` |
 | `conveyor_sorting` | `panda` | `conveyor_sorting` | `conveyor_sorting` | 规划/业务事件验收，`execute: false` |
+| `weld_pre_positioning_scan_and_move` | `fanuc_m20id12l_industrial_cell` | `industrial_cell` | `module_validation` | 外部焊前 3D 定位 + replay scan |
+| `weld_2d_lateral_correction_dry_run` | `fanuc_m20id12l_industrial_cell` | `industrial_cell` | `module_validation` | 外部 2D 纠偏干运行 |
 
 批量手动验证：
 
@@ -152,6 +155,14 @@ ros2 run robot_sim_bringup run_case --case industrial_fixture_to_pallet --output
 ros2 run robot_sim_bringup run_case --case panda_pick_place --output-dir robot_sim_runs --timeout 120
 ros2 run robot_sim_bringup run_case --case sensor_calibration --output-dir robot_sim_runs --timeout 120
 ros2 run robot_sim_bringup run_case --case conveyor_sorting --output-dir robot_sim_runs --timeout 120
+```
+
+外部模块用例需要先 source 对应模块工作空间：
+
+```bash
+source /home/kyle/sany/ROS2_Motion_Planner/install/setup.bash
+ros2 run robot_sim_bringup run_case --case weld_pre_positioning_scan_and_move --output-dir robot_sim_runs --timeout 180
+ros2 run robot_sim_bringup run_case --case weld_2d_lateral_correction_dry_run --output-dir robot_sim_runs --timeout 120
 ```
 
 ## 报告指标
@@ -171,6 +182,10 @@ ros2 run robot_sim_bringup run_case --case conveyor_sorting --output-dir robot_s
 | `min_tcp_clearance_m` | TCP 与障碍物的最小 clearance |
 | `moveit_error_code` | MoveIt 返回码 |
 | `business_actions` | task runner 声明的业务步骤 |
+| `adapter_health` | 外部模块 adapter 的启动状态和日志 |
+| `module_services` | 外部模块服务等待和调用结果 |
+| `module_topics` | 外部模块关键 topic 采样和断言结果 |
+| `module_failures` | 外部模块验收失败原因 |
 
 ## 产物结构
 

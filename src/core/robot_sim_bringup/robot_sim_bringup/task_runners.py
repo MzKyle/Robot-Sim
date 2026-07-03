@@ -113,6 +113,47 @@ class ConveyorSortingRunner(TaskRunner):
         ]
 
 
+class ModuleValidationRunner(TaskRunner):
+    task_type = "module_validation"
+
+    def business_actions(self, case):
+        actions = []
+        module = case.get("module", {})
+        for action in module.get("actions", []) or []:
+            if not isinstance(action, Mapping):
+                continue
+            actions.append({
+                "name": str(action.get("name") or action.get("service", "")),
+                "type": str(action.get("type", "service_call")),
+                "service": str(action.get("service", "")),
+            })
+        return actions
+
+    def validation_command(
+        self,
+        helper_args: list[str],
+        case_file: str,
+        metrics_output: Path,
+        timeout: float,
+    ) -> list[str]:
+        del helper_args
+        return [
+            sys.executable,
+            "-m",
+            "robot_sim_bringup.module_runner",
+            "--validation-case",
+            case_file,
+            "--metrics-output",
+            str(metrics_output),
+            "--timeout",
+            str(timeout),
+            "--run-dir",
+            str(metrics_output.parent),
+            "--logs-dir",
+            str(metrics_output.parent / "logs"),
+        ]
+
+
 TASK_RUNNERS = {
     runner.task_type: runner
     for runner in (
@@ -122,6 +163,7 @@ TASK_RUNNERS = {
         PickPlaceRunner(),
         SensorCalibrationRunner(),
         ConveyorSortingRunner(),
+        ModuleValidationRunner(),
     )
 }
 
