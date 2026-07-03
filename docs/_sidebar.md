@@ -3,6 +3,7 @@
   - [产品路线图](roadmap.md)
 
 - **快速开始**
+  - [快速上手](guide/quick-start.md)
   - [环境依赖](guide/prerequisites.md)
   - [开发运行](guide/run-app.md)
   - [仿真方案](guide/simulation.md)
@@ -27,7 +28,7 @@
   - [接口包](modules/interfaces.md)
 
 - **配置与接口**
-  - [Profile 配置](configuration/settings.md)
+  - [配置说明](configuration/settings.md)
   - [部署建议](configuration/production-config.md)
   - [ROS API](interfaces/ros-api.md)
 

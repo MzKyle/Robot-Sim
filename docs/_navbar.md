@@ -1,6 +1,7 @@
 - [首页](/)
-- [快速开始](guide/run-app.md)
+- [快速上手](guide/quick-start.md)
 - [仿真](guide/simulation.md)
 - [测试](workflow/testing.md)
+- [配置](configuration/settings.md)
 - [CI/CD](workflow/ci-cd.md)
 - [GitHub](https://github.com/MzKyle/robot_sim)

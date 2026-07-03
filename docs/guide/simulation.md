@@ -70,9 +70,12 @@ scripts/sim_smoke_test.sh --profile fanuc_m20id12l --mode full --with-moveit --t
 
 ## 验收用例
 
-工业 validation case 使用 `run_case` 执行：
+validation case 使用 `run_case` 执行，并生成报告、metrics、日志和 rosbag：
 
 ```bash
+ros2 run robot_sim_bringup run_case --case empty_motion --output-dir robot_sim_runs
 ros2 run robot_sim_bringup run_case --case industrial_fixture_to_pallet --output-dir robot_sim_runs
 ros2 run robot_sim_bringup run_case --case industrial_obstacle_clearance --output-dir robot_sim_runs
 ```
+
+更多说明见 [快速上手](quick-start.md) 和 [测试验收](../workflow/testing.md)。
