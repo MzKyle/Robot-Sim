@@ -79,6 +79,7 @@ def load_validation_case(
         "planning_time_sec": float(moveit.get("planning_time_sec", 8.0)),
         "velocity_scaling": float(moveit.get("velocity_scaling", 0.2)),
         "acceleration_scaling": float(moveit.get("acceleration_scaling", 0.2)),
+        "execute": bool(moveit.get("execute", True)),
     }
 
     planning_scene = _required_mapping(raw, "planning_scene", path)

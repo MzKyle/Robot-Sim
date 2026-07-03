@@ -54,9 +54,16 @@ def test_tabletop_pick_place_loads_objects_and_regions():
     assert "place_target_area" in object_names
     assert scene.robot_mount_pose == (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     assert scene.workspace.frame == "world"
-    assert scene.workspace.min_bounds == (0.35, -0.65, 0.72)
+    assert scene.workspace.min_bounds == (0.25, -0.65, 0.72)
     assert scene.workspace.max_bounds == (1.35, 0.65, 1.35)
-    assert sorted(scene.regions) == ["pick_spawn", "place_target", "random_tabletop"]
+    assert {
+        "pick_spawn",
+        "pick_approach",
+        "place_target",
+        "place_approach",
+        "random_tabletop",
+        "calibration_mid",
+    }.issubset(scene.regions)
 
 
 def test_region_sampling_is_bounded_and_seeded():

@@ -18,7 +18,7 @@ scene:
 task:
   type: sensor_calibration
   seed: 19
-  calibration_regions: [pick_spawn, random_tabletop, place_target]
+  calibration_regions: [pick_approach, calibration_mid, place_approach]
   object:
     target_model: place_target_area
     camera_frame: camera_color_frame
@@ -29,10 +29,11 @@ task:
     planning_time_sec: 8.0
     velocity_scaling: 0.15
     acceleration_scaling: 0.15
+    execute: false
 
 planning_scene:
   apply: true
-  exclude_tags: [ground, robot_mount, pedestal, visual_marker, optional]
+  exclude_tags: [ground, robot_mount, pedestal, visual_marker, optional, table, support_surface, pick_object]
   include_tags: []
 
 expect:

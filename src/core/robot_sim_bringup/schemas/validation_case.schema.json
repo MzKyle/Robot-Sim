@@ -137,7 +137,8 @@
             "frame": { "type": "string", "minLength": 1 },
             "planning_time_sec": { "type": "number" },
             "velocity_scaling": { "type": "number" },
-            "acceleration_scaling": { "type": "number" }
+            "acceleration_scaling": { "type": "number" },
+            "execute": { "type": "boolean" }
           }
         }
       }

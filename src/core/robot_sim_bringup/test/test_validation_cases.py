@@ -12,12 +12,13 @@ sys.path.insert(0, str(SRC_ROOT / "robot_sim_scenarios"))
 
 from robot_sim_bringup.sim_config_loader import load_sim_profile
 from robot_sim_bringup.schema_validation import validate_config_schema
-from robot_sim_bringup.run_case import FAILURE, run_case
+from robot_sim_bringup.run_case import FAILURE, _record_rosbag, run_case
 from robot_sim_bringup.scaffold_robot import scaffold_robot
 from robot_sim_bringup.validation_cases import (
     collision_primitives_from_scene,
     load_validation_case,
 )
+from robot_sim_bringup.registry import _candidate_roots, source_package_directory
 
 
 def test_industrial_profile_resolves_scene_world(tmp_path, monkeypatch):
@@ -65,6 +66,15 @@ def test_validation_case_loads_scene_and_defaults():
     assert case["pass_criteria"]["required_sensor_min_hz"] == 1.0
     assert case["expected_topics"][0]["name"] == "/camera/color/image_raw"
     assert case["artifacts"]["rosbag"]["topic_group"] == "all"
+    assert case["moveit"]["execute"] is True
+
+
+def test_validation_case_parses_plan_only_moveit():
+    case = load_validation_case("panda_pick_place")
+
+    assert case["task_type"] == "pick_place"
+    assert case["task_regions"] == ["pick_approach", "place_approach"]
+    assert case["moveit"]["execute"] is False
 
 
 def test_all_built_in_schema_files_are_v3():
@@ -144,6 +154,43 @@ def test_run_case_writes_failure_artifacts(tmp_path, monkeypatch):
     assert (run_dir / "metrics.json").exists()
     assert (run_dir / "report.md").exists()
     assert (run_dir / "report.html").exists()
+    metrics = yaml.safe_load((run_dir / "metrics.json").read_text(encoding="utf-8"))
+    assert metrics["steps"][0]["status"] == "FAIL"
+
+
+def test_rosbag_command_omits_empty_launch_arguments(tmp_path):
+    class FakeProcess:
+        def poll(self):
+            return 0
+
+        def wait(self, timeout=None):
+            return 0
+
+    class FakeRunner:
+        command = None
+
+        def popen(self, command, log_path, env=None):
+            self.command = command
+            return FakeProcess()
+
+    case = load_validation_case("empty_motion")
+    runner = FakeRunner()
+    _record_rosbag(
+        runner,
+        case,
+        {
+            "profile": "panda",
+            "profile_file": "/tmp/profile.yaml",
+            "layout": "single",
+            "sensor_overrides": "",
+        },
+        tmp_path / "rosbag",
+        tmp_path / "rosbag.log",
+        0.0,
+    )
+
+    assert "sensor_overrides:=" not in runner.command
+    assert "extra_topics:=" not in runner.command
 
 
 def test_scene_collision_primitives_compose_model_link_and_collision_poses():
@@ -184,6 +231,13 @@ def test_external_case_package_discovery(tmp_path, monkeypatch):
 
     assert case["name"] == "empty_motion"
     assert case["task_type"] == "empty_motion"
+
+
+def test_registry_source_scan_is_workspace_scoped():
+    roots = list(_candidate_roots(Path(__file__).resolve()))
+
+    assert Path("/") not in roots
+    assert source_package_directory("robot_sim_bringup") == PACKAGE_ROOT
 
 
 def test_scaffold_robot_outputs_schema_v3_package(tmp_path):

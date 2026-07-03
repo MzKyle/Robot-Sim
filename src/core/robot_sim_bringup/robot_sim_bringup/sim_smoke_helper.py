@@ -1018,6 +1018,7 @@ def _run_validation_case(args):
             "execution_time_sec": (
                 sum(float(result.get("execution_time_sec") or 0.0) for result in phase_results)
             ),
+            "moveit_execute": bool(case["moveit"].get("execute", True)),
             "goal_position_error_m": goal_error,
             "min_tcp_clearance_m": min_clearance,
             "max_controller_error_rad": settled_controller_error,
@@ -1039,9 +1040,12 @@ def _run_validation_case(args):
 
 
 def _apply_scene_collision_objects(node, case, collision_primitives, timeout):
-    import rclpy
     from moveit_msgs.msg import PlanningScene
     from moveit_msgs.srv import ApplyPlanningScene
+
+    object_ids = [primitive["id"] for primitive in collision_primitives]
+    if not object_ids:
+        return []
 
     service_name = _absolute_name(
         str(case["moveit"].get("namespace", "")),
@@ -1059,13 +1063,61 @@ def _apply_scene_collision_objects(node, case, collision_primitives, timeout):
     ]
     request = ApplyPlanningScene.Request()
     request.scene = planning_scene
+
+    attempt_timeout = min(max(timeout / 4.0, 8.0), 20.0)
+    last_error = "Timed out applying validation planning scene"
+    for attempt in range(3):
+        future = client.call_async(request)
+        response = _spin_service_future(node, future, attempt_timeout)
+        if response is not None:
+            if not response.success:
+                raise RuntimeError("MoveIt rejected validation planning scene")
+            return object_ids
+
+        if _planning_scene_contains_objects(node, case, object_ids, attempt_timeout):
+            return object_ids
+        last_error = f"Timed out applying validation planning scene on attempt {attempt + 1}"
+
+    raise RuntimeError(last_error)
+
+
+def _spin_service_future(node, future, timeout):
+    import rclpy
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        rclpy.spin_once(node, timeout_sec=0.1)
+        if future.done():
+            return future.result()
+    return None
+
+
+def _planning_scene_contains_objects(node, case, object_ids, timeout):
+    from moveit_msgs.msg import PlanningSceneComponents
+    from moveit_msgs.srv import GetPlanningScene
+
+    service_name = _absolute_name(
+        str(case["moveit"].get("namespace", "")),
+        "get_planning_scene",
+    )
+    client = node.create_client(GetPlanningScene, service_name)
+    if not client.wait_for_service(timeout_sec=min(timeout, 5.0)):
+        return False
+
+    request = GetPlanningScene.Request()
+    request.components.components = (
+        PlanningSceneComponents.WORLD_OBJECT_NAMES
+        | PlanningSceneComponents.WORLD_OBJECT_GEOMETRY
+    )
     future = client.call_async(request)
-    rclpy.spin_until_future_complete(node, future, timeout_sec=timeout)
-    if not future.done() or future.result() is None:
-        raise RuntimeError("Timed out applying validation planning scene")
-    if not future.result().success:
-        raise RuntimeError("MoveIt rejected validation planning scene")
-    return [primitive["id"] for primitive in collision_primitives]
+    response = _spin_service_future(node, future, min(timeout, 5.0))
+    if response is None:
+        return False
+    present = {
+        str(item.id)
+        for item in response.scene.world.collision_objects
+    }
+    return set(object_ids).issubset(present)
 
 
 def _collision_object_message(frame_id, primitive_info):
@@ -1135,7 +1187,7 @@ def _execute_pose_goal(
         goal.request.workspace_parameters.max_corner.x = float(workspace["bounds"]["max"][0])
         goal.request.workspace_parameters.max_corner.y = float(workspace["bounds"]["max"][1])
         goal.request.workspace_parameters.max_corner.z = float(workspace["bounds"]["max"][2])
-    goal.planning_options.plan_only = False
+    goal.planning_options.plan_only = not bool(case["moveit"].get("execute", True))
     goal.planning_options.look_around = False
     goal.planning_options.replan = False
 
@@ -1284,13 +1336,14 @@ def _validation_passed(metrics, criteria, success_code):
     if criteria["require_tf_ok"] and not metrics.get("tf_ok"):
         failures.append("TF lookup failed")
 
-    goal_error = metrics.get("goal_position_error_m")
-    if goal_error is None:
-        failures.append("goal position error unavailable")
-    elif goal_error > criteria["max_goal_position_error_m"]:
-        failures.append(
-            f"goal error {goal_error:.3f} > {criteria['max_goal_position_error_m']:.3f}"
-        )
+    if metrics.get("moveit_execute", True):
+        goal_error = metrics.get("goal_position_error_m")
+        if goal_error is None:
+            failures.append("goal position error unavailable")
+        elif goal_error > criteria["max_goal_position_error_m"]:
+            failures.append(
+                f"goal error {goal_error:.3f} > {criteria['max_goal_position_error_m']:.3f}"
+            )
 
     clearance = metrics.get("min_tcp_clearance_m")
     if clearance is not None and clearance < criteria["min_tcp_clearance_m"]:
@@ -1401,27 +1454,37 @@ def _send_joint_positions(node, context, controller_name, positions, timeout):
         )
     action_name = _absolute_name(context["robot_namespace"], f"{controller_name}/follow_joint_trajectory")
     action_client = ActionClient(node, FollowJointTrajectory, action_name)
+    gripper_timeout = min(float(timeout), 10.0)
     try:
-        if not action_client.wait_for_server(timeout_sec=timeout):
+        if not action_client.wait_for_server(timeout_sec=gripper_timeout):
             raise RuntimeError(f"Action server not available: {action_name}")
-        goal = FollowJointTrajectory.Goal()
-        goal.trajectory.joint_names = [str(joint) for joint in joints]
-        point = JointTrajectoryPoint()
-        point.positions = positions
-        point.time_from_start = Duration(sec=1)
-        goal.trajectory.points.append(point)
-        send_future = action_client.send_goal_async(goal)
-        rclpy.spin_until_future_complete(node, send_future, timeout_sec=timeout)
-        goal_handle = send_future.result()
-        if goal_handle is None or not goal_handle.accepted:
-            raise RuntimeError("gripper trajectory goal was rejected")
-        result_future = goal_handle.get_result_async()
-        rclpy.spin_until_future_complete(node, result_future, timeout_sec=timeout)
-        result = result_future.result()
-        if result is None:
-            raise RuntimeError("timed out waiting for gripper trajectory result")
-        if result.status != GoalStatus.STATUS_SUCCEEDED:
-            raise RuntimeError(f"gripper trajectory failed with status {result.status}")
+        last_error = "gripper trajectory goal was not sent"
+        for _ in range(3):
+            goal = FollowJointTrajectory.Goal()
+            goal.trajectory.joint_names = [str(joint) for joint in joints]
+            point = JointTrajectoryPoint()
+            point.positions = positions
+            point.time_from_start = Duration(sec=1)
+            goal.trajectory.points.append(point)
+            send_future = action_client.send_goal_async(goal)
+            rclpy.spin_until_future_complete(node, send_future, timeout_sec=gripper_timeout)
+            goal_handle = send_future.result()
+            if goal_handle is None or not goal_handle.accepted:
+                last_error = "gripper trajectory goal was rejected"
+                time.sleep(0.3)
+                continue
+            result_future = goal_handle.get_result_async()
+            rclpy.spin_until_future_complete(node, result_future, timeout_sec=gripper_timeout)
+            result = result_future.result()
+            if result is None:
+                last_error = "timed out waiting for gripper trajectory result"
+                time.sleep(0.3)
+                continue
+            if result.status == GoalStatus.STATUS_SUCCEEDED:
+                return
+            last_error = f"gripper trajectory failed with status {result.status}"
+            time.sleep(0.3)
+        raise RuntimeError(last_error)
     finally:
         action_client.destroy()
 

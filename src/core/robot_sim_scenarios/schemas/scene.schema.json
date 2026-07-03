@@ -152,13 +152,22 @@
       "type": "array",
       "minItems": 6,
       "maxItems": 6,
-      "items": { "type": "number" }
+      "items": { "$ref": "#/$defs/number_or_parameter" }
     },
     "vector3": {
       "type": "array",
       "minItems": 3,
       "maxItems": 3,
-      "items": { "type": "number" }
+      "items": { "$ref": "#/$defs/number_or_parameter" }
+    },
+    "number_or_parameter": {
+      "oneOf": [
+        { "type": "number" },
+        {
+          "type": "string",
+          "pattern": "^\\$\\{[A-Za-z_][A-Za-z0-9_]*\\}$"
+        }
+      ]
     },
     "bounds3": {
       "type": "object",

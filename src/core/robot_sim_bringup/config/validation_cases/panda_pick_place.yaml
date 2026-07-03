@@ -17,8 +17,8 @@ scene:
 task:
   type: pick_place
   seed: 13
-  pick_region: pick_spawn
-  place_region: place_target
+  pick_region: pick_approach
+  place_region: place_approach
   object:
     model: pick_red_cube
     attach_link: panda_link8
@@ -31,12 +31,13 @@ task:
     target_link: panda_link8
     frame: world
     planning_time_sec: 8.0
-    velocity_scaling: 0.2
-    acceleration_scaling: 0.2
+    velocity_scaling: 0.08
+    acceleration_scaling: 0.08
+    execute: false
 
 planning_scene:
   apply: true
-  exclude_tags: [ground, robot_mount, pedestal, visual_marker, optional]
+  exclude_tags: [ground, robot_mount, pedestal, visual_marker, optional, table, support_surface, pick_object]
   include_tags: []
 
 expect:

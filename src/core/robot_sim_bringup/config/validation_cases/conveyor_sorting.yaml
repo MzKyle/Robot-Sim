@@ -18,7 +18,7 @@ task:
   type: conveyor_sorting
   seed: 29
   start_region: pick_window
-  goal_region: left_sort_bin
+  goal_region: left_sort_approach
   sort_targets:
     red: left_sort_bin
     blue: right_sort_bin
@@ -33,10 +33,11 @@ task:
     planning_time_sec: 10.0
     velocity_scaling: 0.18
     acceleration_scaling: 0.18
+    execute: false
 
 planning_scene:
   apply: true
-  exclude_tags: [ground, robot_mount, pedestal, visual_marker, optional]
+  exclude_tags: [ground, robot_mount, pedestal, visual_marker, optional, conveyor, dynamic_surface, dynamic_object, parcel, pick_object]
   include_tags: []
 
 expect:

@@ -138,14 +138,14 @@ def run_case(args, runner):
         helper = [sys.executable, "-m", "robot_sim_bringup.sim_smoke_helper"]
         linter = [sys.executable, "-m", "robot_sim_bringup.profile_lint"]
 
-        _run_step(metrics, runner, "profile_lint", linter + lint_args, logs_dir / "profile_lint.log")
+        _run_step(metrics, runner, "profile_lint", linter + lint_args, logs_dir / "profile_lint.log", timeout=60.0)
         profile_json_log = logs_dir / "profile.json"
-        _run_step(metrics, runner, "profile_summary", helper + ["profile-json", *common_args, "--with-moveit"], profile_json_log)
+        _run_step(metrics, runner, "profile_summary", helper + ["profile-json", *common_args, "--with-moveit"], profile_json_log, timeout=60.0)
         profile_summary = _load_json_file(profile_json_log)
 
         urdf_path = run_dir / "robot.urdf"
-        _run_step(metrics, runner, "render_urdf", helper + ["render-urdf", *common_args, "--output", str(urdf_path)], logs_dir / "render_urdf.log")
-        _run_step(metrics, runner, "validate_urdf", ["check_urdf", str(urdf_path)], logs_dir / "check_urdf.log")
+        _run_step(metrics, runner, "render_urdf", helper + ["render-urdf", *common_args, "--output", str(urdf_path)], logs_dir / "render_urdf.log", timeout=60.0)
+        _run_step(metrics, runner, "validate_urdf", ["check_urdf", str(urdf_path)], logs_dir / "check_urdf.log", timeout=30.0)
 
         sim_process = _start_simulation(runner, effective, logs_dir / "sim.launch.log")
         _record_manual_step(metrics, "simulation_start", True, "simulation process started", logs_dir / "sim.launch.log")
@@ -161,17 +161,19 @@ def run_case(args, runner):
         else:
             _record_manual_step(metrics, "gazebo_spawn", True, "mock mode: skipped", None)
 
-        _run_step(metrics, runner, "joint_states", helper + ["wait-joint-state", *common_args, "--timeout", str(effective["timeout"])], logs_dir / "joint_states.log")
-        _run_step(metrics, runner, "controllers_active", helper + ["wait-controllers", *common_args, "--timeout", str(effective["timeout"])], logs_dir / "controllers_active.log")
-        _run_step(metrics, runner, "trajectory_action", helper + ["send-trajectory", *common_args, "--timeout", str(effective["timeout"])], logs_dir / "trajectory_action.log")
-        _run_step(metrics, runner, "sensor_hz", helper + ["check-sensors", *common_args], logs_dir / "sensor_hz.log")
-        _run_step(metrics, runner, "tf_tree", helper + ["check-tf", *common_args, "--urdf", str(urdf_path)], logs_dir / "tf_tree.log")
-        _run_step(metrics, runner, "moveit_plan_execute", helper + ["moveit", *common_args, "--timeout", str(effective["timeout"])], logs_dir / "moveit.log")
+        step_timeout = effective["timeout"] + 15.0
+        _run_step(metrics, runner, "joint_states", helper + ["wait-joint-state", *common_args, "--timeout", str(effective["timeout"])], logs_dir / "joint_states.log", timeout=step_timeout)
+        _run_step(metrics, runner, "controllers_active", helper + ["wait-controllers", *common_args, "--timeout", str(effective["timeout"])], logs_dir / "controllers_active.log", timeout=step_timeout)
+        _run_step(metrics, runner, "trajectory_action", helper + ["send-trajectory", *common_args, "--timeout", str(effective["timeout"])], logs_dir / "trajectory_action.log", timeout=step_timeout)
+        _run_step(metrics, runner, "sensor_hz", helper + ["check-sensors", *common_args], logs_dir / "sensor_hz.log", timeout=step_timeout)
+        _run_step(metrics, runner, "tf_tree", helper + ["check-tf", *common_args, "--urdf", str(urdf_path)], logs_dir / "tf_tree.log", timeout=step_timeout)
+        _run_step(metrics, runner, "moveit_plan_execute", helper + ["moveit", *common_args, "--timeout", str(effective["timeout"])], logs_dir / "moveit.log", timeout=step_timeout)
 
         validation_metrics_path = run_dir / "validation_metrics.json"
         task_runner = get_task_runner(case["task_type"])
         metrics["task_type"] = case["task_type"]
         metrics["business_actions"] = task_runner.business_actions(case)
+        validation_timeout = effective["timeout"] * max(len(case.get("task_regions", [])), 1) + 45.0
         _run_step(
             metrics,
             runner,
@@ -183,6 +185,7 @@ def run_case(args, runner):
                 effective["timeout"],
             ),
             logs_dir / "validation_case.log",
+            timeout=validation_timeout,
         )
         validation_metrics = _load_json_file(validation_metrics_path)
         metrics.update(_validation_metrics_summary(validation_metrics))
@@ -246,6 +249,7 @@ def _effective_launch(case, args):
             if args.sensor_overrides is not None
             else case.get("sensor_overrides", "")
         ),
+        "use_gripper": case.get("task_type") == "pick_place" or bool(case.get("task", {}).get("gripper")),
     }
 
 
@@ -427,26 +431,31 @@ def _git_commit():
     return result.stdout.strip() if result.returncode == 0 else ""
 
 
-def _run_step(metrics, runner, name, command, log_path):
+def _run_step(metrics, runner, name, command, log_path, timeout=None):
     step = {
         "name": name,
         "passed": False,
+        "status": "RUNNING",
         "started_at": _utc_now(),
         "log": str(log_path),
         "command": [str(item) for item in command],
     }
     metrics["steps"].append(step)
     try:
-        result = runner.run(command, log_path)
+        result = runner.run(command, log_path, timeout=timeout)
         step.update(result)
         step["passed"] = result["returncode"] == 0
+        step["status"] = _step_status(step["passed"])
         if result["returncode"] != 0:
             raise RuntimeError(f"step '{name}' failed; see {log_path}")
     except subprocess.TimeoutExpired as exc:
         step["duration_sec"] = None
         step["error"] = f"timeout after {exc.timeout}s"
+        step["status"] = "FAIL"
         raise RuntimeError(f"step '{name}' timed out; see {log_path}") from exc
     finally:
+        if step["status"] == "RUNNING":
+            step["status"] = _step_status(step.get("passed", False))
         step["finished_at"] = _utc_now()
 
 
@@ -454,6 +463,7 @@ def _record_manual_step(metrics, name, passed, message, log_path):
     metrics["steps"].append({
         "name": name,
         "passed": bool(passed),
+        "status": _step_status(passed),
         "message": message,
         "log": str(log_path) if log_path else "",
         "started_at": _utc_now(),
@@ -475,6 +485,8 @@ def _start_simulation(runner, effective, log_path):
         "rviz:=false",
         "use_moveit:=true",
     ]
+    if effective.get("use_gripper"):
+        command.append("use_gripper:=true")
     if effective["profile_file"]:
         command.append(f"sim_profile_file:={effective['profile_file']}")
     if effective["sensor_overrides"]:
@@ -528,13 +540,15 @@ def _record_rosbag(runner, case, effective, rosbag_dir, log_path, duration_sec):
         f"sim_profile:={effective['profile']}",
         f"sim_profile_file:={effective['profile_file']}",
         f"layout:={effective.get('layout', 'single')}",
-        f"sensor_overrides:={effective['sensor_overrides']}",
         f"topic_group:={rosbag_config.get('topic_group', 'all')}",
         f"output_dir:={rosbag_dir}",
         f"bag_name:={case['name']}",
         f"compression:={'true' if rosbag_config.get('compression', False) else 'false'}",
-        f"extra_topics:={extra_topics}",
     ]
+    if effective["sensor_overrides"]:
+        command.append(f"sensor_overrides:={effective['sensor_overrides']}")
+    if extra_topics:
+        command.append(f"extra_topics:={extra_topics}")
     process = runner.popen(command, log_path)
     time.sleep(max(0.0, duration_sec))
     _terminate_process(process, signal.SIGINT)
@@ -614,7 +628,7 @@ def _render_markdown_report(manifest, metrics):
         "| --- | --- | ---: | --- |",
     ])
     for step in metrics.get("steps", []):
-        step_status = "PASS" if step.get("passed") else "FAIL"
+        step_status = step.get("status") or _step_status(step.get("passed"))
         duration = step.get("duration_sec")
         duration_text = f"{duration:.2f}s" if isinstance(duration, (int, float)) else ""
         lines.append(f"| {step['name']} | {step_status} | {duration_text} | `{step.get('log', '')}` |")
@@ -727,6 +741,10 @@ def _write_json(path, value):
 
 def _utc_now():
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def _step_status(passed):
+    return "PASS" if passed else "FAIL"
 
 
 def _safe_id(value):

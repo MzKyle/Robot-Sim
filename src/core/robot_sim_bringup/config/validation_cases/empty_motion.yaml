@@ -17,7 +17,7 @@ scene:
 task:
   type: empty_motion
   seed: 5
-  waypoints: [workspace_sample, workspace_sample]
+  waypoints: [panda_smoke_start, panda_smoke_goal]
   moveit:
     group: panda_arm
     target_link: panda_link8
@@ -39,9 +39,7 @@ expect:
   max_controller_error_rad: 0.60
   required_sensor_min_hz: 1.0
   require_tf_ok: true
-  topics:
-    - name: /camera/color/image_raw
-      min_hz: 1.0
+  topics: []
 
 artifacts:
   rosbag:

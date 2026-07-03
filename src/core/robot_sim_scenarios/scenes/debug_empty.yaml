@@ -255,3 +255,15 @@ regions:
       min: [-1.20, -1.20, 0.10]
       max: [1.20, 1.20, 1.40]
     orientation_rpy: [0.0, 0.0, 0.0]
+  panda_smoke_start:
+    frame: world
+    bounds:
+      min: [0.30, 0.55, 1.12]
+      max: [0.30, 0.55, 1.12]
+    orientation_rpy: [0.0, 0.0, 0.0]
+  panda_smoke_goal:
+    frame: world
+    bounds:
+      min: [0.42, 0.42, 1.08]
+      max: [0.42, 0.42, 1.08]
+    orientation_rpy: [0.0, 0.0, 0.0]

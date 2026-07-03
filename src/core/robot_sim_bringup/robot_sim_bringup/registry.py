@@ -74,19 +74,29 @@ def resolve_scene_path(scene_name: str | Path, scene_package: str = "") -> Path:
 
 def source_package_directory(package_name: str) -> Path | None:
     for root in _candidate_roots(Path(__file__).resolve()):
-        matches = sorted(root.glob(f"**/{package_name}/package.xml"))
-        if matches:
-            return matches[0].parent.resolve()
+        for relative in (
+            f"{package_name}/package.xml",
+            f"*/{package_name}/package.xml",
+            f"*/*/{package_name}/package.xml",
+            f"*/*/*/{package_name}/package.xml",
+        ):
+            for match in sorted(root.glob(relative)):
+                return match.parent.resolve()
     return None
 
 
 def _candidate_roots(start: Path) -> Iterable[Path]:
     yielded = set()
     for ancestor in start.parents:
-        for root in (ancestor, ancestor / "src"):
-            if root.exists() and root not in yielded:
-                yielded.add(root)
-                yield root
+        if (ancestor / "package.xml").is_file() and ancestor.parent not in yielded:
+            yielded.add(ancestor.parent)
+            yield ancestor.parent
+        src_root = ancestor / "src"
+        if src_root.is_dir() and src_root not in yielded:
+            yielded.add(src_root)
+            yield src_root
+        if (ancestor / ".git").exists():
+            break
 
 
 def _existing_path(path_text: str, label: str) -> Path:
