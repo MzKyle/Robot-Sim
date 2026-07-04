@@ -11,10 +11,10 @@
 
 ![robot_sim](docs/assets/cover.svg)
 
-`robot_sim` is an industrial robot simulation acceptance and regression testing platform
-for ROS 2 Humble, Gazebo Harmonic, ros2_control, MoveIt2, and simulated sensors. It turns
-robot profiles, scenes, task cases, external ROS2 modules, logs, metrics, and rosbag
-recordings into one repeatable validation workflow.
+`robot_sim` is a ROS 2 simulation and interface validation platform. It keeps the
+industrial robot/Gazebo/MoveIt/ros2_control acceptance chain as the `robot` domain, and
+adds a schema v4 platform runner for generic ROS2 topic/service/TF/process contract
+checks with system profiles, data sources, adapters, assertions, and suites.
 
 [Read the documentation](docs/README.md)
 
@@ -70,8 +70,8 @@ configs, `robot.urdf`, logs, rosbag, `metrics.json`, `report.md`, and `report.ht
 - Run reusable validation cases for empty motion, obstacle clearance, fixture-to-pallet,
   pick-place, sensor calibration, conveyor sorting, and external module validation.
 - Use scene variants and parameters to create deterministic industrial test conditions.
-- Connect external ROS2 modules with adapters for TCP pose, `/scan_3d`, MoveIt pose jog,
-  synthetic weld vision, and loop-motion services.
+- Replay or stub generic ROS2 topics/services with schema v4 data sources and adapters.
+- Keep legacy welding/FANUC integrations available without making them the core platform model.
 - Generate run artifacts that can be reviewed manually, archived for delivery, or checked
   by CI.
 - Scaffold an external robot simulation package instead of putting every robot in this
@@ -121,14 +121,15 @@ available, it falls back to the packaged replay capture.
 
 ## Configuration Model
 
-`robot_sim` uses `schema: 3` YAML contracts validated by JSON Schema:
+`robot_sim` supports two YAML contract families validated by JSON Schema:
 
 | Config kind | What it describes |
 | --- | --- |
-| `sim_profile` | Robot description, control, MoveIt, sensors, bridges, worlds, layouts, capabilities |
+| `schema: 3 sim_profile` | Robot description, control, MoveIt, sensors, bridges, worlds, layouts, capabilities |
 | `scene` | A full workcell with regions, objects, workspaces, parameters, variants, and generators |
 | `world_preset` | Legacy/base world asset composition |
-| `validation_case` | Launch settings, scene, task family, planning scene, expectations, adapters, artifacts |
+| `schema: 3 validation_case` | Launch settings, scene, task family, planning scene, expectations, adapters, artifacts |
+| `schema: 4 system/data_source/adapter/suite` | Generic ROS2 pipeline validation assets |
 
 External packages are discovered from:
 
@@ -142,7 +143,7 @@ share/<pkg>/robot_sim/adapters/*.yaml
 
 The legacy `robot_sim/validation_suites` path is still accepted. Built-in
 robot examples live under `examples/robot_arm`; welding assets live under
-`integrations/welding`.
+`integrations/welding`; RM vision interface examples live under `examples/rm_vision`.
 
 ## Robot Scaffold
 
@@ -190,6 +191,8 @@ robot-sim sim_profile:=panda sim_mode:=light
 - [Quick start](docs/guide/quick-start.md)
 - [Simulation guide](docs/guide/simulation.md)
 - [External module integration](docs/guide/external-modules.md)
+- [External project assets](docs/guide/external-projects.md)
+- [Maintainer code map](docs/architecture/maintainer-code-map.md)
 - [Testing and validation](docs/workflow/testing.md)
 - [Configuration reference](docs/configuration/settings.md)
 - [Run artifacts and logs](docs/logging/data-storage.md)

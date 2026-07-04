@@ -15,6 +15,7 @@
 - **系统架构**
   - [架构总览](architecture/README.md)
   - [模块全景](architecture/module-overview.md)
+  - [维护者代码地图](architecture/maintainer-code-map.md)
   - [数据流](architecture/data-flow.md)
   - [仿真状态模型](architecture/state-model.md)
   - [扩展方向](architecture/target-architecture.md)

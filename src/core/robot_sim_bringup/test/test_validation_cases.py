@@ -65,6 +65,55 @@ from robot_sim_bringup.registry import (
 REPO_ROOT = PACKAGE_ROOT.parents[2]
 
 
+def test_internal_package_imports_match_compat_wrappers():
+    import importlib
+
+    pairs = [
+        ("robot_sim_bringup.registry", "robot_sim_bringup.common.registry", "resolve_validation_case_path"),
+        ("robot_sim_bringup.schema_validation", "robot_sim_bringup.common.schema_validation", "validate_config_schema"),
+        ("robot_sim_bringup.platform_config", "robot_sim_bringup.platform.config", "load_platform_validation_case"),
+        ("robot_sim_bringup.platform_adapter", "robot_sim_bringup.platform.adapter", "adapter_dependencies"),
+        ("robot_sim_bringup.platform_assertions", "robot_sim_bringup.platform.assertions", "assign_fields"),
+        ("robot_sim_bringup.platform_runner", "robot_sim_bringup.platform.runner", "run_platform_case"),
+        ("robot_sim_bringup.run_suite", "robot_sim_bringup.platform.run_suite", "run_suite"),
+        ("robot_sim_bringup.sim_config_loader", "robot_sim_bringup.robot_domain.sim_config_loader", "load_sim_profile"),
+        ("robot_sim_bringup.validation_cases", "robot_sim_bringup.robot_domain.validation_cases", "load_validation_case"),
+        ("robot_sim_bringup.task_runners", "robot_sim_bringup.robot_domain.task_runners", "get_task_runner"),
+        ("robot_sim_bringup.run_case", "robot_sim_bringup.robot_domain.run_case", "run_case"),
+        ("robot_sim_bringup.module_adapter", "robot_sim_bringup.legacy_integrations.module_adapter", "adapter_dependencies"),
+        ("robot_sim_bringup.module_runner", "robot_sim_bringup.legacy_integrations.module_runner", "_matches_expectation"),
+        ("robot_sim_bringup.scaffold_assets", "robot_sim_bringup.scaffold.assets", "scaffold_case"),
+        ("robot_sim_bringup.scaffold_robot", "robot_sim_bringup.scaffold.robot", "scaffold_robot"),
+    ]
+    for compat_name, internal_name, symbol in pairs:
+        compat = importlib.import_module(compat_name)
+        internal = importlib.import_module(internal_name)
+        assert getattr(compat, symbol) is getattr(internal, symbol)
+
+
+def test_cli_wrapper_help_smoke():
+    env = dict(os.environ)
+    env["PYTHONPATH"] = f"{PACKAGE_ROOT}:{SRC_ROOT / 'robot_sim_scenarios'}:{env.get('PYTHONPATH', '')}"
+    commands = [
+        [sys.executable, str(PACKAGE_ROOT / "scripts" / "run_case"), "--help"],
+        [sys.executable, str(PACKAGE_ROOT / "scripts" / "run_suite"), "--help"],
+        [sys.executable, str(PACKAGE_ROOT / "scripts" / "scaffold_system"), "--help"],
+        [sys.executable, str(PACKAGE_ROOT / "scripts" / "scaffold_case"), "--help"],
+        [sys.executable, str(PACKAGE_ROOT / "scripts" / "scaffold_suite"), "--help"],
+        [sys.executable, str(PACKAGE_ROOT / "scripts" / "scaffold_adapter"), "--help"],
+    ]
+    for command in commands:
+        result = subprocess.run(
+            command,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            env=env,
+            check=False,
+        )
+        assert result.returncode == 0, result.stdout
+
+
 def _write_gray_image(path: Path, value: int) -> None:
     cv2 = pytest.importorskip("cv2")
     np = pytest.importorskip("numpy")
@@ -77,7 +126,7 @@ def test_industrial_profile_resolves_scene_world(tmp_path, monkeypatch):
     (fake_ros_gz / "launch").mkdir(parents=True)
     (fake_ros_gz / "launch" / "gz_sim.launch.py").write_text("", encoding="utf-8")
 
-    import robot_sim_bringup.sim_config_loader as loader
+    import robot_sim_bringup.robot_domain.sim_config_loader as loader
 
     original_package_share = loader._package_share_directory
     monkeypatch.setattr(
@@ -296,7 +345,7 @@ def test_module_validation_runner_dispatches_module_runner(tmp_path):
         12.0,
     )
 
-    assert "robot_sim_bringup.module_runner" in command
+    assert "robot_sim_bringup.legacy_integrations.module_runner" in command
     assert "--validation-case" in command
     assert str(metrics_path) in command
     assert runner.business_actions(case) == [
@@ -478,7 +527,7 @@ def test_external_data_source_package_discovery(tmp_path, monkeypatch):
     )
     (package / "package.xml").write_text("<package format='3'><name>mock_data_pkg</name></package>", encoding="utf-8")
     monkeypatch.setattr(
-        "robot_sim_bringup.registry.package_share_directory",
+        "robot_sim_bringup.common.registry.package_share_directory",
         lambda name: package if name == "mock_data_pkg" else PACKAGE_ROOT,
     )
 
@@ -505,7 +554,7 @@ def test_external_suite_package_discovery_prefers_suites_dir(tmp_path, monkeypat
     )
     (package / "package.xml").write_text("<package format='3'><name>mock_suite_pkg</name></package>", encoding="utf-8")
     monkeypatch.setattr(
-        "robot_sim_bringup.registry.package_share_directory",
+        "robot_sim_bringup.common.registry.package_share_directory",
         lambda name: package if name == "mock_suite_pkg" else PACKAGE_ROOT,
     )
 
@@ -812,7 +861,7 @@ def test_external_case_package_discovery(tmp_path, monkeypatch):
     (package / "package.xml").write_text("<package format='3'><name>mock_robot_pkg</name></package>", encoding="utf-8")
     scenario_root = SRC_ROOT / "robot_sim_scenarios"
     monkeypatch.setattr(
-        "robot_sim_bringup.registry.package_share_directory",
+        "robot_sim_bringup.common.registry.package_share_directory",
         lambda name: package if name == "mock_robot_pkg" else scenario_root,
     )
 

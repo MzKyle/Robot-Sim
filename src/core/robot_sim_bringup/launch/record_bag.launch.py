@@ -4,7 +4,7 @@ from datetime import datetime
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess, LogInfo, OpaqueFunction
 
-from robot_sim_bringup.sim_config_loader import load_sim_profile
+from robot_sim_bringup.robot_domain.sim_config_loader import load_sim_profile
 
 CORE_TOPICS = ["/clock", "/tf", "/tf_static"]
 TRAJECTORY_CONTROLLER_TYPE = "joint_trajectory_controller/JointTrajectoryController"

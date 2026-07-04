@@ -1,8 +1,12 @@
-# 外部 ROS2 模块接入指南
+# Legacy 焊接外部模块接入
 
-`robot_sim` 可以把外部 ROS2 模块放进同一次仿真验收。典型场景是：机器人、Gazebo、MoveIt 和传感器由 `robot_sim` 启动，业务模块由 `validation_case.module` 启动，缺失的现场接口由 `adapters` 模拟，最后统一输出 `manifest.json`、`metrics.json`、rosbag 和报告。
+这一页描述的是 `schema: 3` 的 legacy welding/FANUC integration compatibility。它保留现有焊前定位、2D 纠偏、`weld_interface` 和 MoveIt jog 能力，但不作为新项目的默认扩展模型。
 
-当前第一版目标是“通用模块仿真验收”，不是高保真工艺物理仿真。它适合验证服务调用、topic 输出、状态机、目标点、运动请求和报告指标；不模拟焊接熔池、弧光、烟尘、热变形或真实夹具接触。
+新项目如果只需要 topic/service/TF/process 契约验证，优先使用 [外部项目资产规范](external-projects.md) 中的 `schema: 4` system/data_source/adapter/suite。
+
+legacy 模型可以把外部 ROS2 模块放进同一次机器人仿真验收。典型场景是：机器人、Gazebo、MoveIt 和传感器由 `robot_sim` 启动，业务模块由 `validation_case.module` 启动，缺失的现场接口由 `adapters` 模拟，最后统一输出 `manifest.json`、`metrics.json`、rosbag 和报告。
+
+当前目标是“legacy integration smoke”，不是高保真工艺物理仿真。它适合验证服务调用、topic 输出、状态机、目标点、运动请求和报告指标；不模拟焊接熔池、弧光、烟尘、热变形或真实夹具接触。
 
 ## 适用边界
 

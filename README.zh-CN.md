@@ -11,9 +11,9 @@
 
 ![robot_sim](docs/assets/cover.svg)
 
-`robot_sim` 是一个工业机器人仿真验收与回归测试平台，面向 ROS 2 Humble、
-Gazebo Harmonic、ros2_control、MoveIt2 和仿真传感器。它把机器人 profile、工况
-scene、任务用例、外部 ROS2 模块、日志、指标和 rosbag 串成一条可重复执行的验收链路。
+`robot_sim` 是一个 ROS2 仿真与接口验收平台。它保留工业机器人/Gazebo/MoveIt/
+ros2_control 的完整验收链，同时提供 `schema: 4` 通用 pipeline 验证，用
+system、data_source、adapter、assertion 和 suite 检查外部 ROS2 项目的 topic/service/TF 契约。
 
 [阅读完整文档](docs/README.md)
 
@@ -69,8 +69,10 @@ xdg-open "${latest_run}/report.html"
 - 运行空场运动、障碍避让、fixture-to-pallet、pick-place、传感器标定、传送带分拣
   和外部模块验收用例。
 - 使用 scene variant 和参数化配置生成可复现的工业测试工况。
-- 通过 adapter 接入外部 ROS2 模块，当前支持 TCP pose、`/scan_3d`、MoveIt pose jog、
-  合成焊缝视觉和连续纠偏相关服务。
+- 用 v4 data source 和 adapter replay/stub 任意 ROS2 topic/service，内置 RM vision
+  接口 smoke 证明核心 runner 不依赖机械臂、焊接或 Gazebo。
+- 通过 legacy integration 保留焊接/FANUC 外部 ROS2 模块能力，当前支持 TCP pose、
+  `/scan_3d`、MoveIt pose jog、合成焊缝视觉和连续纠偏相关服务。
 - 输出可人工复查、可交付归档、可 CI 检查的完整运行产物。
 - 用 scaffold 生成外部机器人接入包，不需要把所有机器人配置都塞进本仓库。
 
@@ -117,14 +119,17 @@ ros2 run robot_sim_bringup run_case --case weld_pre_positioning_scan_and_move --
 
 ## 配置模型
 
-`robot_sim` 使用 `schema: 3` YAML 契约，并通过 JSON Schema 校验：
+`robot_sim` 并行支持两套 YAML 契约，并通过 JSON Schema 校验：
 
 | 配置类型 | 描述内容 |
 | --- | --- |
-| `sim_profile` | 机器人描述、控制、MoveIt、传感器、bridge、world、layout 和 capability |
+| `schema: 3 sim_profile` | 机器人描述、控制、MoveIt、传感器、bridge、world、layout 和 capability |
 | `scene` | 完整工况，包括区域、对象、workspace、参数、variant 和 generator |
 | `world_preset` | legacy/base world 资产组合 |
-| `validation_case` | 启动参数、场景、任务族、planning scene、期望指标、adapter 和产物 |
+| `schema: 3 validation_case` | 启动参数、场景、任务族、planning scene、期望指标、adapter 和产物 |
+| `schema: 4 system_profile` | 通用 ROS2 pipeline 的进程、环境变量和启动延迟 |
+| `schema: 4 data_source/adapter` | topic、service、image、video、rosbag replay/stub 和 adapter 模板 |
+| `schema: 4 validation_suite` | 多 case 组合和参数矩阵 |
 
 外部 package 使用以下路径即可被发现：
 
@@ -137,7 +142,8 @@ share/<pkg>/robot_sim/adapters/*.yaml
 ```
 
 旧的 `robot_sim/validation_suites` 路径仍然兼容。内置机器人示例位于
-`examples/robot_arm`，焊接集成位于 `integrations/welding`。
+`examples/robot_arm`，RM vision 示例位于 `examples/rm_vision`，焊接集成位于
+`integrations/welding`。
 
 ## 机器人接入模板
 
@@ -185,6 +191,8 @@ robot-sim sim_profile:=panda sim_mode:=light
 - [快速上手](docs/guide/quick-start.md)
 - [仿真运行](docs/guide/simulation.md)
 - [外部模块接入](docs/guide/external-modules.md)
+- [外部项目资产](docs/guide/external-projects.md)
+- [维护者代码地图](docs/architecture/maintainer-code-map.md)
 - [测试验收](docs/workflow/testing.md)
 - [配置说明](docs/configuration/settings.md)
 - [日志与产物](docs/logging/data-storage.md)

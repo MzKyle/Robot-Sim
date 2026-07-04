@@ -2,7 +2,7 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, GroupAction, LogInfo, OpaqueFunction
 from launch_ros.actions import Node, PushRosNamespace
 
-from robot_sim_bringup.sim_config_loader import load_sim_profile
+from robot_sim_bringup.robot_domain.sim_config_loader import load_sim_profile
 
 
 RECEIVER_TOPIC_REQUIREMENTS = {

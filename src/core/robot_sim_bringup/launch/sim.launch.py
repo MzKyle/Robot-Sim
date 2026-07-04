@@ -1,7 +1,7 @@
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
 
-from robot_sim_bringup.sim_launch_builder import build_sim_launch_actions
+from robot_sim_bringup.robot_domain.sim_launch_builder import build_sim_launch_actions
 
 
 def _launch_setup(context, *args, **kwargs):
