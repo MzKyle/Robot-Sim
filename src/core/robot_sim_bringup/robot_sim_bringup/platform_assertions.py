@@ -89,14 +89,40 @@ def message_to_dict(message: Any) -> Any:
 
 
 def assign_fields(message: Any, fields: Mapping[str, Any]) -> None:
+    expanded: dict[str, Any] = {}
+    for field, value in fields.items():
+        _assign_mapping_path(expanded, str(field), value)
+    try:
+        from rosidl_runtime_py.set_message import set_message_fields
+
+        set_message_fields(message, expanded)
+        return
+    except Exception:
+        pass
+    _assign_fields_fallback(message, expanded)
+
+
+def _assign_mapping_path(target: dict[str, Any], path: str, value: Any) -> None:
+    current = target
+    parts = path.split(".")
+    for part in parts[:-1]:
+        next_value = current.setdefault(part, {})
+        if not isinstance(next_value, dict):
+            next_value = {}
+            current[part] = next_value
+        current = next_value
+    current[parts[-1]] = value
+
+
+def _assign_fields_fallback(message: Any, fields: Mapping[str, Any]) -> None:
     for field, value in fields.items():
         if "." in str(field):
             head, tail = str(field).split(".", 1)
-            assign_fields(getattr(message, head), {tail: value})
+            _assign_fields_fallback(getattr(message, head), {tail: value})
             continue
         current = getattr(message, str(field), None)
         if hasattr(current, "get_fields_and_field_types") and isinstance(value, Mapping):
-            assign_fields(current, value)
+            _assign_fields_fallback(current, value)
         else:
             setattr(message, str(field), value)
 

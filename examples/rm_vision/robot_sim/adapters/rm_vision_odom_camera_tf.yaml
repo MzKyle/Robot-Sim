@@ -1,0 +1,19 @@
+schema: 4
+kind: adapter
+name: rm_vision_odom_camera_tf
+description: Static odom to camera frame transform used by RM vision tracker interface smoke cases.
+type: tf_static_publisher
+transforms:
+  - header:
+      frame_id: odom
+    child_frame_id: camera_optical_frame
+    transform:
+      translation:
+        x: 0.0
+        y: 0.0
+        z: 0.0
+      rotation:
+        x: 0.0
+        y: 0.0
+        z: 0.0
+        w: 1.0

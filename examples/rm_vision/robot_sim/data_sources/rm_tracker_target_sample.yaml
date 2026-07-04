@@ -1,0 +1,33 @@
+schema: 4
+kind: data_source
+name: rm_tracker_target_sample
+description: Sample RM tracker target output.
+type: message_sequence
+topic: /tracker/target
+message_type: auto_aim_interfaces/msg/Target
+rate_hz: 20.0
+loop: true
+messages:
+  - header:
+      frame_id: odom
+    tracking: true
+    type: small
+    num: 1
+    armors_num: 4
+    outpost_idx: 0
+    position:
+      x: 0.2
+      y: 0.0
+      z: 3.0
+    velocity:
+      x: 0.0
+      y: 0.0
+      z: 0.0
+    yaw: 0.0
+    v_yaw: 0.0
+    radius_1: 0.2
+    radius_2: 0.2
+    dz: 0.0
+    is_switchtable: false
+    state: 1
+    is_center: true

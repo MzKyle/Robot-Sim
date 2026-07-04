@@ -13,12 +13,25 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}
 )
 
+foreach(robot_sim_asset_dir examples integrations)
+  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../../../${robot_sim_asset_dir}")
+    install(DIRECTORY
+      "${CMAKE_CURRENT_SOURCE_DIR}/../../../${robot_sim_asset_dir}"
+      DESTINATION share/${PROJECT_NAME}
+    )
+  endif()
+endforeach()
+
 install(PROGRAMS
   scripts/migrate_config
   scripts/profile_lint
   scripts/run_case
   scripts/run_suite
+  scripts/scaffold_adapter
+  scripts/scaffold_case
   scripts/scaffold_robot
+  scripts/scaffold_suite
+  scripts/scaffold_system
   DESTINATION lib/${PROJECT_NAME}
 )
 

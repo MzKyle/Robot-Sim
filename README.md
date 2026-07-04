@@ -135,8 +135,14 @@ External packages are discovered from:
 ```text
 share/<pkg>/robot_sim/profiles/*.yaml
 share/<pkg>/robot_sim/validation_cases/*.yaml
-share/<pkg>/robot_sim/scenes/*.yaml
+share/<pkg>/robot_sim/suites/*.yaml
+share/<pkg>/robot_sim/data_sources/*.yaml
+share/<pkg>/robot_sim/adapters/*.yaml
 ```
+
+The legacy `robot_sim/validation_suites` path is still accepted. Built-in
+robot examples live under `examples/robot_arm`; welding assets live under
+`integrations/welding`.
 
 ## Robot Scaffold
 
@@ -171,6 +177,10 @@ Installed commands:
 robot-sim-check
 robot-sim run-case --case industrial_fixture_to_pallet
 robot-sim scaffold-robot --package my_robot_sim --robot-name my_robot --output /tmp --joint-names joint_1 joint_2 joint_3 joint_4 joint_5 joint_6
+robot-sim scaffold-system --package my_robot_sim --name minimal_system --output /tmp
+robot-sim scaffold-case --package my_robot_sim --name smoke_case --system minimal_system --output /tmp
+robot-sim scaffold-suite --package my_robot_sim --name smoke_suite --case smoke_case --output /tmp
+robot-sim scaffold-adapter --package my_robot_sim --name smoke_adapter --output /tmp
 robot-sim sim_profile:=panda sim_mode:=light
 ```
 

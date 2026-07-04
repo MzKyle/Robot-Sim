@@ -1,0 +1,64 @@
+schema: 4
+kind: validation_case
+name: hand_eye_calibration_smoke
+description: Validate RM hand-eye calibration service contract using stubs.
+system:
+  profile: rm_vision_stub
+inputs:
+  - type: data_source
+    name: hand_eye_capture_stub
+    source: rm_hand_eye_capture
+  - type: data_source
+    name: hand_eye_reset_stub
+    source: rm_hand_eye_reset
+  - type: data_source
+    name: hand_eye_solve_stub
+    source: rm_hand_eye_solve
+actions:
+  - name: call_capture
+    type: service_call
+    service: /rm_hand_eye/capture
+    service_type: std_srvs/srv/Trigger
+    request: {}
+    timeout_sec: 3.0
+  - name: call_reset
+    type: service_call
+    service: /rm_hand_eye/reset
+    service_type: std_srvs/srv/Trigger
+    request: {}
+    timeout_sec: 3.0
+  - name: call_solve
+    type: service_call
+    service: /rm_hand_eye/solve
+    service_type: std_srvs/srv/Trigger
+    request: {}
+    timeout_sec: 3.0
+assertions:
+  - name: capture_returns_success
+    type: action_result
+    action: call_capture
+    expect:
+      ok:
+        equals: true
+      response.success:
+        equals: true
+  - name: reset_returns_success
+    type: action_result
+    action: call_reset
+    expect:
+      ok:
+        equals: true
+      response.success:
+        equals: true
+  - name: solve_returns_success
+    type: action_result
+    action: call_solve
+    expect:
+      ok:
+        equals: true
+      response.success:
+        equals: true
+artifacts:
+  rosbag:
+    enabled: false
+  reports: [md, html, json]

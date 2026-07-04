@@ -1,0 +1,11 @@
+schema: 4
+kind: system_profile
+name: rm_vision_stub
+description: RM vision interface smoke profile without Gazebo or robot hardware.
+metadata:
+  domain: vision
+  external_workspace: /home/kyle/RM/vision_dev
+system:
+  type: ros2_pipeline
+  startup_delay_sec: 0.0
+  processes: []

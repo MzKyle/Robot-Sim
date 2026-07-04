@@ -1,5 +1,7 @@
 import json
+import os
 from pathlib import Path
+import subprocess
 import sys
 
 import pytest
@@ -22,7 +24,7 @@ from robot_sim_bringup.module_adapter import (
 )
 from robot_sim_bringup.migrate_config import migrate_mapping_to_v4
 from robot_sim_bringup.module_runner import _matches_expectation
-from robot_sim_bringup.platform_assertions import matches_expectation
+from robot_sim_bringup.platform_assertions import assign_fields, matches_expectation
 from robot_sim_bringup.platform_adapter import (
     _proxy_request_fields,
     _proxy_response_fields,
@@ -30,6 +32,7 @@ from robot_sim_bringup.platform_adapter import (
 )
 from robot_sim_bringup.platform_config import (
     expand_suite_cases,
+    load_adapter_template,
     load_data_source,
     load_platform_validation_case,
     load_system_profile,
@@ -38,12 +41,28 @@ from robot_sim_bringup.platform_config import (
 from robot_sim_bringup.run_case import CommandRunner, FAILURE, _record_rosbag, run_case
 from robot_sim_bringup.run_suite import run_suite
 from robot_sim_bringup.scaffold_robot import scaffold_robot
+from robot_sim_bringup.scaffold_assets import (
+    scaffold_adapter,
+    scaffold_case,
+    scaffold_suite,
+    scaffold_system,
+)
 from robot_sim_bringup.task_runners import get_task_runner
 from robot_sim_bringup.validation_cases import (
     collision_primitives_from_scene,
     load_validation_case,
 )
-from robot_sim_bringup.registry import _candidate_roots, source_package_directory
+from robot_sim_bringup.registry import (
+    _candidate_roots,
+    resolve_adapter_path,
+    resolve_profile_path,
+    resolve_validation_case_path,
+    resolve_validation_suite_path,
+    source_package_directory,
+)
+
+
+REPO_ROOT = PACKAGE_ROOT.parents[2]
 
 
 def _write_gray_image(path: Path, value: int) -> None:
@@ -67,7 +86,7 @@ def test_industrial_profile_resolves_scene_world(tmp_path, monkeypatch):
         lambda name: str(fake_ros_gz) if name == "ros_gz_sim" else original_package_share(name),
     )
 
-    profile_path = PACKAGE_ROOT / "config" / "sim_profiles" / "fanuc_m20id12l_industrial_cell.yaml"
+    profile_path = resolve_profile_path("fanuc_m20id12l_industrial_cell")
     profile = load_sim_profile(
         profile_name="unused",
         profile_file=str(profile_path),
@@ -290,20 +309,40 @@ def test_module_validation_runner_dispatches_module_runner(tmp_path):
 
 
 def test_all_built_in_schema_files_validate():
-    for path in sorted((PACKAGE_ROOT / "config" / "sim_profiles").glob("*.yaml")):
+    profile_dirs = [
+        PACKAGE_ROOT / "config" / "sim_profiles",
+        REPO_ROOT / "examples" / "robot_arm" / "robot_sim" / "profiles",
+        REPO_ROOT / "examples" / "rm_vision" / "robot_sim" / "profiles",
+    ]
+    for path in sorted(path for directory in profile_dirs for path in directory.glob("*.yaml")):
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-        validate_config_schema(raw, "sim_profile.schema.json", "sim_profile", path)
-    for path in sorted((PACKAGE_ROOT / "config" / "validation_cases").glob("*.yaml")):
+        schema_name = "system_profile.schema.json" if raw.get("kind") == "system_profile" else "sim_profile.schema.json"
+        validate_config_schema(raw, schema_name, raw.get("kind", "profile"), path)
+    case_dirs = [
+        PACKAGE_ROOT / "config" / "validation_cases",
+        REPO_ROOT / "examples" / "robot_arm" / "robot_sim" / "validation_cases",
+        REPO_ROOT / "examples" / "rm_vision" / "robot_sim" / "validation_cases",
+        REPO_ROOT / "integrations" / "welding" / "robot_sim" / "validation_cases",
+    ]
+    for path in sorted(path for directory in case_dirs for path in directory.glob("*.yaml")):
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
         schema_name = "validation_case_v4.schema.json" if raw.get("schema") == 4 else "validation_case.schema.json"
         validate_config_schema(raw, schema_name, "validation_case", path)
     for path in sorted((PACKAGE_ROOT / "config" / "system_profiles").glob("*.yaml")):
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
         validate_config_schema(raw, "system_profile.schema.json", "system_profile", path)
-    for path in sorted((PACKAGE_ROOT / "config" / "validation_suites").glob("*.yaml")):
+    suite_dirs = [
+        PACKAGE_ROOT / "config" / "validation_suites",
+        REPO_ROOT / "examples" / "rm_vision" / "robot_sim" / "suites",
+    ]
+    for path in sorted(path for directory in suite_dirs for path in directory.glob("*.yaml")):
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
         validate_config_schema(raw, "validation_suite.schema.json", "validation_suite", path)
-    for path in sorted((PACKAGE_ROOT / "config" / "data_sources").glob("*.yaml")):
+    data_source_dirs = [
+        PACKAGE_ROOT / "config" / "data_sources",
+        REPO_ROOT / "examples" / "rm_vision" / "robot_sim" / "data_sources",
+    ]
+    for path in sorted(path for directory in data_source_dirs for path in directory.glob("*.yaml")):
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
         validate_config_schema(raw, "data_source.schema.json", "data_source", path)
 
@@ -317,6 +356,41 @@ def test_platform_v4_loads_system_profile_and_case():
     assert case["schema"] == 4
     assert case["system_profile"] == "minimal_pipeline"
     assert case["actions"][0]["command"][-1].endswith("unit')")
+
+
+def test_builtin_registry_resolves_migrated_domains():
+    assert "examples/robot_arm" in str(resolve_profile_path("panda"))
+    assert "examples/robot_arm" in str(resolve_validation_case_path("industrial_planning_goal"))
+    assert "integrations/welding" in str(resolve_validation_case_path("weld_pre_positioning_scan_and_move"))
+    assert "examples/rm_vision" in str(resolve_validation_suite_path("rm_vision_interface_smoke"))
+    assert "examples/rm_vision" in str(resolve_adapter_path("rm_vision_odom_camera_tf"))
+
+
+def test_adapter_ref_expands_builtin_template():
+    adapter = load_adapter_template("rm_vision_odom_camera_tf")
+    case = load_platform_validation_case("tracker_sim_target")
+
+    assert adapter["type"] == "tf_static_publisher"
+    assert case["inputs"][0]["type"] == "tf_static_publisher"
+    assert case["inputs"][0]["transforms"][0]["child_frame_id"] == "camera_optical_frame"
+
+
+def test_assign_fields_supports_nested_message_arrays():
+    from geometry_msgs.msg import PoseArray
+
+    msg = PoseArray()
+    assign_fields(msg, {
+        "header.frame_id": "odom",
+        "poses": [{
+            "position": {"x": 1.25, "y": -0.5, "z": 2.0},
+            "orientation": {"w": 1.0},
+        }],
+    })
+
+    assert msg.header.frame_id == "odom"
+    assert len(msg.poses) == 1
+    assert msg.poses[0].position.x == pytest.approx(1.25)
+    assert msg.poses[0].orientation.w == pytest.approx(1.0)
 
 
 def test_data_source_loader_and_case_input_expansion():
@@ -412,6 +486,33 @@ def test_external_data_source_package_discovery(tmp_path, monkeypatch):
 
     assert source["topic"] == "/status"
     assert source["messages"][0]["data"] == "OK"
+
+
+def test_external_suite_package_discovery_prefers_suites_dir(tmp_path, monkeypatch):
+    package = tmp_path / "mock_suite_pkg"
+    suite_dir = package / "robot_sim" / "suites"
+    suite_dir.mkdir(parents=True)
+    (suite_dir / "external_suite.yaml").write_text(
+        yaml.safe_dump({
+            "schema": 4,
+            "kind": "validation_suite",
+            "name": "external_suite",
+            "description": "External suite.",
+            "cases": ["generic_command_smoke"],
+            "execution": {"continue_on_failure": True},
+        }),
+        encoding="utf-8",
+    )
+    (package / "package.xml").write_text("<package format='3'><name>mock_suite_pkg</name></package>", encoding="utf-8")
+    monkeypatch.setattr(
+        "robot_sim_bringup.registry.package_share_directory",
+        lambda name: package if name == "mock_suite_pkg" else PACKAGE_ROOT,
+    )
+
+    suite = load_validation_suite("external_suite", suite_package="mock_suite_pkg")
+
+    assert suite["path"].endswith("robot_sim/suites/external_suite.yaml")
+    assert suite["cases"] == ["generic_command_smoke"]
 
 
 def test_validation_suite_expands_matrix():
@@ -539,7 +640,7 @@ def test_run_suite_executes_matrix_and_writes_junit(tmp_path):
 
 
 def test_sim_profile_schema_rejects_legacy_world_source(tmp_path):
-    source = PACKAGE_ROOT / "config" / "sim_profiles" / "panda.yaml"
+    source = resolve_profile_path("panda")
     raw = yaml.safe_load(source.read_text(encoding="utf-8"))
     raw["worlds"]["single"] = {
         "scenario": {
@@ -555,7 +656,8 @@ def test_sim_profile_schema_rejects_legacy_world_source(tmp_path):
 
 
 def test_schema_v2_reports_migration_hint(tmp_path):
-    raw = yaml.safe_load((PACKAGE_ROOT / "config" / "validation_cases" / "industrial_planning_goal.yaml").read_text(encoding="utf-8"))
+    source = resolve_validation_case_path("industrial_planning_goal")
+    raw = yaml.safe_load(source.read_text(encoding="utf-8"))
     raw["schema"] = 2
     path = tmp_path / "legacy_case.yaml"
     path.write_text(yaml.safe_dump(raw), encoding="utf-8")
@@ -565,7 +667,7 @@ def test_schema_v2_reports_migration_hint(tmp_path):
 
 
 def test_migrate_validation_case_v3_to_v4_schema():
-    source = PACKAGE_ROOT / "config" / "validation_cases" / "empty_motion.yaml"
+    source = resolve_validation_case_path("empty_motion")
     raw = yaml.safe_load(source.read_text(encoding="utf-8"))
 
     migrated = migrate_mapping_to_v4(raw, "validation_case", source)
@@ -576,7 +678,7 @@ def test_migrate_validation_case_v3_to_v4_schema():
 
 
 def test_validation_case_schema_rejects_unknown_adapter(tmp_path):
-    source = PACKAGE_ROOT / "config" / "validation_cases" / "weld_2d_lateral_correction_dry_run.yaml"
+    source = resolve_validation_case_path("weld_2d_lateral_correction_dry_run")
     raw = yaml.safe_load(source.read_text(encoding="utf-8"))
     raw["adapters"][0]["type"] = "not_an_adapter"
     path = tmp_path / "bad_module_case.yaml"
@@ -600,7 +702,7 @@ def test_module_topic_expectation_predicates():
 
 
 def test_validation_case_rejects_unknown_region(tmp_path):
-    source = PACKAGE_ROOT / "config" / "validation_cases" / "industrial_planning_goal.yaml"
+    source = resolve_validation_case_path("industrial_planning_goal")
     raw = yaml.safe_load(source.read_text(encoding="utf-8"))
     raw["task"]["goal_region"] = "missing_region"
     path = tmp_path / "bad_case.yaml"
@@ -705,7 +807,7 @@ def test_external_case_package_discovery(tmp_path, monkeypatch):
     package = tmp_path / "mock_robot_pkg"
     case_dir = package / "robot_sim" / "validation_cases"
     case_dir.mkdir(parents=True)
-    source = PACKAGE_ROOT / "config" / "validation_cases" / "empty_motion.yaml"
+    source = resolve_validation_case_path("empty_motion")
     (case_dir / "external_smoke.yaml").write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
     (package / "package.xml").write_text("<package format='3'><name>mock_robot_pkg</name></package>", encoding="utf-8")
     scenario_root = SRC_ROOT / "robot_sim_scenarios"
@@ -748,3 +850,53 @@ def test_scaffold_robot_outputs_schema_v3_package(tmp_path):
     validate_config_schema(profile_raw, "sim_profile.schema.json", "sim_profile", profile_path)
     validate_config_schema(case_raw, "validation_case.schema.json", "validation_case", case_path)
     assert profile_raw["capabilities"]["task_families"][:2] == ["empty_motion", "obstacle_clearance"]
+
+
+def test_scaffold_generic_assets_outputs_standard_package(tmp_path):
+    base = {
+        "package": "demo_asset_pkg",
+        "output": str(tmp_path),
+    }
+    system_path = scaffold_system(type("Args", (), {**base, "name": "minimal_system"})())
+    case_path = scaffold_case(type("Args", (), {**base, "name": "smoke_case", "system": "minimal_system"})())
+    suite_path = scaffold_suite(type("Args", (), {**base, "name": "smoke_suite", "case": "smoke_case"})())
+    adapter_path = scaffold_adapter(type("Args", (), {**base, "name": "smoke_adapter", "adapter_type": "process_supervisor"})())
+
+    system_raw = yaml.safe_load(system_path.read_text(encoding="utf-8"))
+    case_raw = yaml.safe_load(case_path.read_text(encoding="utf-8"))
+    suite_raw = yaml.safe_load(suite_path.read_text(encoding="utf-8"))
+    adapter_raw = yaml.safe_load(adapter_path.read_text(encoding="utf-8"))
+    validate_config_schema(system_raw, "system_profile.schema.json", "system_profile", system_path)
+    validate_config_schema(case_raw, "validation_case_v4.schema.json", "validation_case", case_path)
+    validate_config_schema(suite_raw, "validation_suite.schema.json", "validation_suite", suite_path)
+    assert adapter_raw["type"] == "process_supervisor"
+    assert (tmp_path / "demo_asset_pkg" / "robot_sim" / "data_sources").is_dir()
+    assert (tmp_path / "demo_asset_pkg" / "robot_sim" / "adapters").is_dir()
+
+
+def test_rm_vision_interface_smoke_suite_runs_when_workspace_available(tmp_path):
+    setup = Path(os.environ.get("RM_VISION_SETUP", "/home/kyle/RM/vision_dev/install/setup.bash"))
+    if not setup.exists():
+        pytest.skip(f"RM vision workspace setup not found: {setup}")
+
+    command = (
+        "set -e; "
+        "source /opt/ros/humble/setup.bash; "
+        f"source {setup}; "
+        f"PYTHONPATH={PACKAGE_ROOT}:{SRC_ROOT / 'robot_sim_scenarios'}:$PYTHONPATH "
+        "python3 -m robot_sim_bringup.run_suite "
+        f"--suite rm_vision_interface_smoke --output-dir {tmp_path} --no-rosbag"
+    )
+    result = subprocess.run(
+        ["bash", "-lc", command],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout
+    suite_dir = next(tmp_path.iterdir())
+    metrics = yaml.safe_load((suite_dir / "suite_metrics.json").read_text(encoding="utf-8"))
+    assert metrics["passed"] is True
+    assert metrics["case_count"] == 4
+    assert metrics["failed_count"] == 0

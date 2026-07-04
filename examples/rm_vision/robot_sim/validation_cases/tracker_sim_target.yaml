@@ -1,0 +1,31 @@
+schema: 4
+kind: validation_case
+name: tracker_sim_target
+description: Replay detector armors and validate the RM tracker target interface contract.
+system:
+  profile: rm_vision_stub
+inputs:
+  - type: adapter_ref
+    source: rm_vision_odom_camera_tf
+  - type: data_source
+    name: detector_armors_replay
+    source: rm_detector_armors_sample
+  - type: data_source
+    name: tracker_target_stub
+    source: rm_tracker_target_sample
+assertions:
+  - name: tracker_target_topic
+    type: topic
+    topic: /tracker/target
+    message_type: auto_aim_interfaces/msg/Target
+    min_count: 1
+    timeout_sec: 3.0
+    expect:
+      tracking:
+        equals: true
+      position.z:
+        min: 0.1
+artifacts:
+  rosbag:
+    enabled: false
+  reports: [md, html, json]

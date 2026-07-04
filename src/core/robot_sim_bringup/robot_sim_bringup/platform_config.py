@@ -7,6 +7,7 @@ from typing import Any, Mapping
 import yaml
 
 from robot_sim_bringup.registry import (
+    resolve_adapter_path,
     resolve_data_source_path,
     resolve_system_profile_path,
     resolve_validation_case_path,
@@ -40,7 +41,8 @@ def load_platform_validation_case(
         profile_raw = load_system_profile(resolved)["raw"]
 
     merged_system = _merge_system(profile_raw.get("system", {}), system_spec)
-    inputs, data_sources = _normalize_inputs(raw.get("inputs", []) or [], path.parent, parameters)
+    inputs, input_sources = _normalize_adapter_items(raw.get("inputs", []) or [], path.parent, parameters)
+    adapters, adapter_sources = _normalize_adapter_items(raw.get("adapters", []) or [], path.parent, parameters)
     return {
         "schema": 4,
         "kind": "validation_case",
@@ -51,8 +53,8 @@ def load_platform_validation_case(
         "system_profile_path": profile_path,
         "system": merged_system,
         "inputs": inputs,
-        "data_sources": data_sources,
-        "adapters": [_normalize_adapter(item) for item in raw.get("adapters", []) or []],
+        "data_sources": [*input_sources, *adapter_sources],
+        "adapters": adapters,
         "actions": [dict(item) for item in raw.get("actions", []) or []],
         "assertions": [dict(item) for item in raw.get("assertions", []) or []],
         "artifacts": _normalize_artifacts(raw.get("artifacts", {})),
@@ -100,6 +102,25 @@ def load_data_source(
     return normalized
 
 
+def load_adapter_template(
+    name_or_path: str | Path | Mapping[str, Any],
+    adapter_package: str = "",
+    parameters: Mapping[str, Any] | None = None,
+    base_dir: Path | None = None,
+) -> dict[str, Any]:
+    parameters = dict(parameters or {})
+    if isinstance(name_or_path, Mapping):
+        raw = dict(name_or_path)
+        source_path = ""
+    else:
+        resolved = resolve_adapter_path(name_or_path, adapter_package)
+        raw = _load_yaml_mapping(resolved, "adapter")
+        source_path = str(resolved)
+    raw = _apply_parameters(raw, parameters)
+    raw.setdefault("source_path", source_path)
+    return raw
+
+
 def load_validation_suite(name_or_path: str | Path, suite_package: str = "") -> dict[str, Any]:
     path = resolve_validation_suite_path(name_or_path, suite_package)
     raw = _load_yaml_mapping(path, "validation_suite")
@@ -145,24 +166,27 @@ def expand_suite_cases(suite: Mapping[str, Any]) -> list[dict[str, Any]]:
     return cases
 
 
-def _normalize_inputs(
-    raw_inputs: list[Any],
+def _normalize_adapter_items(
+    raw_items: list[Any],
     case_dir: Path,
     parameters: Mapping[str, Any],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    inputs: list[dict[str, Any]] = []
+    adapters: list[dict[str, Any]] = []
     data_sources: list[dict[str, Any]] = []
-    for item in raw_inputs:
+    for item in raw_items:
         if isinstance(item, Mapping) and str(item.get("type", "")) == "data_source":
             source_spec = item.get("source", item.get("name", ""))
             package = str(item.get("package", ""))
             source = load_data_source(source_spec, package, parameters, case_dir)
             adapter = _data_source_to_adapter(source, item)
-            inputs.append(_normalize_adapter(adapter))
+            adapters.append(_normalize_adapter(adapter))
             data_sources.append(_data_source_summary(source, adapter))
+        elif isinstance(item, Mapping) and str(item.get("type", "")) == "adapter_ref":
+            adapter = _adapter_ref_to_adapter(item, case_dir, parameters)
+            adapters.append(_normalize_adapter(adapter))
         else:
-            inputs.append(_normalize_adapter(item))
-    return inputs, data_sources
+            adapters.append(_normalize_adapter(item))
+    return adapters, data_sources
 
 
 def _matrix_parameters(raw: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -218,6 +242,40 @@ def _normalize_adapter(item: Mapping[str, Any]) -> dict[str, Any]:
     result = dict(item)
     result["name"] = str(result.get("name") or result.get("type", "adapter"))
     result["type"] = str(result.get("type", ""))
+    return result
+
+
+def _adapter_ref_to_adapter(
+    item: Mapping[str, Any],
+    case_dir: Path,
+    parameters: Mapping[str, Any],
+) -> dict[str, Any]:
+    source_spec = item.get("source", item.get("name", ""))
+    package = str(item.get("package", ""))
+    template = load_adapter_template(source_spec, package, parameters, case_dir)
+    template = {
+        str(key): value
+        for key, value in template.items()
+        if key not in ("schema", "kind", "description", "source_path")
+    }
+    overrides = dict(item.get("overrides", {}) or {})
+    for key, value in item.items():
+        if key not in ("type", "source", "package", "overrides") and key not in overrides:
+            overrides[str(key)] = value
+    return _deep_merge(template, overrides)
+
+
+def _deep_merge(base: Mapping[str, Any], override: Mapping[str, Any]) -> dict[str, Any]:
+    result = dict(base)
+    for key, value in dict(override or {}).items():
+        if (
+            key in result
+            and isinstance(result[key], Mapping)
+            and isinstance(value, Mapping)
+        ):
+            result[key] = _deep_merge(result[key], value)
+        else:
+            result[key] = value
     return result
 
 

@@ -1,0 +1,10 @@
+schema: 4
+kind: data_source
+name: rm_hand_eye_capture
+description: Stub RM hand-eye capture service.
+type: service_source
+service: /rm_hand_eye/capture
+service_type: std_srvs/srv/Trigger
+response:
+  success: true
+  message: capture accepted
