@@ -123,31 +123,37 @@ def _run_tf_to_tcp_pos(config: Mapping[str, Any]) -> None:
 
 
 def _run_scan3d_service(config: Mapping[str, Any]) -> None:
-    import numpy as np
     import rclpy
 
     Scan3d = _get_service(str(config.get("service_type", "weld_interface/srv/Scan3d")))
     TcpPos = _get_message("weld_interface/msg/TcpPos")
     service_name = str(config.get("service", "/scan_3d"))
     source = _mapping(config.get("source", {}))
-    image_array, points_array, frame_info = _load_scan3d_source(source)
-    image_frame = str(source.get("image_frame_id") or frame_info.get("image_frame_id") or "camera_frame")
-    cloud_frame = str(source.get("point_cloud_frame_id") or frame_info.get("point_cloud_frame_id") or "camera")
-    scan_pose = _pose_dict(source.get("scan_pose", {}))
+    frames, frame_policy = _load_scan3d_frames(source)
+    frame_state = {"next": 0}
 
     rclpy.init(args=None)
     node = rclpy.create_node(str(config.get("node_name", "robot_sim_scan3d_service")))
 
     def callback(_request, response):
+        frame = _select_scan3d_frame(frames, frame_policy, frame_state)
         stamp = node.get_clock().now().to_msg()
-        response.image = _image_message(image_array, stamp, image_frame)
-        response.points = _point_cloud2_message(points_array, stamp, cloud_frame)
-        response.scan_pose = _tcp_pos_message(TcpPos, node, scan_pose, "world")
+        response.image = _image_message(frame["image"], stamp, str(frame["image_frame_id"]))
+        response.points = _point_cloud2_message(frame["points"], stamp, str(frame["point_cloud_frame_id"]))
+        response.scan_pose = _tcp_pos_message(TcpPos, node, frame["scan_pose"], "world")
+        node.get_logger().info(
+            "scan3d_service served "
+            f"source={frame['data_source']} frame_index={frame['frame_index']} "
+            f"image={frame.get('image_path', '')} cloud={frame.get('point_cloud_path', '')}"
+        )
         return response
 
     node.create_service(Scan3d, service_name, callback)
+    first = frames[0]
     node.get_logger().info(
-        f"scan3d_service ready on {service_name}: image={image_array.shape} points={points_array.shape}"
+        "scan3d_service ready on "
+        f"{service_name}: policy={frame_policy} frames={len(frames)} "
+        f"source={first['data_source']} image={first['image'].shape} points={first['points'].shape}"
     )
     try:
         rclpy.spin(node)
@@ -338,16 +344,110 @@ def _execute_moveit_target(service_node, config: Mapping[str, Any], case_file: s
         worker_node.destroy_node()
 
 
-def _load_scan3d_source(source: Mapping[str, Any]):
-    import numpy as np
+def scan3d_source_summary(config: Mapping[str, Any]) -> dict[str, Any]:
+    if str(config.get("type", "")) != "scan3d_service":
+        return {}
+    source = _mapping(config.get("source", {}))
+    descriptors, frame_policy = _scan3d_frame_descriptors(source)
+    selected = _selected_descriptor_indices(descriptors, frame_policy, source)
+    return {
+        "adapter": str(config.get("name") or config.get("type", "")),
+        "type": "scan3d_service",
+        "service": str(config.get("service", "/scan_3d")),
+        "source_type": str(source.get("type", "replay")),
+        "frame_policy": frame_policy,
+        "frame_count": len(descriptors),
+        "selected_indices": selected,
+        "frames": [_frame_summary(descriptors[index]) for index in selected],
+    }
 
+
+def _load_scan3d_source(source: Mapping[str, Any]):
+    frames, _policy = _load_scan3d_frames(source)
+    first = frames[0]
+    return first["image"], first["points"], first["frame_info"]
+
+
+def _load_scan3d_frames(source: Mapping[str, Any]) -> tuple[list[dict[str, Any]], str]:
+    descriptors, frame_policy = _scan3d_frame_descriptors(source)
+    selected = _selected_descriptor_indices(descriptors, frame_policy, source)
+    frames = [_materialize_scan3d_frame(descriptors[index], index) for index in selected]
+    if not frames:
+        raise RuntimeError("scan3d source did not produce any frames")
+    return frames, frame_policy
+
+
+def _scan3d_frame_descriptors(source: Mapping[str, Any]) -> tuple[list[dict[str, Any]], str]:
     source_type = str(source.get("type", "replay"))
-    if source_type not in ("replay", "gazebo_rgbd"):
-        raise RuntimeError(f"scan3d_service source.type must be replay or gazebo_rgbd; got {source_type!r}")
+    if source_type not in ("replay", "dataset", "gazebo_rgbd"):
+        raise RuntimeError(
+            f"scan3d_service source.type must be replay, dataset, or gazebo_rgbd; got {source_type!r}"
+        )
     if source_type == "gazebo_rgbd":
         raise RuntimeError("scan3d_service gazebo_rgbd source is reserved for the next adapter revision")
 
-    record_path = Path(str(source.get("record_path", ""))).expanduser()
+    frame_policy = str(source.get("frame_policy", "first"))
+    if frame_policy not in ("first", "index", "sequential"):
+        raise RuntimeError(f"scan3d_service frame_policy must be first, index, or sequential; got {frame_policy!r}")
+
+    if source_type == "replay":
+        record_path = Path(str(source.get("record_path", ""))).expanduser()
+        return [_replay_scan3d_descriptor(source, record_path, "replay")], frame_policy
+
+    descriptors = _dataset_scan3d_descriptors(source)
+    if descriptors:
+        return descriptors, frame_policy
+
+    fallback_path = str(source.get("fallback_record_path", "")).strip()
+    if fallback_path:
+        return [_replay_scan3d_descriptor(source, Path(fallback_path).expanduser(), "fallback_replay")], frame_policy
+
+    dataset_dir = Path(str(source.get("dataset_dir", ""))).expanduser()
+    raise RuntimeError(f"scan3d dataset contains no usable frames and has no fallback_record_path: {dataset_dir}")
+
+
+def _dataset_scan3d_descriptors(source: Mapping[str, Any]) -> list[dict[str, Any]]:
+    dataset_dir = Path(str(source.get("dataset_dir", ""))).expanduser()
+    if not dataset_dir.exists() or not dataset_dir.is_dir():
+        return []
+
+    descriptors: list[dict[str, Any]] = []
+    record_glob = str(source.get("record_glob", "*.json"))
+    for record_path in sorted(dataset_dir.glob(record_glob)):
+        if not record_path.is_file():
+            continue
+        try:
+            descriptors.append(_replay_scan3d_descriptor(source, record_path, "real_image_real_cloud"))
+        except Exception:
+            continue
+    if descriptors:
+        return descriptors
+
+    image_glob = str(source.get("image_glob", "*.png"))
+    for image_path in sorted(dataset_dir.glob(image_glob)):
+        if not image_path.is_file():
+            continue
+        points_path = image_path.with_suffix(".npz")
+        if points_path.exists():
+            data_source = "real_image_real_cloud"
+            descriptor_points_path = points_path
+        else:
+            data_source = "real_image_synthetic_cloud"
+            descriptor_points_path = None
+        descriptors.append({
+            "source": source,
+            "data_source": data_source,
+            "record_path": None,
+            "record": {},
+            "image_path": image_path,
+            "points_path": descriptor_points_path,
+            "synthetic_point_cloud": _synthetic_cloud_params(source),
+        })
+    return descriptors
+
+
+def _replay_scan3d_descriptor(source: Mapping[str, Any], record_path: Path, data_source: str) -> dict[str, Any]:
+    record_path = record_path.expanduser()
     if not record_path.exists():
         raise RuntimeError(f"scan3d replay record does not exist: {record_path}")
     record = _load_mapping(record_path)
@@ -357,17 +457,86 @@ def _load_scan3d_source(source: Mapping[str, Any]):
         raise RuntimeError(f"scan3d replay image does not exist: {image_path}")
     if not points_path.exists():
         raise RuntimeError(f"scan3d replay point cloud does not exist: {points_path}")
-    image = _read_image(image_path)
-    data = np.load(points_path)
-    if "points" not in data:
-        raise RuntimeError(f"scan3d replay point cloud npz missing 'points': {points_path}")
-    points = np.ascontiguousarray(data["points"], dtype=np.float32)
-    if points.ndim != 3 or points.shape[2] != 3:
-        raise RuntimeError(f"scan3d replay points must have shape (H, W, 3): {points.shape}")
-    return image, points, record
+    return {
+        "source": source,
+        "data_source": data_source,
+        "record_path": record_path,
+        "record": record,
+        "image_path": image_path,
+        "points_path": points_path,
+        "synthetic_point_cloud": {},
+    }
 
 
-def _read_image(path: Path):
+def _selected_descriptor_indices(
+    descriptors: list[dict[str, Any]], frame_policy: str, source: Mapping[str, Any]
+) -> list[int]:
+    if not descriptors:
+        return []
+    if frame_policy == "sequential":
+        return list(range(len(descriptors)))
+    if frame_policy == "index":
+        frame_index = int(source.get("frame_index", 0))
+        if frame_index < 0 or frame_index >= len(descriptors):
+            raise RuntimeError(
+                f"scan3d frame_index {frame_index} out of range for {len(descriptors)} dataset frame(s)"
+            )
+        return [frame_index]
+    return [0]
+
+
+def _materialize_scan3d_frame(descriptor: Mapping[str, Any], frame_index: int) -> dict[str, Any]:
+    import numpy as np
+
+    source = _mapping(descriptor.get("source", {}))
+    record = _mapping(descriptor.get("record", {}))
+    image_path = Path(str(descriptor["image_path"])).expanduser()
+    points_path = descriptor.get("points_path")
+    image = _read_image(image_path, force_bgr=bool(source.get("force_bgr", True)))
+    if points_path:
+        points = _read_points_npz(Path(str(points_path)).expanduser(), image.shape[:2])
+    else:
+        points = _build_synthetic_point_cloud(image.shape[:2], _mapping(descriptor.get("synthetic_point_cloud", {})))
+    frame_info = dict(record)
+    frame_info.update(_frame_summary(descriptor))
+    frame_info["image_height"] = int(image.shape[0])
+    frame_info["image_width"] = int(image.shape[1])
+    frame_info["point_cloud_height"] = int(points.shape[0])
+    frame_info["point_cloud_width"] = int(points.shape[1])
+    scan_pose = _pose_dict(source.get("scan_pose") or record.get("scan_pose") or {})
+    return {
+        "data_source": str(descriptor.get("data_source", "")),
+        "frame_index": frame_index,
+        "frame_info": frame_info,
+        "image": image,
+        "points": np.ascontiguousarray(points, dtype=np.float32),
+        "image_path": str(image_path),
+        "point_cloud_path": str(points_path or ""),
+        "image_frame_id": _frame_id(source, record, "image_frame_id", ("image", "frame_id"), "camera_frame"),
+        "point_cloud_frame_id": _frame_id(
+            source,
+            record,
+            "point_cloud_frame_id",
+            ("points", "frame_id"),
+            "camera",
+        ),
+        "scan_pose": scan_pose,
+    }
+
+
+def _select_scan3d_frame(
+    frames: list[dict[str, Any]], frame_policy: str, frame_state: dict[str, int]
+) -> dict[str, Any]:
+    if not frames:
+        raise RuntimeError("scan3d service has no loaded frames")
+    if frame_policy == "sequential":
+        index = frame_state["next"] % len(frames)
+        frame_state["next"] += 1
+        return frames[index]
+    return frames[0]
+
+
+def _read_image(path: Path, force_bgr: bool = True):
     import numpy as np
 
     try:
@@ -378,10 +547,83 @@ def _read_image(path: Path):
     if image is None:
         raise RuntimeError(f"failed to read image: {path}")
     if image.ndim == 2:
+        if force_bgr:
+            return np.ascontiguousarray(cv2.cvtColor(image, cv2.COLOR_GRAY2BGR))
         return np.ascontiguousarray(image)
     if image.shape[2] == 4:
         image = image[:, :, :3]
     return np.ascontiguousarray(image)
+
+
+def _read_points_npz(path: Path, image_shape: tuple[int, int]):
+    import numpy as np
+
+    data = np.load(path)
+    if "points" not in data:
+        raise RuntimeError(f"scan3d point cloud npz missing 'points': {path}")
+    points = np.ascontiguousarray(data["points"], dtype=np.float32)
+    if points.ndim == 2 and points.shape[1] == 3:
+        height, width = image_shape
+        if points.shape[0] != height * width:
+            raise RuntimeError(
+                f"scan3d flat point cloud cannot reshape to image size {height}x{width}: {points.shape}"
+            )
+        points = points.reshape((height, width, 3))
+    if points.ndim != 3 or points.shape[2] != 3:
+        raise RuntimeError(f"scan3d point cloud must have shape (H, W, 3): {points.shape}")
+    return np.ascontiguousarray(points, dtype=np.float32)
+
+
+def _build_synthetic_point_cloud(image_shape: tuple[int, int], params: Mapping[str, Any]):
+    import numpy as np
+
+    height, width = image_shape
+    x_span = float(params.get("x_span_m", 1.2))
+    y_span = float(params.get("y_span_m", 0.9))
+    z_m = float(params.get("z_m", 0.88))
+    xs = np.linspace(-0.5 * x_span, 0.5 * x_span, width, dtype=np.float32)
+    ys = np.linspace(-0.5 * y_span, 0.5 * y_span, height, dtype=np.float32)
+    x_grid, y_grid = np.meshgrid(xs, ys)
+    z_grid = np.full((height, width), z_m, dtype=np.float32)
+    return np.ascontiguousarray(np.dstack((x_grid, y_grid, z_grid)), dtype=np.float32)
+
+
+def _synthetic_cloud_params(source: Mapping[str, Any]) -> dict[str, float]:
+    nested = _mapping(source.get("synthetic_point_cloud", {}))
+    return {
+        "x_span_m": float(nested.get("x_span_m", source.get("x_span_m", 1.2))),
+        "y_span_m": float(nested.get("y_span_m", source.get("y_span_m", 0.9))),
+        "z_m": float(nested.get("z_m", source.get("z_m", 0.88))),
+    }
+
+
+def _frame_id(
+    source: Mapping[str, Any],
+    record: Mapping[str, Any],
+    flat_key: str,
+    nested: tuple[str, str],
+    default: str,
+) -> str:
+    if source.get(flat_key):
+        return str(source[flat_key])
+    if record.get(flat_key):
+        return str(record[flat_key])
+    nested_parent = _mapping(record.get(nested[0], {}))
+    return str(nested_parent.get(nested[1], default))
+
+
+def _frame_summary(descriptor: Mapping[str, Any]) -> dict[str, Any]:
+    points_path = descriptor.get("points_path")
+    summary = {
+        "data_source": str(descriptor.get("data_source", "")),
+        "record_path": str(descriptor.get("record_path") or ""),
+        "image_path": str(descriptor.get("image_path") or ""),
+        "point_cloud_path": str(points_path or ""),
+        "point_cloud_source": "real" if points_path else "synthetic",
+    }
+    if not points_path:
+        summary["synthetic_point_cloud"] = dict(descriptor.get("synthetic_point_cloud", {}))
+    return summary
 
 
 def _resolve_scan_path(record_path: Path, record: Mapping[str, Any], key: str, nested: tuple[str, str]) -> Path:

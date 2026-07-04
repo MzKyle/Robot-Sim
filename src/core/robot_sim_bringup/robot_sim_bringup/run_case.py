@@ -124,6 +124,7 @@ def run_case(args, runner):
         "module_topics": [],
         "module_events": [],
         "module_failures": [],
+        "adapter_data_sources": [],
     }
     sim_process = None
     bag_process = None
@@ -617,6 +618,7 @@ def _validation_metrics_summary(validation_metrics):
         "module_topics": validation_metrics.get("module_topics", []),
         "module_events": validation_metrics.get("module_events", []),
         "module_failures": validation_metrics.get("module_failures", []),
+        "adapter_data_sources": validation_metrics.get("adapter_data_sources", []),
     }
 
 
@@ -703,6 +705,19 @@ def _render_markdown_report(manifest, metrics):
             lines.append(
                 f"| {adapter.get('name', '')} | {adapter.get('type', '')} | {adapter.get('status', '')} | `{adapter.get('log', '')}` |"
             )
+        if metrics.get("adapter_data_sources"):
+            lines.extend([
+                "",
+                "| Adapter Data Source | Policy | Frame | Image | Point Cloud |",
+                "| --- | --- | --- | --- | --- |",
+            ])
+            for source in metrics.get("adapter_data_sources", []):
+                for frame in source.get("frames", []):
+                    point_cloud = _point_cloud_report_text(frame)
+                    lines.append(
+                        f"| {source.get('adapter', '')} | {source.get('frame_policy', '')} | "
+                        f"{frame.get('data_source', '')} | `{frame.get('image_path', '')}` | `{point_cloud}` |"
+                    )
         lines.extend([
             "",
             "| Service/Action | Type | OK | Duration |",
@@ -838,8 +853,23 @@ def _has_module_metrics(metrics):
             "module_topics",
             "module_events",
             "module_failures",
+            "adapter_data_sources",
         )
     )
+
+
+def _point_cloud_report_text(frame):
+    if frame.get("point_cloud_path"):
+        return str(frame["point_cloud_path"])
+    if frame.get("point_cloud_source") == "synthetic":
+        params = frame.get("synthetic_point_cloud", {})
+        return (
+            "synthetic"
+            f" x_span_m={params.get('x_span_m', '')}"
+            f" y_span_m={params.get('y_span_m', '')}"
+            f" z_m={params.get('z_m', '')}"
+        )
+    return str(frame.get("point_cloud_source", ""))
 
 
 def _load_json_file(path):

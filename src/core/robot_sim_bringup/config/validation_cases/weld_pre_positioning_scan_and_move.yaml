@@ -78,12 +78,18 @@ adapters:
       rx: 3.14159
       ry: 0.0
       rz: 0.0
-  - name: replay_scan3d
+  - name: dataset_scan3d
     type: scan3d_service
     service: /scan_3d
     source:
-      type: replay
-      record_path: /home/kyle/sany/ROS2_Motion_Planner/debug_data/coarse_localization_offline/sam2_template_captures/scan3d_20260626_143237.json
+      type: dataset
+      dataset_dir: /home/kyle/sany/data/3dcamera_2d_img
+      image_glob: "*.png"
+      frame_policy: first
+      fallback_record_path: /home/kyle/sany/ROS2_Motion_Planner/debug_data/coarse_localization_offline/sam2_template_captures/scan3d_20260626_143237.json
+      x_span_m: 1.2
+      y_span_m: 0.9
+      z_m: 0.88
       image_frame_id: camera_frame
       point_cloud_frame_id: camera_frame
       scan_pose:

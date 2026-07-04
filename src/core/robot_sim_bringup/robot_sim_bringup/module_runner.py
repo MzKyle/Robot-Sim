@@ -13,7 +13,7 @@ from typing import Any, Mapping
 
 import yaml
 
-from robot_sim_bringup.module_adapter import preflight_adapter
+from robot_sim_bringup.module_adapter import preflight_adapter, scan3d_source_summary
 from robot_sim_bringup.validation_cases import load_validation_case
 
 
@@ -67,6 +67,7 @@ def run_module_validation(args) -> dict[str, Any]:
         "module_topics": [],
         "module_events": [],
         "module_failures": [],
+        "adapter_data_sources": [],
         "business_actions": _business_actions(case),
     }
     processes: list[tuple[str, subprocess.Popen]] = []
@@ -78,6 +79,9 @@ def run_module_validation(args) -> dict[str, Any]:
             adapter_file = adapter_dir / f"{_safe_id(adapter_config.get('name') or adapter_config.get('type'))}.yaml"
             _write_yaml(adapter_file, adapter_config)
             log_path = logs_dir / f"adapter_{_safe_id(adapter_config.get('name') or adapter_config.get('type'))}.log"
+            source_summary = _adapter_source_summary(adapter_config)
+            if source_summary:
+                metrics["adapter_data_sources"].append(source_summary)
             command = [
                 sys.executable,
                 "-m",
@@ -93,6 +97,7 @@ def run_module_validation(args) -> dict[str, Any]:
                 "type": str(adapter_config.get("type", "")),
                 "log": str(log_path),
                 "status": "STARTED",
+                "source": source_summary,
             })
 
         _sleep_and_check(processes, metrics, 2.0)
@@ -157,6 +162,12 @@ def _module_process_specs(module: Mapping[str, Any]) -> list[dict[str, Any]]:
             "env": _merged_env(item.get("env", {})),
         })
     return specs
+
+
+def _adapter_source_summary(adapter_config: Mapping[str, Any]) -> dict[str, Any]:
+    if str(adapter_config.get("type", "")) != "scan3d_service":
+        return {}
+    return scan3d_source_summary(adapter_config)
 
 
 def _run_action(action: Mapping[str, Any], default_timeout: float, metrics: dict[str, Any]) -> None:

@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 import sys
 
@@ -12,7 +13,13 @@ sys.path.insert(0, str(SRC_ROOT / "robot_sim_scenarios"))
 
 from robot_sim_bringup.sim_config_loader import load_sim_profile
 from robot_sim_bringup.schema_validation import validate_config_schema
-from robot_sim_bringup.module_adapter import adapter_dependencies
+from robot_sim_bringup.module_adapter import (
+    _image_message,
+    _load_scan3d_frames,
+    _point_cloud2_message,
+    _select_scan3d_frame,
+    adapter_dependencies,
+)
 from robot_sim_bringup.module_runner import _matches_expectation
 from robot_sim_bringup.run_case import FAILURE, _record_rosbag, run_case
 from robot_sim_bringup.scaffold_robot import scaffold_robot
@@ -22,6 +29,13 @@ from robot_sim_bringup.validation_cases import (
     load_validation_case,
 )
 from robot_sim_bringup.registry import _candidate_roots, source_package_directory
+
+
+def _write_gray_image(path: Path, value: int) -> None:
+    cv2 = pytest.importorskip("cv2")
+    np = pytest.importorskip("numpy")
+    image = np.full((3, 4), value, dtype=np.uint8)
+    assert cv2.imwrite(str(path), image)
 
 
 def test_industrial_profile_resolves_scene_world(tmp_path, monkeypatch):
@@ -95,10 +109,145 @@ def test_module_validation_case_loads_external_contract():
         "moveit_pose_service",
         "loop_motion_services",
     ]
+    scan_adapter = next(adapter for adapter in case["adapters"] if adapter["type"] == "scan3d_service")
+    assert scan_adapter["name"] == "dataset_scan3d"
+    assert scan_adapter["source"]["type"] == "dataset"
+    assert scan_adapter["source"]["dataset_dir"] == "/home/kyle/sany/data/3dcamera_2d_img"
+    assert scan_adapter["source"]["frame_policy"] == "first"
+    assert scan_adapter["source"]["fallback_record_path"].endswith("scan3d_20260626_143237.json")
     assert case["expect"]["module"]["required_actions"] == [
         "scan_and_detect",
         "move_to_detected",
     ]
+
+
+def test_scan3d_dataset_uses_real_image_and_real_cloud(tmp_path):
+    np = pytest.importorskip("numpy")
+    _write_gray_image(tmp_path / "1.png", 7)
+    points = np.arange(3 * 4 * 3, dtype=np.float32).reshape((3, 4, 3))
+    np.savez_compressed(tmp_path / "1.npz", points=points)
+
+    frames, policy = _load_scan3d_frames({
+        "type": "dataset",
+        "dataset_dir": str(tmp_path),
+        "image_glob": "*.png",
+    })
+
+    assert policy == "first"
+    assert len(frames) == 1
+    assert frames[0]["data_source"] == "real_image_real_cloud"
+    assert frames[0]["image"].shape == (3, 4, 3)
+    assert frames[0]["frame_info"]["point_cloud_source"] == "real"
+    assert frames[0]["frame_info"]["image_path"].endswith("1.png")
+    assert frames[0]["frame_info"]["point_cloud_path"].endswith("1.npz")
+    assert np.allclose(frames[0]["points"], points)
+
+
+def test_scan3d_dataset_synthesizes_cloud_when_only_image_exists(tmp_path):
+    np = pytest.importorskip("numpy")
+    _write_gray_image(tmp_path / "1.png", 17)
+
+    frames, _policy = _load_scan3d_frames({
+        "type": "dataset",
+        "dataset_dir": str(tmp_path),
+        "image_glob": "*.png",
+        "x_span_m": 2.0,
+        "y_span_m": 0.5,
+        "z_m": 0.75,
+    })
+
+    frame = frames[0]
+    assert frame["data_source"] == "real_image_synthetic_cloud"
+    assert frame["image"].shape == (3, 4, 3)
+    assert frame["points"].shape == (3, 4, 3)
+    assert frame["frame_info"]["point_cloud_source"] == "synthetic"
+    assert np.isclose(frame["points"][0, 0, 0], -1.0)
+    assert np.isclose(frame["points"][-1, -1, 0], 1.0)
+    assert np.isclose(frame["points"][0, 0, 1], -0.25)
+    assert np.isclose(frame["points"][-1, -1, 1], 0.25)
+    assert np.allclose(frame["points"][:, :, 2], 0.75)
+
+
+def test_scan3d_dataset_falls_back_to_replay_when_no_images(tmp_path):
+    np = pytest.importorskip("numpy")
+    dataset_dir = tmp_path / "dataset"
+    fallback_dir = tmp_path / "fallback"
+    dataset_dir.mkdir()
+    fallback_dir.mkdir()
+    _write_gray_image(fallback_dir / "scan.png", 33)
+    points = np.ones((3, 4, 3), dtype=np.float32)
+    np.savez_compressed(fallback_dir / "scan.npz", points=points)
+    record_path = fallback_dir / "scan.json"
+    record_path.write_text(
+        json.dumps({
+            "image_path": "scan.png",
+            "point_cloud_path": "scan.npz",
+            "image_frame_id": "camera_frame",
+            "point_cloud_frame_id": "camera_frame",
+        }),
+        encoding="utf-8",
+    )
+
+    frames, _policy = _load_scan3d_frames({
+        "type": "dataset",
+        "dataset_dir": str(dataset_dir),
+        "fallback_record_path": str(record_path),
+    })
+
+    assert len(frames) == 1
+    assert frames[0]["data_source"] == "fallback_replay"
+    assert frames[0]["frame_info"]["record_path"].endswith("scan.json")
+    assert frames[0]["point_cloud_frame_id"] == "camera_frame"
+
+
+def test_scan3d_dataset_frame_policy_index_and_sequential(tmp_path):
+    _write_gray_image(tmp_path / "1.png", 11)
+    _write_gray_image(tmp_path / "2.png", 22)
+
+    index_frames, index_policy = _load_scan3d_frames({
+        "type": "dataset",
+        "dataset_dir": str(tmp_path),
+        "image_glob": "*.png",
+        "frame_policy": "index",
+        "frame_index": 1,
+    })
+    assert index_policy == "index"
+    assert len(index_frames) == 1
+    assert index_frames[0]["image_path"].endswith("2.png")
+
+    sequential_frames, sequential_policy = _load_scan3d_frames({
+        "type": "dataset",
+        "dataset_dir": str(tmp_path),
+        "image_glob": "*.png",
+        "frame_policy": "sequential",
+    })
+    state = {"next": 0}
+    assert sequential_policy == "sequential"
+    assert _select_scan3d_frame(sequential_frames, sequential_policy, state)["image_path"].endswith("1.png")
+    assert _select_scan3d_frame(sequential_frames, sequential_policy, state)["image_path"].endswith("2.png")
+    assert _select_scan3d_frame(sequential_frames, sequential_policy, state)["image_path"].endswith("1.png")
+
+
+def test_scan3d_messages_use_bgr8_and_matching_pointcloud_dimensions(tmp_path):
+    from builtin_interfaces.msg import Time
+
+    _write_gray_image(tmp_path / "1.png", 44)
+    frames, _policy = _load_scan3d_frames({
+        "type": "dataset",
+        "dataset_dir": str(tmp_path),
+        "image_glob": "*.png",
+    })
+
+    image_msg = _image_message(frames[0]["image"], Time(), "camera_frame")
+    cloud_msg = _point_cloud2_message(frames[0]["points"], Time(), "camera_frame")
+
+    assert image_msg.encoding == "bgr8"
+    assert image_msg.height == 3
+    assert image_msg.width == 4
+    assert image_msg.step == 12
+    assert cloud_msg.height == 3
+    assert cloud_msg.width == 4
+    assert cloud_msg.row_step == 48
 
 
 def test_module_validation_runner_dispatches_module_runner(tmp_path):
