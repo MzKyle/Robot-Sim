@@ -46,7 +46,11 @@ def run_platform_case(
     adapter_dir = run_dir / "adapters"
     adapter_dir.mkdir(parents=True, exist_ok=True)
     rosbag_dir = run_dir / "rosbag"
+    evaluator_dir = run_dir / "evaluators"
+    evaluator_dir.mkdir(parents=True, exist_ok=True)
     effective_case_file = _write_yaml(run_dir / "effective_case.yaml", case["raw"])
+    metrics_path = run_dir / "metrics.json"
+    manifest_path = run_dir / "manifest.json"
 
     manifest = _initial_manifest(case, run_dir, args)
     metrics: dict[str, Any] = {
@@ -60,10 +64,12 @@ def run_platform_case(
         "data_sources": list(case.get("data_sources", [])),
         "actions": [],
         "assertions": [],
+        "evaluators": [],
         "artifacts": {
             "run_dir": str(run_dir),
             "logs_dir": str(logs_dir),
             "rosbag_dir": str(rosbag_dir),
+            "evaluator_dir": str(evaluator_dir),
         },
     }
     processes: list[tuple[str, subprocess.Popen]] = []
@@ -73,7 +79,7 @@ def run_platform_case(
     process_results: dict[str, Any] = {}
 
     try:
-        _write_json(run_dir / "manifest.json", manifest)
+        _write_json(manifest_path, manifest)
         _record_manual_step(metrics, "load_config", True, "schema v4 platform case loaded", effective_case_file)
 
         _preflight_case(case)
@@ -124,6 +130,27 @@ def run_platform_case(
         if failures:
             raise RuntimeError("assertion failed: " + failures[0]["name"])
 
+        for evaluator in case.get("evaluators", []):
+            _write_json(metrics_path, metrics)
+            result = _run_evaluator(
+                runner,
+                evaluator,
+                run_dir,
+                logs_dir,
+                rosbag_dir,
+                metrics_path,
+                manifest_path,
+                effective_case_file,
+            )
+            metrics["evaluators"].append(result)
+
+        evaluator_failures = [
+            item for item in metrics["evaluators"]
+            if item.get("required", True) and not item.get("ok", False)
+        ]
+        if evaluator_failures:
+            raise RuntimeError("evaluator failed: " + evaluator_failures[0]["name"])
+
         metrics["passed"] = True
         exit_code = SUCCESS
         return SUCCESS
@@ -141,8 +168,8 @@ def run_platform_case(
         manifest["passed"] = metrics.get("passed", False)
         manifest["exit_code"] = exit_code
         manifest["artifacts"] = _artifact_manifest(run_dir)
-        _write_json(run_dir / "metrics.json", metrics)
-        _write_json(run_dir / "manifest.json", manifest)
+        _write_json(metrics_path, metrics)
+        _write_json(manifest_path, manifest)
         _write_reports(run_dir, manifest, metrics)
         print(f"Artifacts: {run_dir}")
 
@@ -383,6 +410,145 @@ def _record_rosbag(runner: Any, case: Mapping[str, Any], rosbag_dir: Path, log_p
     return process
 
 
+def _run_evaluator(
+    runner: Any,
+    evaluator: Mapping[str, Any],
+    run_dir: Path,
+    logs_dir: Path,
+    rosbag_dir: Path,
+    metrics_path: Path,
+    manifest_path: Path,
+    effective_case_file: Path,
+) -> dict[str, Any]:
+    name = str(evaluator.get("name") or "evaluator")
+    evaluator_type = str(evaluator.get("type") or "command")
+    required = bool(evaluator.get("required", True))
+    log_path = logs_dir / f"evaluator_{_safe_id(name)}.log"
+    started = time.monotonic()
+    if evaluator_type != "command":
+        return _evaluator_failure(
+            evaluator,
+            required,
+            log_path,
+            "",
+            started,
+            f"unsupported evaluator type: {evaluator_type}",
+        )
+
+    base_placeholders = {
+        "run_dir": str(run_dir),
+        "logs_dir": str(logs_dir),
+        "rosbag_dir": str(rosbag_dir),
+        "metrics_path": str(metrics_path),
+        "manifest_path": str(manifest_path),
+        "effective_case_path": str(effective_case_file),
+    }
+    output_text = _substitute_placeholders(str(evaluator.get("output", "")), base_placeholders)
+    output_path = _run_path(run_dir, output_text)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    placeholders = {**base_placeholders, "evaluator_output": str(output_path)}
+    command = [
+        _substitute_placeholders(str(part), placeholders)
+        for part in evaluator.get("command", [])
+    ]
+    env = {
+        key: _substitute_placeholders(str(value), placeholders)
+        for key, value in dict(evaluator.get("env", {}) or {}).items()
+    }
+    if not command:
+        return _evaluator_failure(evaluator, required, log_path, str(output_path), started, "evaluator command is empty")
+
+    try:
+        result = runner.run(
+            command,
+            log_path,
+            timeout=_timeout_value(evaluator.get("timeout_sec", 30.0)),
+            env=_merged_env(env),
+        )
+    except Exception as exc:
+        return _evaluator_failure(evaluator, required, log_path, str(output_path), started, str(exc), command)
+
+    output_result = _read_evaluator_output(output_path)
+    ok = result["returncode"] == 0 and output_result.get("passed") is True
+    summary = str(output_result.get("summary", ""))
+    raw_failures = output_result.get("failures", []) or []
+    failures = [str(item) for item in raw_failures] if isinstance(raw_failures, list) else [str(raw_failures)]
+    raw_metrics = output_result.get("metrics", {}) or {}
+    evaluator_metrics = dict(raw_metrics) if isinstance(raw_metrics, Mapping) else {}
+    raw_artifacts = output_result.get("artifacts", []) or []
+    artifacts = list(raw_artifacts) if isinstance(raw_artifacts, list) else [str(raw_artifacts)]
+    error = ""
+    if result["returncode"] != 0:
+        error = f"evaluator command exited with {result['returncode']}"
+    elif output_result.get("_error"):
+        error = str(output_result["_error"])
+    elif output_result.get("passed") is not True:
+        error = summary or "evaluator did not pass"
+    if error and error not in failures:
+        failures.append(error)
+
+    return {
+        "name": name,
+        "type": evaluator_type,
+        "required": required,
+        "ok": ok,
+        "returncode": result["returncode"],
+        "duration_sec": result.get("duration_sec", time.monotonic() - started),
+        "log": str(log_path),
+        "output": str(output_path),
+        "summary": summary,
+        "metrics": evaluator_metrics,
+        "failures": failures,
+        "artifacts": artifacts,
+        "command": command,
+    }
+
+
+def _read_evaluator_output(output_path: Path) -> dict[str, Any]:
+    if not output_path.exists():
+        return {"passed": False, "_error": f"evaluator output was not created: {output_path}"}
+    try:
+        with output_path.open("r", encoding="utf-8") as handle:
+            raw = json.load(handle)
+    except Exception as exc:
+        return {"passed": False, "_error": f"evaluator output is not valid JSON: {exc}"}
+    if not isinstance(raw, dict):
+        return {"passed": False, "_error": "evaluator output must be a JSON object"}
+    if not isinstance(raw.get("passed"), bool):
+        result = dict(raw)
+        result["passed"] = False
+        result["_error"] = "evaluator output must contain boolean field 'passed'"
+        return result
+    return raw
+
+
+def _evaluator_failure(
+    evaluator: Mapping[str, Any],
+    required: bool,
+    log_path: Path,
+    output_path: str,
+    started: float,
+    error: str,
+    command: list[str] | None = None,
+) -> dict[str, Any]:
+    return {
+        "name": str(evaluator.get("name") or "evaluator"),
+        "type": str(evaluator.get("type") or "command"),
+        "required": required,
+        "ok": False,
+        "returncode": None,
+        "duration_sec": time.monotonic() - started,
+        "log": str(log_path),
+        "output": output_path,
+        "summary": "",
+        "metrics": {},
+        "failures": [error],
+        "artifacts": [],
+        "command": command or [str(part) for part in evaluator.get("command", [])],
+        "error": error,
+    }
+
+
 def _poll_background_processes(processes: list[tuple[str, subprocess.Popen]]) -> dict[str, Any]:
     result = {}
     for name, process in processes:
@@ -464,6 +630,14 @@ def _render_markdown_report(manifest: Mapping[str, Any], metrics: Mapping[str, A
     lines.extend(["", "## Assertions", "", "| Assertion | Type | OK | Message |", "| --- | --- | --- | --- |"])
     for assertion in metrics.get("assertions", []):
         lines.append(f"| {assertion.get('name', '')} | {assertion.get('type', '')} | {assertion.get('ok', '')} | `{assertion.get('message', '')}` |")
+    if metrics.get("evaluators"):
+        lines.extend(["", "## Evaluators", "", "| Evaluator | Required | OK | Summary | Log | Output |", "| --- | --- | --- | --- | --- | --- |"])
+        for evaluator in metrics.get("evaluators", []):
+            summary = evaluator.get("summary") or "; ".join(evaluator.get("failures", []) or [])
+            lines.append(
+                f"| {evaluator.get('name', '')} | {evaluator.get('required', '')} | {evaluator.get('ok', '')} | "
+                f"`{summary}` | `{evaluator.get('log', '')}` | `{evaluator.get('output', '')}` |"
+            )
     lines.extend(["", "## Adapters", "", "| Adapter | Type | Status | Log |", "| --- | --- | --- | --- |"])
     for adapter in metrics.get("adapter_health", []):
         lines.append(f"| {adapter.get('name', '')} | {adapter.get('type', '')} | {adapter.get('status', '')} | `{adapter.get('log', '')}` |")
@@ -501,6 +675,7 @@ def _artifact_manifest(run_dir: Path) -> dict[str, str]:
         "report_md": str(run_dir / "report.md"),
         "report_html": str(run_dir / "report.html"),
         "rosbag": str(run_dir / "rosbag"),
+        "evaluators": str(run_dir / "evaluators"),
     }
 
 
@@ -564,6 +739,20 @@ def _write_yaml(path: Path, value: Any) -> Path:
     with path.open("w", encoding="utf-8") as handle:
         yaml.safe_dump(value, handle, sort_keys=False)
     return path
+
+
+def _substitute_placeholders(value: str, placeholders: Mapping[str, str]) -> str:
+    result = value
+    for name, replacement in placeholders.items():
+        result = result.replace("${" + name + "}", replacement)
+    return result
+
+
+def _run_path(run_dir: Path, path_text: str) -> Path:
+    path = Path(path_text).expanduser()
+    if path.is_absolute():
+        return path
+    return (run_dir / path).resolve()
 
 
 def _utc_now() -> str:

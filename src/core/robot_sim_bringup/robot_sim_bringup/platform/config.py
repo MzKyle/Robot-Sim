@@ -57,6 +57,7 @@ def load_platform_validation_case(
         "adapters": adapters,
         "actions": [dict(item) for item in raw.get("actions", []) or []],
         "assertions": [dict(item) for item in raw.get("assertions", []) or []],
+        "evaluators": [_normalize_evaluator(item) for item in raw.get("evaluators", []) or []],
         "artifacts": _normalize_artifacts(raw.get("artifacts", {})),
         "parameters": parameters,
         "raw": raw,
@@ -242,6 +243,18 @@ def _normalize_adapter(item: Mapping[str, Any]) -> dict[str, Any]:
     result = dict(item)
     result["name"] = str(result.get("name") or result.get("type", "adapter"))
     result["type"] = str(result.get("type", ""))
+    return result
+
+
+def _normalize_evaluator(item: Mapping[str, Any]) -> dict[str, Any]:
+    result = dict(item)
+    result["name"] = str(result.get("name") or "evaluator")
+    result["type"] = str(result.get("type") or "command")
+    result["command"] = [str(part) for part in result.get("command", [])]
+    result["output"] = str(result.get("output") or f"evaluators/{_safe_id(result['name'])}.json")
+    result["timeout_sec"] = float(result.get("timeout_sec", 30.0) or 30.0)
+    result["required"] = bool(result.get("required", True))
+    result["env"] = {str(key): str(value) for key, value in dict(result.get("env", {}) or {}).items()}
     return result
 
 

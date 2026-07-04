@@ -250,6 +250,18 @@ assertions:
     topic: /example/status
     message_type: std_msgs/msg/String
     min_count: 1
+evaluators:
+  - name: external_oracle
+    type: command
+    command:
+      - python3
+      - -m
+      - my_project_validation.evaluators.oracle
+      - --metrics
+      - ${metrics_path}
+      - --output
+      - ${evaluator_output}
+    required: true
 artifacts:
   rosbag:
     enabled: false
@@ -262,7 +274,24 @@ artifacts:
 - `inputs` 和 `adapters` 都接受 `data_source` 与 `adapter_ref`，`adapter_ref` 从 `robot_sim/adapters/<name>.yaml` 加载模板后合并 `overrides`。
 - `data_source` 支持 `image_sequence`、`video`、`rosbag`、`csv`、`json`、`message_sequence`、`service_source`。
 - ROS message 字段可使用嵌套对象、数组和 dotted path；新 message 类型只要已 source 对应接口包即可。
-- v4 用于 topic/service/TF/process/action 契约验证，不负责算法精度评测。
+- `evaluators` 用于外部复杂判断。核心只执行命令、解析 JSON 结果和汇总报告，不理解领域指标。
+- v4 内置能力用于 topic/service/TF/process/action 契约验证；算法精度评测放到外部 evaluator。
+
+Evaluator 支持 `${run_dir}`、`${logs_dir}`、`${rosbag_dir}`、`${metrics_path}`、
+`${manifest_path}`、`${effective_case_path}` 和 `${evaluator_output}` 占位符。命令必须写出
+JSON object：
+
+```json
+{
+  "passed": true,
+  "summary": "within tolerance",
+  "metrics": {},
+  "failures": [],
+  "artifacts": []
+}
+```
+
+`required: true` 的 evaluator 失败会让 case 失败；`required: false` 只记录到报告。
 
 ## 外部 Package 发现
 

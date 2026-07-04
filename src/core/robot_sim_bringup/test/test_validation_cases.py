@@ -670,6 +670,207 @@ def test_run_case_executes_device_mock_smoke(tmp_path):
     assert "Endpoint" in (run_dir / "report.md").read_text(encoding="utf-8")
 
 
+def _platform_args(case_path, tmp_path):
+    return type("Args", (), {
+        "case": str(case_path),
+        "output_dir": str(tmp_path),
+        "case_package": "",
+        "profile": "",
+        "profile_file": "",
+        "profile_package": "",
+        "scene": "",
+        "scene_package": "",
+        "scene_variant": "",
+        "scene_param": [],
+        "mode": None,
+        "sensor_overrides": None,
+        "timeout": None,
+        "rosbag_duration": 0.0,
+        "no_rosbag": True,
+        "keep_sim": False,
+    })()
+
+
+def _write_platform_case(path: Path, evaluators):
+    path.write_text(
+        yaml.safe_dump({
+            "schema": 4,
+            "kind": "validation_case",
+            "name": path.stem,
+            "description": "Evaluator test case.",
+            "system": {"type": "ros2_pipeline", "processes": []},
+            "actions": [{"name": "settle", "type": "sleep", "duration_sec": 0.0}],
+            "assertions": [],
+            "evaluators": evaluators,
+            "artifacts": {"rosbag": {"enabled": False}, "reports": ["md", "html", "json"]},
+        }),
+        encoding="utf-8",
+    )
+
+
+def _evaluator_command(payload, exit_code=0):
+    script = (
+        "import json, pathlib, sys; "
+        "path = pathlib.Path(sys.argv[1]); "
+        "path.parent.mkdir(parents=True, exist_ok=True); "
+        f"path.write_text(json.dumps({payload!r}), encoding='utf-8'); "
+        f"raise SystemExit({exit_code})"
+    )
+    return [sys.executable, "-c", script, "${evaluator_output}"]
+
+
+def test_platform_evaluator_required_passes_and_reports(tmp_path):
+    case_path = tmp_path / "evaluator_pass.yaml"
+    _write_platform_case(case_path, [{
+        "name": "oracle",
+        "type": "command",
+        "command": _evaluator_command({
+            "passed": True,
+            "summary": "within tolerance",
+            "metrics": {"error_m": 0.001},
+            "failures": [],
+            "artifacts": [],
+        }),
+    }])
+
+    assert run_case(_platform_args(case_path, tmp_path), CommandRunner()) == 0
+    run_dir = next(path for path in tmp_path.iterdir() if path.is_dir())
+    metrics = yaml.safe_load((run_dir / "metrics.json").read_text(encoding="utf-8"))
+    report = (run_dir / "report.md").read_text(encoding="utf-8")
+
+    assert metrics["passed"] is True
+    assert metrics["evaluators"][0]["name"] == "oracle"
+    assert metrics["evaluators"][0]["ok"] is True
+    assert metrics["evaluators"][0]["metrics"]["error_m"] == pytest.approx(0.001)
+    assert Path(metrics["evaluators"][0]["output"]).exists()
+    assert "## Evaluators" in report
+    assert "within tolerance" in report
+
+
+def test_platform_evaluator_required_failure_fails_case(tmp_path):
+    case_path = tmp_path / "evaluator_required_fail.yaml"
+    _write_platform_case(case_path, [{
+        "name": "oracle",
+        "type": "command",
+        "command": _evaluator_command({
+            "passed": False,
+            "summary": "outside tolerance",
+            "metrics": {},
+            "failures": ["error too large"],
+            "artifacts": [],
+        }),
+        "required": True,
+    }])
+
+    assert run_case(_platform_args(case_path, tmp_path), CommandRunner()) == FAILURE
+    run_dir = next(path for path in tmp_path.iterdir() if path.is_dir())
+    metrics = yaml.safe_load((run_dir / "metrics.json").read_text(encoding="utf-8"))
+
+    assert metrics["passed"] is False
+    assert metrics["evaluators"][0]["ok"] is False
+    assert "evaluator failed: oracle" in metrics["error"]
+
+
+def test_platform_evaluator_optional_failure_does_not_fail_case(tmp_path):
+    case_path = tmp_path / "evaluator_optional_fail.yaml"
+    _write_platform_case(case_path, [{
+        "name": "optional_oracle",
+        "type": "command",
+        "command": _evaluator_command({
+            "passed": False,
+            "summary": "diagnostic only",
+            "metrics": {},
+            "failures": ["optional mismatch"],
+            "artifacts": [],
+        }),
+        "required": False,
+    }])
+
+    assert run_case(_platform_args(case_path, tmp_path), CommandRunner()) == 0
+    run_dir = next(path for path in tmp_path.iterdir() if path.is_dir())
+    metrics = yaml.safe_load((run_dir / "metrics.json").read_text(encoding="utf-8"))
+
+    assert metrics["passed"] is True
+    assert metrics["evaluators"][0]["required"] is False
+    assert metrics["evaluators"][0]["ok"] is False
+
+
+def test_platform_evaluator_malformed_output_fails(tmp_path):
+    case_path = tmp_path / "evaluator_bad_output.yaml"
+    script = (
+        "import pathlib, sys; "
+        "path = pathlib.Path(sys.argv[1]); "
+        "path.parent.mkdir(parents=True, exist_ok=True); "
+        "path.write_text('{bad json', encoding='utf-8')"
+    )
+    _write_platform_case(case_path, [{
+        "name": "bad_output",
+        "type": "command",
+        "command": [sys.executable, "-c", script, "${evaluator_output}"],
+    }])
+
+    assert run_case(_platform_args(case_path, tmp_path), CommandRunner()) == FAILURE
+    run_dir = next(path for path in tmp_path.iterdir() if path.is_dir())
+    metrics = yaml.safe_load((run_dir / "metrics.json").read_text(encoding="utf-8"))
+
+    assert metrics["evaluators"][0]["ok"] is False
+    assert any("not valid JSON" in failure for failure in metrics["evaluators"][0]["failures"])
+
+
+def test_platform_evaluator_missing_output_fails(tmp_path):
+    case_path = tmp_path / "evaluator_missing_output.yaml"
+    _write_platform_case(case_path, [{
+        "name": "missing_output",
+        "type": "command",
+        "command": [sys.executable, "-c", "pass"],
+    }])
+
+    assert run_case(_platform_args(case_path, tmp_path), CommandRunner()) == FAILURE
+    run_dir = next(path for path in tmp_path.iterdir() if path.is_dir())
+    metrics = yaml.safe_load((run_dir / "metrics.json").read_text(encoding="utf-8"))
+
+    assert metrics["evaluators"][0]["ok"] is False
+    assert any("output was not created" in failure for failure in metrics["evaluators"][0]["failures"])
+
+
+def test_platform_evaluator_missing_passed_field_fails(tmp_path):
+    case_path = tmp_path / "evaluator_missing_passed.yaml"
+    _write_platform_case(case_path, [{
+        "name": "missing_passed",
+        "type": "command",
+        "command": _evaluator_command({
+            "summary": "missing passed",
+            "metrics": {},
+            "failures": [],
+            "artifacts": [],
+        }),
+    }])
+
+    assert run_case(_platform_args(case_path, tmp_path), CommandRunner()) == FAILURE
+    run_dir = next(path for path in tmp_path.iterdir() if path.is_dir())
+    metrics = yaml.safe_load((run_dir / "metrics.json").read_text(encoding="utf-8"))
+
+    assert metrics["evaluators"][0]["ok"] is False
+    assert any("boolean field 'passed'" in failure for failure in metrics["evaluators"][0]["failures"])
+
+
+def test_platform_evaluator_schema_requires_command(tmp_path):
+    raw = {
+        "schema": 4,
+        "kind": "validation_case",
+        "name": "bad_evaluator_schema",
+        "description": "Bad evaluator schema.",
+        "system": {"type": "ros2_pipeline"},
+        "evaluators": [{"name": "missing_command", "type": "command"}],
+        "artifacts": {"rosbag": {"enabled": False}, "reports": ["md", "html", "json"]},
+    }
+    path = tmp_path / "bad_evaluator_schema.yaml"
+    path.write_text(yaml.safe_dump(raw), encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="validation failed|command"):
+        validate_config_schema(raw, "validation_case_v4.schema.json", "validation_case", path)
+
+
 def test_run_suite_executes_matrix_and_writes_junit(tmp_path):
     args = type("Args", (), {
         "suite": "generic_platform_smoke",

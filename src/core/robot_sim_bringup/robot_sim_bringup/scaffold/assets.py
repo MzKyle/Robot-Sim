@@ -98,6 +98,7 @@ def scaffold_case(args: Any) -> Path:
         "system": {"profile": system_name, "profile_package": _safe_id(args.package)},
         "actions": [{"name": "settle", "type": "sleep", "duration_sec": 0.1}],
         "assertions": [],
+        "evaluators": [],
         "artifacts": {"rosbag": {"enabled": False}, "reports": ["md", "html", "json"]},
     })
     return path
