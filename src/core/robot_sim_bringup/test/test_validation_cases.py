@@ -23,6 +23,11 @@ from robot_sim_bringup.module_adapter import (
 from robot_sim_bringup.migrate_config import migrate_mapping_to_v4
 from robot_sim_bringup.module_runner import _matches_expectation
 from robot_sim_bringup.platform_assertions import matches_expectation
+from robot_sim_bringup.platform_adapter import (
+    _proxy_request_fields,
+    _proxy_response_fields,
+    _stub_response_fields,
+)
 from robot_sim_bringup.platform_config import (
     expand_suite_cases,
     load_data_source,
@@ -327,6 +332,60 @@ def test_data_source_loader_and_case_input_expansion():
     assert case["data_sources"][0]["records"] == 3
 
 
+def test_service_source_loader_and_case_input_expansion():
+    source = load_data_source("mock_lower_device_enable")
+    case = load_platform_validation_case("generic_device_mock_smoke")
+
+    assert source["type"] == "service_source"
+    assert source["service"] == "/mock/lower_device/set_enabled"
+    assert case["inputs"][0]["type"] == "service_stub"
+    assert case["inputs"][0]["service_type"] == "std_srvs/srv/SetBool"
+    assert case["inputs"][1]["type"] == "service_proxy"
+    assert case["inputs"][1]["target_service"] == "/mock/lower_device/set_enabled"
+    assert case["data_sources"][0]["adapter"] == "service_stub"
+    assert case["data_sources"][0]["service"] == "/mock/lower_device/set_enabled"
+    assert case["data_sources"][1]["adapter"] == "service_proxy"
+    assert case["data_sources"][1]["service_type"] == "std_srvs/srv/SetBool"
+
+
+def test_service_stub_response_selection_and_proxy_mapping_helpers():
+    request = type("Request", (), {})()
+    request.data = True
+    response = type("Response", (), {})()
+    response.success = True
+    response.message = "lower device enabled"
+
+    assert _stub_response_fields(
+        {
+            "responses": [
+                {
+                    "match": {"data": {"equals": True}},
+                    "response": {"success": True, "message": "matched"},
+                }
+            ],
+            "default_response": {"success": False, "message": "default"},
+        },
+        request,
+        {"calls": 0},
+    ) == {"success": True, "message": "matched"}
+    assert _stub_response_fields(
+        {
+            "response_sequence": [
+                {"success": False, "message": "first"},
+                {"success": True, "message": "second"},
+            ],
+            "repeat": False,
+        },
+        request,
+        {"calls": 1},
+    ) == {"success": True, "message": "second"}
+    assert _proxy_request_fields(request, {"request_map": {"data": "request.data"}}) == {"data": True}
+    assert _proxy_response_fields(
+        response,
+        {"response_map": {"success": "response.success", "message": "response.message"}},
+    ) == {"success": True, "message": "lower device enabled"}
+
+
 def test_external_data_source_package_discovery(tmp_path, monkeypatch):
     package = tmp_path / "mock_data_pkg"
     data_dir = package / "robot_sim" / "data_sources"
@@ -359,8 +418,9 @@ def test_validation_suite_expands_matrix():
     suite = load_validation_suite("generic_platform_smoke")
     cases = expand_suite_cases(suite)
 
-    assert [case["parameters"]["run_label"] for case in cases] == ["alpha", "beta", "alpha", "beta"]
+    assert [case["parameters"]["run_label"] for case in cases] == ["alpha", "beta", "alpha", "beta", "alpha", "beta"]
     assert cases[0]["case"] == "generic_command_smoke"
+    assert cases[4]["case"] == "generic_device_mock_smoke"
 
 
 def test_platform_assertion_predicates():
@@ -426,6 +486,40 @@ def test_run_case_executes_data_source_replay(tmp_path):
     assert metrics["assertions"][0]["ok"] is True
 
 
+def test_run_case_executes_device_mock_smoke(tmp_path):
+    args = type("Args", (), {
+        "case": "generic_device_mock_smoke",
+        "output_dir": str(tmp_path),
+        "case_package": "",
+        "profile": "",
+        "profile_file": "",
+        "profile_package": "",
+        "scene": "",
+        "scene_package": "",
+        "scene_variant": "",
+        "scene_param": [],
+        "mode": None,
+        "sensor_overrides": None,
+        "timeout": None,
+        "rosbag_duration": 0.0,
+        "no_rosbag": True,
+        "keep_sim": False,
+    })()
+
+    assert run_case(args, CommandRunner()) == 0
+    run_dir = next(tmp_path.iterdir())
+    metrics = yaml.safe_load((run_dir / "metrics.json").read_text(encoding="utf-8"))
+    assert metrics["passed"] is True
+    assert [item["adapter"] for item in metrics["data_sources"]] == [
+        "service_stub",
+        "service_proxy",
+        "service_proxy",
+    ]
+    assert metrics["assertions"][0]["ok"] is True
+    assert metrics["assertions"][1]["ok"] is True
+    assert "Endpoint" in (run_dir / "report.md").read_text(encoding="utf-8")
+
+
 def test_run_suite_executes_matrix_and_writes_junit(tmp_path):
     args = type("Args", (), {
         "suite": "generic_platform_smoke",
@@ -439,7 +533,7 @@ def test_run_suite_executes_matrix_and_writes_junit(tmp_path):
     assert run_suite(args, CommandRunner()) == 0
     suite_dir = next(tmp_path.iterdir())
     metrics = yaml.safe_load((suite_dir / "suite_metrics.json").read_text(encoding="utf-8"))
-    assert metrics["case_count"] == 4
+    assert metrics["case_count"] == 6
     assert metrics["passed"] is True
     assert (suite_dir / "junit.xml").exists()
 

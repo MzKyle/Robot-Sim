@@ -468,11 +468,13 @@ def _render_markdown_report(manifest: Mapping[str, Any], metrics: Mapping[str, A
     for adapter in metrics.get("adapter_health", []):
         lines.append(f"| {adapter.get('name', '')} | {adapter.get('type', '')} | {adapter.get('status', '')} | `{adapter.get('log', '')}` |")
     if metrics.get("data_sources"):
-        lines.extend(["", "## Data Sources", "", "| Name | Type | Topic | Message Type | Records | Path |", "| --- | --- | --- | --- | ---: | --- |"])
+        lines.extend(["", "## Data Sources", "", "| Name | Type | Endpoint | Interface | Records | Path |", "| --- | --- | --- | --- | ---: | --- |"])
         for source in metrics.get("data_sources", []):
+            endpoint = source.get("topic") or source.get("service", "")
+            interface = source.get("message_type") or source.get("service_type", "")
             lines.append(
-                f"| {source.get('name', '')} | {source.get('type', '')} | `{source.get('topic', '')}` | "
-                f"`{source.get('message_type', '')}` | {source.get('records', '')} | `{source.get('path') or source.get('source_path', '')}` |"
+                f"| {source.get('name', '')} | {source.get('type', '')} | `{endpoint}` | "
+                f"`{interface}` | {source.get('records', '')} | `{source.get('path') or source.get('source_path', '')}` |"
             )
     lines.extend(["", "## Artifacts", "", f"- Metrics: `{manifest['artifacts'].get('metrics', '')}`", f"- Manifest: `{manifest['artifacts'].get('manifest', '')}`", ""])
     return "\n".join(lines)

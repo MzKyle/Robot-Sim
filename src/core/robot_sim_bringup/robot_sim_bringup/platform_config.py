@@ -301,6 +301,32 @@ def _data_source_to_adapter(source: Mapping[str, Any], input_spec: Mapping[str, 
             "remap": dict(source.get("remap", {}) or {}),
         })
         return adapter
+    if source_type == "service_source":
+        service_type = str(input_spec.get("service_type") or source.get("service_type", ""))
+        adapter_type = str(input_spec.get("adapter_type") or ("service_proxy" if source.get("proxy") else "service_stub"))
+        adapter.update({
+            "type": adapter_type,
+            "service": str(input_spec.get("service") or source.get("service", "")),
+            "service_type": service_type,
+            "delay_sec": float(input_spec.get("delay_sec", source.get("delay_sec", 0.0)) or 0.0),
+            "response": dict(input_spec.get("response") or source.get("response", {}) or {}),
+            "responses": [dict(item) for item in input_spec.get("responses", source.get("responses", [])) or []],
+            "default_response": dict(input_spec.get("default_response") or source.get("default_response", {}) or {}),
+            "response_sequence": [dict(item) for item in input_spec.get("response_sequence", source.get("response_sequence", [])) or []],
+            "repeat": bool(input_spec.get("repeat", source.get("loop", source.get("repeat", False)))),
+        })
+        if adapter_type == "service_proxy":
+            proxy = dict(source.get("proxy", {}) or {})
+            proxy.update(dict(input_spec.get("proxy", {}) or {}))
+            adapter.update({
+                "target_service": str(input_spec.get("target_service") or proxy.get("target_service", "")),
+                "target_service_type": str(input_spec.get("target_service_type") or proxy.get("target_service_type") or service_type),
+                "timeout_sec": float(input_spec.get("timeout_sec", proxy.get("timeout_sec", source.get("timeout_sec", 5.0))) or 5.0),
+                "request_map": dict(input_spec.get("request_map") or proxy.get("request_map", {}) or {}),
+                "response_map": dict(input_spec.get("response_map") or proxy.get("response_map", {}) or {}),
+                "fallback_response": dict(input_spec.get("fallback_response") or proxy.get("fallback_response", {}) or {}),
+            })
+        return {key: value for key, value in adapter.items() if value not in ("", [], {})}
     raise RuntimeError(f"unsupported data_source type: {source_type}")
 
 
@@ -312,8 +338,10 @@ def _data_source_summary(source: Mapping[str, Any], adapter: Mapping[str, Any]) 
         "path": str(source.get("path", "")),
         "topic": str(adapter.get("topic") or adapter.get("image_topic", "")),
         "message_type": str(adapter.get("message_type", "")),
+        "service": str(adapter.get("service", "")),
+        "service_type": str(adapter.get("service_type", "")),
         "rate_hz": adapter.get("rate_hz"),
-        "records": len(source.get("messages", []) or source.get("images", []) or []),
+        "records": len(source.get("messages", []) or source.get("images", []) or source.get("responses", []) or source.get("response_sequence", []) or []),
         "adapter": str(adapter.get("type", "")),
     }
 

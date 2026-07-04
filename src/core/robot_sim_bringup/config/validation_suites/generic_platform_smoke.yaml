@@ -8,5 +8,6 @@ matrix:
 cases:
   - generic_command_smoke
   - generic_data_source_replay
+  - generic_device_mock_smoke
 execution:
   continue_on_failure: true

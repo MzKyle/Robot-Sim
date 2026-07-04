@@ -4,11 +4,12 @@ import argparse
 import csv
 import json
 from pathlib import Path
+import time
 from typing import Any, Mapping
 
 import yaml
 
-from robot_sim_bringup.platform_assertions import assign_fields
+from robot_sim_bringup.platform_assertions import assign_fields, matches_expectation, message_to_dict, nested_value
 
 
 SUPPORTED_ADAPTERS = {
@@ -44,6 +45,8 @@ def main(argv=None) -> int:
         _run_image_camera_replay(config)
     elif adapter_type == "service_stub":
         _run_service_stub(config)
+    elif adapter_type == "service_proxy":
+        _run_service_proxy(config)
     elif adapter_type == "tf_static_publisher":
         _run_tf_static_publisher(config)
     elif adapter_type == "joint_state_replay":
@@ -63,6 +66,8 @@ def adapter_dependencies(config: Mapping[str, Any]) -> list[str]:
         return ["sensor_msgs/msg/Image", "sensor_msgs/msg/CameraInfo"]
     if adapter_type == "service_stub":
         return [str(config.get("service_type", ""))]
+    if adapter_type == "service_proxy":
+        return [str(config.get("service_type", "")), str(config.get("target_service_type", config.get("service_type", "")))]
     if adapter_type == "tf_static_publisher":
         return ["geometry_msgs/msg/TransformStamped"]
     if adapter_type == "joint_state_replay":
@@ -80,6 +85,14 @@ def preflight_adapter(config: Mapping[str, Any]) -> None:
             get_service(type_name)
         elif "/msg/" in type_name:
             get_message(type_name)
+
+
+def _safe_shutdown(rclpy_module: Any) -> None:
+    try:
+        if rclpy_module.ok():
+            rclpy_module.shutdown()
+    except Exception:
+        pass
 
 
 def _run_topic_replay(config: Mapping[str, Any]) -> None:
@@ -115,7 +128,7 @@ def _run_topic_replay(config: Mapping[str, Any]) -> None:
         rclpy.spin(node)
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        _safe_shutdown(rclpy)
 
 
 def _run_service_stub(config: Mapping[str, Any]) -> None:
@@ -124,17 +137,16 @@ def _run_service_stub(config: Mapping[str, Any]) -> None:
 
     Service = get_service(str(config["service_type"]))
     service = str(config["service"])
-    response_fields = dict(config.get("response", {}) or {})
     delay_sec = float(config.get("delay_sec", 0.0) or 0.0)
+    state = {"calls": 0}
 
     rclpy.init(args=None)
     node = rclpy.create_node(str(config.get("node_name", "robot_sim_service_stub")))
 
-    def callback(_request, response):
+    def callback(request, response):
         if delay_sec > 0:
-            import time
-
             time.sleep(delay_sec)
+        response_fields = _stub_response_fields(config, request, state)
         assign_fields(response, response_fields)
         return response
 
@@ -144,7 +156,124 @@ def _run_service_stub(config: Mapping[str, Any]) -> None:
         rclpy.spin(node)
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        _safe_shutdown(rclpy)
+
+
+def _run_service_proxy(config: Mapping[str, Any]) -> None:
+    import rclpy
+    from rosidl_runtime_py.utilities import get_service
+
+    Service = get_service(str(config["service_type"]))
+    TargetService = get_service(str(config.get("target_service_type") or config["service_type"]))
+    service = str(config["service"])
+    target_service = str(config["target_service"])
+    timeout = float(config.get("timeout_sec", 5.0))
+    fallback_response = dict(config.get("fallback_response", {}) or {})
+    delay_sec = float(config.get("delay_sec", 0.0) or 0.0)
+
+    rclpy.init(args=None)
+    node = rclpy.create_node(str(config.get("node_name", "robot_sim_service_proxy")))
+    client_node = rclpy.create_node(str(config.get("client_node_name", "robot_sim_service_proxy_client")))
+    client = client_node.create_client(TargetService, target_service)
+
+    def callback(request, response):
+        if delay_sec > 0:
+            time.sleep(delay_sec)
+        target_request = TargetService.Request()
+        assign_fields(target_request, _proxy_request_fields(request, config))
+        try:
+            if not client.wait_for_service(timeout_sec=timeout):
+                node.get_logger().warning(f"target service unavailable: {target_service}")
+                assign_fields(response, fallback_response)
+                return response
+            future = client.call_async(target_request)
+            deadline = time.monotonic() + timeout
+            while rclpy.ok() and not future.done():
+                rclpy.spin_once(client_node, timeout_sec=0.05)
+                if time.monotonic() >= deadline:
+                    node.get_logger().warning(f"target service timed out: {target_service}")
+                    assign_fields(response, fallback_response)
+                    return response
+            target_response = future.result()
+            assign_fields(response, _proxy_response_fields(target_response, config))
+            return response
+        except Exception as exc:
+            node.get_logger().warning(f"target service call failed: {target_service}: {exc}")
+            assign_fields(response, fallback_response)
+            return response
+
+    node.create_service(Service, service, callback)
+    node.get_logger().info(f"service_proxy ready on {service}, target={target_service}")
+    try:
+        rclpy.spin(node)
+    finally:
+        client_node.destroy_node()
+        node.destroy_node()
+        _safe_shutdown(rclpy)
+
+
+def _stub_response_fields(config: Mapping[str, Any], request: Any, state: dict[str, int]) -> dict[str, Any]:
+    sequence = [dict(item) for item in config.get("response_sequence", []) or []]
+    if sequence:
+        index = state["calls"]
+        state["calls"] += 1
+        if index < len(sequence):
+            return _response_payload(sequence[index])
+        if bool(config.get("repeat", False)):
+            return _response_payload(sequence[index % len(sequence)])
+        if config.get("default_response"):
+            return dict(config.get("default_response", {}) or {})
+        return _response_payload(sequence[-1])
+
+    request_fields = message_to_dict(request)
+    for rule in config.get("responses", []) or []:
+        rule = dict(rule)
+        if _fields_match(request_fields, dict(rule.get("match", {}) or {})):
+            return _response_payload(rule)
+    if config.get("response"):
+        return dict(config.get("response", {}) or {})
+    return dict(config.get("default_response", {}) or {})
+
+
+def _response_payload(rule: Mapping[str, Any]) -> dict[str, Any]:
+    if isinstance(rule.get("response"), Mapping):
+        return dict(rule.get("response", {}) or {})
+    return dict(rule)
+
+
+def _fields_match(actual: Mapping[str, Any], expected: Mapping[str, Any]) -> bool:
+    for field, rule in expected.items():
+        ok, _reason = matches_expectation(nested_value(actual, str(field)), rule)
+        if not ok:
+            return False
+    return True
+
+
+def _proxy_request_fields(request: Any, config: Mapping[str, Any]) -> dict[str, Any]:
+    request_fields = message_to_dict(request)
+    request_map = dict(config.get("request_map", {}) or {})
+    if not request_map:
+        return dict(request_fields)
+    return _mapped_fields(request_map, {"request": request_fields})
+
+
+def _proxy_response_fields(response: Any, config: Mapping[str, Any]) -> dict[str, Any]:
+    response_fields = message_to_dict(response)
+    response_map = dict(config.get("response_map", {}) or {})
+    if not response_map:
+        return dict(response_fields)
+    return _mapped_fields(response_map, {"response": response_fields})
+
+
+def _mapped_fields(field_map: Mapping[str, Any], scope: Mapping[str, Any]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for target, source in dict(field_map).items():
+        if isinstance(source, str) and (source.startswith("request.") or source.startswith("response.")):
+            value = nested_value(scope, source)
+        else:
+            value = source
+        _assign_nested(result, str(target), value)
+    return result
 
 
 def _run_joint_state_replay(config: Mapping[str, Any]) -> None:
@@ -180,7 +309,7 @@ def _run_joint_state_replay(config: Mapping[str, Any]) -> None:
         rclpy.spin(node)
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        _safe_shutdown(rclpy)
 
 
 def _run_image_camera_replay(config: Mapping[str, Any]) -> None:
@@ -262,7 +391,7 @@ def _run_image_camera_replay(config: Mapping[str, Any]) -> None:
         if capture is not None:
             capture.release()
         node.destroy_node()
-        rclpy.shutdown()
+        _safe_shutdown(rclpy)
 
 
 def _run_tf_static_publisher(config: Mapping[str, Any]) -> None:
@@ -287,7 +416,7 @@ def _run_tf_static_publisher(config: Mapping[str, Any]) -> None:
         rclpy.spin(node)
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        _safe_shutdown(rclpy)
 
 
 def _run_rosbag_replay(config: Mapping[str, Any]) -> None:

@@ -1,0 +1,58 @@
+schema: 4
+kind: validation_case
+name: generic_device_mock_smoke
+description: Validate generic service data sources through device-style stub, proxy, and fallback behavior.
+system:
+  profile: minimal_pipeline
+inputs:
+  - type: data_source
+    name: lower_device_stub
+    source: mock_lower_device_enable
+  - type: data_source
+    name: device_enable_proxy
+    source: mock_device_enable_proxy
+    adapter_type: service_proxy
+  - type: data_source
+    name: unavailable_device_proxy
+    source: mock_unavailable_device_enable_proxy
+    adapter_type: service_proxy
+actions:
+  - name: enable_device
+    type: service_call
+    service_type: std_srvs/srv/SetBool
+    service: /mock/device/set_enabled
+    request:
+      data: true
+    timeout_sec: 3.0
+  - name: unavailable_device
+    type: service_call
+    service_type: std_srvs/srv/SetBool
+    service: /mock/unavailable_device/set_enabled
+    request:
+      data: true
+    timeout_sec: 3.0
+assertions:
+  - name: proxied_device_enable_succeeds
+    type: action_result
+    action: enable_device
+    expect:
+      ok:
+        equals: true
+      response.success:
+        equals: true
+      response.message:
+        contains: enabled
+  - name: unavailable_device_uses_fallback
+    type: action_result
+    action: unavailable_device
+    expect:
+      ok:
+        equals: true
+      response.success:
+        equals: false
+      response.message:
+        contains: unavailable
+artifacts:
+  rosbag:
+    enabled: false
+  reports: [md, html, json]
