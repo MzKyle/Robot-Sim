@@ -100,6 +100,12 @@ adapters:
     timeout_sec: 80.0
     position_tolerance_m: 0.08
     orientation_tolerance_rad: 3.14159
+  - name: loop_motion_noop
+    type: loop_motion_services
+    position_service: /any_mov_loop_position_set
+    rate_service: /any_mov_loop_rate_set
+    enable_service: /any_mov_loop_sign_set
+    stop_service: /stop_mov_jog
 
 expect:
   position_tolerance_m: 0.18

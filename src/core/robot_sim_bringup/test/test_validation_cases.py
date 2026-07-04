@@ -93,6 +93,7 @@ def test_module_validation_case_loads_external_contract():
         "tf_to_tcp_pos",
         "scan3d_service",
         "moveit_pose_service",
+        "loop_motion_services",
     ]
     assert case["expect"]["module"]["required_actions"] == [
         "scan_and_detect",

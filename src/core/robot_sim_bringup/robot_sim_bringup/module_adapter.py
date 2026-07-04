@@ -287,48 +287,55 @@ def _run_moveit_pose_service(config: Mapping[str, Any], case_file: str) -> None:
         rclpy.shutdown()
 
 
-def _execute_moveit_target(node, config: Mapping[str, Any], case_file: str, target_pose: list[float]) -> dict[str, Any]:
+def _execute_moveit_target(service_node, config: Mapping[str, Any], case_file: str, target_pose: list[float]) -> dict[str, Any]:
+    import rclpy
     from rclpy.action import ActionClient
     from tf2_ros import Buffer, TransformListener
 
     from robot_sim_bringup import sim_smoke_helper
     from robot_sim_bringup.validation_cases import load_validation_case
 
-    case = load_validation_case(case_file)
-    launch = case["launch"]
-    args = type("Args", (), {
-        "profile": launch["profile"],
-        "profile_file": launch.get("profile_file", ""),
-        "profile_package": launch.get("profile_package", ""),
-        "mode": launch["mode"],
-        "sensor_overrides": launch.get("sensor_overrides", ""),
-    })()
-    context = sim_smoke_helper._load_context(args, require_moveit=True)
-    move_action = str(config.get("move_action") or context["move_action"])
-    action_client = ActionClient(node, _get_action("moveit_msgs/action/MoveGroup"), move_action)
-    if not action_client.wait_for_server(timeout_sec=float(config.get("server_timeout_sec", 15.0))):
-        raise RuntimeError(f"MoveIt action server not available: {move_action}")
-    tf_buffer = Buffer()
-    TransformListener(tf_buffer, node)
-    adapter_case = dict(case)
-    adapter_case["moveit"] = dict(case["moveit"])
-    adapter_case["moveit"]["execute"] = True
-    adapter_case["pass_criteria"] = dict(case["pass_criteria"])
-    adapter_case["pass_criteria"]["position_tolerance_m"] = float(config.get("position_tolerance_m", 0.08))
-    adapter_case["pass_criteria"]["orientation_tolerance_rad"] = float(
-        config.get("orientation_tolerance_rad", math.pi)
-    )
-    return sim_smoke_helper._execute_pose_goal(
-        node,
-        action_client,
-        context,
-        adapter_case,
-        tuple(target_pose),
-        float(config.get("timeout_sec", 60.0)),
-        tf_buffer,
-        [],
-        "module_adapter",
-    )
+    worker_name = str(config.get("worker_node_name", "robot_sim_moveit_pose_worker"))
+    worker_node = rclpy.create_node(worker_name)
+    try:
+        case = load_validation_case(case_file)
+        launch = case["launch"]
+        args = type("Args", (), {
+            "profile": launch["profile"],
+            "profile_file": launch.get("profile_file", ""),
+            "profile_package": launch.get("profile_package", ""),
+            "mode": launch["mode"],
+            "sensor_overrides": launch.get("sensor_overrides", ""),
+        })()
+        context = sim_smoke_helper._load_context(args, require_moveit=True)
+        move_action = str(config.get("move_action") or context["move_action"])
+        action_client = ActionClient(worker_node, _get_action("moveit_msgs/action/MoveGroup"), move_action)
+        if not action_client.wait_for_server(timeout_sec=float(config.get("server_timeout_sec", 15.0))):
+            raise RuntimeError(f"MoveIt action server not available: {move_action}")
+        tf_buffer = Buffer()
+        TransformListener(tf_buffer, worker_node)
+        adapter_case = dict(case)
+        adapter_case["moveit"] = dict(case["moveit"])
+        adapter_case["moveit"]["execute"] = True
+        adapter_case["pass_criteria"] = dict(case["pass_criteria"])
+        adapter_case["pass_criteria"]["position_tolerance_m"] = float(config.get("position_tolerance_m", 0.08))
+        adapter_case["pass_criteria"]["orientation_tolerance_rad"] = float(
+            config.get("orientation_tolerance_rad", math.pi)
+        )
+        return sim_smoke_helper._execute_pose_goal(
+            worker_node,
+            action_client,
+            context,
+            adapter_case,
+            tuple(target_pose),
+            float(config.get("timeout_sec", 60.0)),
+            tf_buffer,
+            [],
+            "module_adapter",
+        )
+    finally:
+        service_node.get_logger().debug("destroying moveit_pose_service worker node")
+        worker_node.destroy_node()
 
 
 def _load_scan3d_source(source: Mapping[str, Any]):
