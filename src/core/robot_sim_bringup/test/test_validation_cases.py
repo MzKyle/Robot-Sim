@@ -20,8 +20,17 @@ from robot_sim_bringup.module_adapter import (
     _select_scan3d_frame,
     adapter_dependencies,
 )
+from robot_sim_bringup.migrate_config import migrate_mapping_to_v4
 from robot_sim_bringup.module_runner import _matches_expectation
-from robot_sim_bringup.run_case import FAILURE, _record_rosbag, run_case
+from robot_sim_bringup.platform_assertions import matches_expectation
+from robot_sim_bringup.platform_config import (
+    expand_suite_cases,
+    load_platform_validation_case,
+    load_system_profile,
+    load_validation_suite,
+)
+from robot_sim_bringup.run_case import CommandRunner, FAILURE, _record_rosbag, run_case
+from robot_sim_bringup.run_suite import run_suite
 from robot_sim_bringup.scaffold_robot import scaffold_robot
 from robot_sim_bringup.task_runners import get_task_runner
 from robot_sim_bringup.validation_cases import (
@@ -274,13 +283,95 @@ def test_module_validation_runner_dispatches_module_runner(tmp_path):
     ]
 
 
-def test_all_built_in_schema_files_are_v3():
+def test_all_built_in_schema_files_validate():
     for path in sorted((PACKAGE_ROOT / "config" / "sim_profiles").glob("*.yaml")):
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
         validate_config_schema(raw, "sim_profile.schema.json", "sim_profile", path)
     for path in sorted((PACKAGE_ROOT / "config" / "validation_cases").glob("*.yaml")):
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-        validate_config_schema(raw, "validation_case.schema.json", "validation_case", path)
+        schema_name = "validation_case_v4.schema.json" if raw.get("schema") == 4 else "validation_case.schema.json"
+        validate_config_schema(raw, schema_name, "validation_case", path)
+    for path in sorted((PACKAGE_ROOT / "config" / "system_profiles").glob("*.yaml")):
+        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+        validate_config_schema(raw, "system_profile.schema.json", "system_profile", path)
+    for path in sorted((PACKAGE_ROOT / "config" / "validation_suites").glob("*.yaml")):
+        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+        validate_config_schema(raw, "validation_suite.schema.json", "validation_suite", path)
+    for path in sorted((PACKAGE_ROOT / "config" / "data_sources").glob("*.yaml")):
+        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+        validate_config_schema(raw, "data_source.schema.json", "data_source", path)
+
+
+def test_platform_v4_loads_system_profile_and_case():
+    profile = load_system_profile("minimal_pipeline")
+    case = load_platform_validation_case("generic_command_smoke", parameter_overrides={"run_label": "unit"})
+
+    assert profile["schema"] == 4
+    assert profile["system"]["type"] == "ros2_pipeline"
+    assert case["schema"] == 4
+    assert case["system_profile"] == "minimal_pipeline"
+    assert case["actions"][0]["command"][-1].endswith("unit')")
+
+
+def test_validation_suite_expands_matrix():
+    suite = load_validation_suite("generic_platform_smoke")
+    cases = expand_suite_cases(suite)
+
+    assert [case["parameters"]["run_label"] for case in cases] == ["alpha", "beta"]
+    assert cases[0]["case"] == "generic_command_smoke"
+
+
+def test_platform_assertion_predicates():
+    assert matches_expectation("RUNNING", {"contains": "RUN"})[0] is True
+    assert matches_expectation([1, 2, 3], {"len_min": 2, "len_max": 3})[0] is True
+    assert matches_expectation(0.08, {"abs_max": 0.02})[0] is False
+
+
+def test_run_case_executes_platform_v4_case(tmp_path):
+    args = type("Args", (), {
+        "case": "generic_command_smoke",
+        "output_dir": str(tmp_path),
+        "case_package": "",
+        "profile": "",
+        "profile_file": "",
+        "profile_package": "",
+        "scene": "",
+        "scene_package": "",
+        "scene_variant": "",
+        "scene_param": [],
+        "mode": None,
+        "sensor_overrides": None,
+        "timeout": None,
+        "rosbag_duration": 0.0,
+        "no_rosbag": True,
+        "keep_sim": False,
+    })()
+
+    assert run_case(args, CommandRunner()) == 0
+    run_dir = next(tmp_path.iterdir())
+    metrics = yaml.safe_load((run_dir / "metrics.json").read_text(encoding="utf-8"))
+    assert metrics["schema"] == 4
+    assert metrics["passed"] is True
+    assert metrics["actions"][0]["name"] == "echo_command"
+    assert (run_dir / "report.html").exists()
+
+
+def test_run_suite_executes_matrix_and_writes_junit(tmp_path):
+    args = type("Args", (), {
+        "suite": "generic_platform_smoke",
+        "suite_package": "",
+        "output_dir": str(tmp_path),
+        "timeout": None,
+        "rosbag_duration": 0.0,
+        "no_rosbag": True,
+    })()
+
+    assert run_suite(args, CommandRunner()) == 0
+    suite_dir = next(tmp_path.iterdir())
+    metrics = yaml.safe_load((suite_dir / "suite_metrics.json").read_text(encoding="utf-8"))
+    assert metrics["case_count"] == 2
+    assert metrics["passed"] is True
+    assert (suite_dir / "junit.xml").exists()
 
 
 def test_sim_profile_schema_rejects_legacy_world_source(tmp_path):
@@ -307,6 +398,17 @@ def test_schema_v2_reports_migration_hint(tmp_path):
 
     with pytest.raises(RuntimeError, match="migrate_config"):
         validate_config_schema(raw, "validation_case.schema.json", "validation_case", path)
+
+
+def test_migrate_validation_case_v3_to_v4_schema():
+    source = PACKAGE_ROOT / "config" / "validation_cases" / "empty_motion.yaml"
+    raw = yaml.safe_load(source.read_text(encoding="utf-8"))
+
+    migrated = migrate_mapping_to_v4(raw, "validation_case", source)
+
+    assert migrated["schema"] == 4
+    assert migrated["system"]["type"] == "robot_simulation"
+    validate_config_schema(migrated, "validation_case_v4.schema.json", "validation_case", source)
 
 
 def test_validation_case_schema_rejects_unknown_adapter(tmp_path):

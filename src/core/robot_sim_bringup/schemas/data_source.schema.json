@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://robot-sim.local/schemas/data_source.schema.json",
+  "title": "robot_sim data source",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema", "kind", "name", "type"],
+  "properties": {
+    "schema": { "const": 4 },
+    "kind": { "const": "data_source" },
+    "name": { "type": "string", "minLength": 1 },
+    "description": { "type": "string" },
+    "type": {
+      "enum": ["image_sequence", "video", "rosbag", "csv", "json", "message_sequence"]
+    },
+    "path": { "type": "string" },
+    "message_type": { "type": "string" },
+    "topic": { "type": "string" },
+    "rate_hz": { "type": "number" }
+  }
+}

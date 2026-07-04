@@ -6,6 +6,9 @@ from typing import Iterable
 
 PROFILE_DIR = "robot_sim/profiles"
 VALIDATION_CASE_DIR = "robot_sim/validation_cases"
+VALIDATION_SUITE_DIR = "robot_sim/validation_suites"
+SYSTEM_PROFILE_DIR = "robot_sim/system_profiles"
+DATA_SOURCE_DIR = "robot_sim/data_sources"
 SCENE_DIR = "robot_sim/scenes"
 
 
@@ -55,6 +58,75 @@ def resolve_validation_case_path(
     )
     if not path.exists():
         raise RuntimeError(f"unknown validation case '{case_name}': {path}")
+    return path.resolve()
+
+
+def resolve_validation_suite_path(
+    suite_name: str | Path,
+    suite_package: str = "",
+) -> Path:
+    candidate = Path(suite_name).expanduser()
+    if candidate.exists():
+        return candidate.resolve()
+    if candidate.suffix in (".yaml", ".yml") or candidate.parent != Path("."):
+        raise RuntimeError(f"validation suite file does not exist: {candidate}")
+    if suite_package:
+        return _package_config_path(suite_package, VALIDATION_SUITE_DIR, str(suite_name), "validation_suite")
+    path = (
+        package_share_directory("robot_sim_bringup")
+        / "config"
+        / "validation_suites"
+        / f"{suite_name}.yaml"
+    )
+    if not path.exists():
+        raise RuntimeError(f"unknown validation suite '{suite_name}': {path}")
+    return path.resolve()
+
+
+def resolve_system_profile_path(
+    profile_name: str | Path,
+    profile_package: str = "",
+    profile_file: str = "",
+) -> Path:
+    if profile_file:
+        return _existing_path(profile_file, "system_profile")
+    candidate = Path(profile_name).expanduser()
+    if candidate.exists():
+        return candidate.resolve()
+    if candidate.suffix in (".yaml", ".yml") or candidate.parent != Path("."):
+        raise RuntimeError(f"system profile file does not exist: {candidate}")
+    if profile_package:
+        return _package_config_path(profile_package, SYSTEM_PROFILE_DIR, str(profile_name), "system_profile")
+    path = (
+        package_share_directory("robot_sim_bringup")
+        / "config"
+        / "system_profiles"
+        / f"{profile_name}.yaml"
+    )
+    if not path.exists():
+        raise RuntimeError(f"unknown system profile '{profile_name}': {path}")
+    return path.resolve()
+
+
+def resolve_data_source_path(
+    data_source_name: str | Path,
+    data_source_package: str = "",
+) -> Path:
+    candidate = Path(data_source_name).expanduser()
+    if candidate.exists():
+        return candidate.resolve()
+    if candidate.suffix in (".yaml", ".yml") or candidate.parent != Path("."):
+        raise RuntimeError(f"data source file does not exist: {candidate}")
+    if data_source_package:
+        return _package_config_path(data_source_package, DATA_SOURCE_DIR, str(data_source_name), "data_source")
+    path = (
+        package_share_directory("robot_sim_bringup")
+        / "config"
+        / "data_sources"
+        / f"{data_source_name}.yaml"
+    )
+    if not path.exists():
+        raise RuntimeError(f"unknown data source '{data_source_name}': {path}")
     return path.resolve()
 
 

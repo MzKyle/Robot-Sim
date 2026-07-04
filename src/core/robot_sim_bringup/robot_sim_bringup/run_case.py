@@ -13,7 +13,8 @@ import time
 
 import yaml
 
-from robot_sim_bringup.registry import resolve_profile_path
+from robot_sim_bringup.platform_runner import is_platform_case, run_platform_case
+from robot_sim_bringup.registry import resolve_profile_path, resolve_validation_case_path
 from robot_sim_bringup.task_runners import get_task_runner
 from robot_sim_bringup.validation_cases import load_validation_case
 
@@ -88,6 +89,10 @@ def main(argv=None):
 
 
 def run_case(args, runner):
+    case_path = resolve_validation_case_path(args.case, case_package=args.case_package)
+    if is_platform_case(case_path):
+        return run_platform_case(args, runner)
+
     scene_parameters = _parse_scene_params(args.scene_param)
     case = load_validation_case(
         args.case,

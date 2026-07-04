@@ -1,5 +1,7 @@
 # robot_sim
 
+[English](README.md) | [简体中文](README.zh-CN.md)
+
 <p align="center">
   <img alt="ROS 2 Humble" src="https://img.shields.io/badge/ROS%202-Humble-00A6A6" />
   <img alt="Gazebo Harmonic" src="https://img.shields.io/badge/Gazebo-Harmonic%20%7C%20gz%20sim%208-F57C00" />
@@ -7,24 +9,20 @@
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/License-Apache--2.0-blue" /></a>
 </p>
 
-`robot_sim` 是一个面向工业机器人项目的仿真验收与回归测试平台。它把机器人 profile、Gazebo 工况场景、ros2_control、MoveIt2、传感器桥接和 validation case 串成一条可重复执行的验收链路：一次命令启动仿真、检查控制器/TF/传感器、执行规划任务、录 rosbag，并生成可交付的报告。
+![robot_sim](docs/assets/cover.svg)
 
-项目当前内置 Panda 与 Fanuc M-20iD/12L，可直接用于空场运动、障碍避让、fixture-to-pallet、pick-place、传感器标定和 conveyor sorting 等典型任务的仿真验收；也可以通过 `module_validation` 接入外部 ROS2 模块，例如焊前 3D 定位和 2D 纠偏干运行。
+`robot_sim` is an industrial robot simulation acceptance and regression testing platform
+for ROS 2 Humble, Gazebo Harmonic, ros2_control, MoveIt2, and simulated sensors. It turns
+robot profiles, scenes, task cases, external ROS2 modules, logs, metrics, and rosbag
+recordings into one repeatable validation workflow.
 
-## 适合谁用
+[Read the documentation](docs/README.md)
 
-- 机器人应用工程师：验证新机器人模型、控制器、MoveIt 配置和工况场景是否能跑通。
-- 仿真与算法团队：把场景、任务和 pass/fail 指标固化为可回归的用例。
-- 项目交付团队：用 `report.html`、`metrics.json`、rosbag 和日志说明一次仿真验收到底通过了什么。
-- CI 维护者：把轻量 mock/full smoke 和工业 validation case 放进定时回归。
+## Quick Start
 
-`robot_sim` 不是 Web UI，也不是生产控制器。它的核心目标是让机器人仿真从“能打开 demo”变成“能被验收、能被复跑、能定位失败”。
-
-## 快速上手
-
-### 1. 准备环境
-
-需要 Ubuntu 22.04、ROS 2 Humble、Gazebo Harmonic、MoveIt2、`colcon` 和 `rosdep`。完整依赖见 [docs/guide/prerequisites.md](docs/guide/prerequisites.md)。
+1. Install Ubuntu 22.04, ROS 2 Humble, Gazebo Harmonic, MoveIt2, `colcon`, and `rosdep`.
+   See [Prerequisites](docs/guide/prerequisites.md) for the full dependency list.
+2. Clone and build the workspace:
 
 ```bash
 git clone https://github.com/MzKyle/robot_sim.git robot_sim
@@ -32,11 +30,7 @@ cd robot_sim
 
 source /opt/ros/humble/setup.bash
 export GZ_VERSION=harmonic
-```
 
-### 2. 构建工作空间
-
-```bash
 colcon build --symlink-install \
   --allow-overriding gz_ros2_control \
   --packages-select \
@@ -49,7 +43,7 @@ colcon build --symlink-install \
 source install/setup.bash
 ```
 
-### 3. 跑第一个验收用例
+3. Run the first validation case:
 
 ```bash
 ros2 run robot_sim_bringup run_case \
@@ -58,95 +52,95 @@ ros2 run robot_sim_bringup run_case \
   --timeout 120
 ```
 
-运行完成后会生成独立目录：
-
-```text
-robot_sim_runs/<UTC timestamp>_empty_motion_panda/
-  manifest.json
-  metrics.json
-  report.md
-  report.html
-  robot.urdf
-  effective_case.yaml
-  effective_profile.yaml
-  logs/
-  rosbag/
-```
-
-打开最新报告：
+4. Open the generated report:
 
 ```bash
 latest_run="$(ls -td robot_sim_runs/*_empty_motion_panda | head -1)"
 xdg-open "${latest_run}/report.html"
 ```
 
-报告会告诉你：哪一步失败、controller 是否 active、TF 是否完整、每个传感器 topic 频率、MoveIt 是否成功、执行耗时、日志和 rosbag 在哪里。
+Each run creates a standalone artifact directory with `manifest.json`, effective YAML
+configs, `robot.urdf`, logs, rosbag, `metrics.json`, `report.md`, and `report.html`.
 
-### 4. 启动交互式仿真
+## What You Can Do
+
+- Start Panda or Fanuc M-20iD/12L simulations in `mock`, `light`, or `full` mode.
+- Validate controller state, joint states, TF completeness, sensor topic frequency,
+  MoveIt planning/execution, goal error, controller error, and TCP clearance.
+- Run reusable validation cases for empty motion, obstacle clearance, fixture-to-pallet,
+  pick-place, sensor calibration, conveyor sorting, and external module validation.
+- Use scene variants and parameters to create deterministic industrial test conditions.
+- Connect external ROS2 modules with adapters for TCP pose, `/scan_3d`, MoveIt pose jog,
+  synthetic weld vision, and loop-motion services.
+- Generate run artifacts that can be reviewed manually, archived for delivery, or checked
+  by CI.
+- Scaffold an external robot simulation package instead of putting every robot in this
+  repository.
+
+## Built-in Validation Cases
+
+| Case | Profile | Scene | Purpose |
+| --- | --- | --- | --- |
+| `empty_motion` | `panda` | `debug_empty` | Minimal MoveIt plan and execute validation |
+| `industrial_obstacle_clearance` | `fanuc_m20id12l_industrial_cell` | `industrial_cell` | Fanuc obstacle avoidance with planning-scene objects |
+| `industrial_fixture_to_pallet` | `fanuc_m20id12l_industrial_cell` | `industrial_cell` | Fixture-to-pallet industrial motion validation |
+| `industrial_planning_goal` | `fanuc_m20id12l_industrial_cell` | `industrial_cell` | Industrial planning target smoke validation |
+| `panda_pick_place` | `panda` | `tabletop_pick_place` | Pick-place planning validation, execution disabled by default |
+| `sensor_calibration` | `panda` | `tabletop_pick_place` | Multi-view sensor calibration workflow validation |
+| `conveyor_sorting` | `panda` | `conveyor_sorting` | Conveyor sorting workflow validation |
+| `weld_pre_positioning_scan_and_move` | `fanuc_m20id12l_industrial_cell` | `industrial_cell` | External pre-weld 3D localization with dataset `/scan_3d` and MoveIt jog |
+| `weld_2d_lateral_correction_dry_run` | `fanuc_m20id12l_industrial_cell` | `industrial_cell` | External 2D weld correction dry run with synthetic vision |
+
+## Simulation and Validation Workflow
+
+- `sim.launch.py` starts an interactive simulation:
 
 ```bash
 ros2 launch robot_sim_bringup sim.launch.py sim_profile:=panda sim_mode:=light
 ros2 launch robot_sim_bringup sim.launch.py sim_profile:=fanuc_m20id12l_industrial_cell sim_mode:=full
 ```
 
-`light` 适合日常控制链调试；`full` 会启动 Gazebo、传感器、MoveIt 和 RViz，适合完整仿真和人工检查。
-
-## 已内置能力
-
-| 能力 | 当前状态 |
-| --- | --- |
-| 仿真模式 | `mock`、`light`、`full` 三档 |
-| 机器人 profile | Panda、Fanuc M-20iD/12L、Fanuc 工业单元 |
-| 场景库 | `debug_empty`、`industrial_cell`、`tabletop_pick_place`、`conveyor_sorting`、`shelf_bin_picking` |
-| 传感器 | RGB、深度、点云、2D LaserScan、3D lidar、IMU |
-| 验收指标 | 启动、controller active、joint state、TF、sensor Hz、MoveIt 规划/执行、控制误差、TCP clearance |
-| 配置契约 | `schema: 3` + JSON Schema，覆盖 `sim_profile`、`scene`、`world_preset`、`validation_case` |
-| 报告产物 | `manifest.json`、日志、URDF、rosbag、`metrics.json`、`report.md`、`report.html` |
-| 外部模块验收 | `module_validation`、adapter runtime、服务/topic 断言、External Module 报告章节 |
-| 可扩展性 | 外部 profile/case/scene package 发现，机器人接入 scaffold，v2 到 v3 迁移工具 |
-
-## 内置验收用例
-
-| Case | Profile | Scene | 任务族 | 默认执行方式 |
-| --- | --- | --- | --- | --- |
-| `empty_motion` | `panda` | `debug_empty` | `empty_motion` | MoveIt plan + execute |
-| `industrial_obstacle_clearance` | `fanuc_m20id12l_industrial_cell` | `industrial_cell` | `obstacle_clearance` | MoveIt plan + execute |
-| `industrial_fixture_to_pallet` | `fanuc_m20id12l_industrial_cell` | `industrial_cell` | `fixture_to_pallet` | MoveIt plan + execute |
-| `industrial_planning_goal` | `fanuc_m20id12l_industrial_cell` | `industrial_cell` | `obstacle_clearance` | MoveIt plan + execute |
-| `panda_pick_place` | `panda` | `tabletop_pick_place` | `pick_place` | 规划验收，`task.moveit.execute: false` |
-| `sensor_calibration` | `panda` | `tabletop_pick_place` | `sensor_calibration` | 规划/传感器验收，`task.moveit.execute: false` |
-| `conveyor_sorting` | `panda` | `conveyor_sorting` | `conveyor_sorting` | 规划/业务事件验收，`task.moveit.execute: false` |
-| `weld_pre_positioning_scan_and_move` | `fanuc_m20id12l_industrial_cell` | `industrial_cell` | `module_validation` | 外部焊前 3D 定位 + replay `/scan_3d` + MoveIt jog |
-| `weld_2d_lateral_correction_dry_run` | `fanuc_m20id12l_industrial_cell` | `industrial_cell` | `module_validation` | 外部 2D 纠偏干运行 + 合成视觉 topic |
-
-工业 Fanuc 用例和 `empty_motion` 会实际执行轨迹；Panda 的 pick-place、sensor calibration、conveyor sorting 当前默认做规划、TF、传感器和业务步骤级验收，适合在不引入额外 Gazebo 插件或视觉库的前提下做回归。
-
-## 常用命令
-
-运行验收：
+- `run_case` starts the full acceptance workflow:
 
 ```bash
 ros2 run robot_sim_bringup run_case --case industrial_fixture_to_pallet --output-dir robot_sim_runs --timeout 120
 ros2 run robot_sim_bringup run_case --case industrial_obstacle_clearance --output-dir robot_sim_runs --timeout 120
-ros2 run robot_sim_bringup run_case --case panda_pick_place --scene-variant extra_workpieces
 ```
 
-接入 `/home/kyle/sany/ROS2_Motion_Planner` 后运行外部模块验收：
+- External module validation requires sourcing the external workspace first:
 
 ```bash
 source /home/kyle/sany/ROS2_Motion_Planner/install/setup.bash
 ros2 run robot_sim_bringup run_case --case weld_pre_positioning_scan_and_move --output-dir robot_sim_runs --timeout 180
-ros2 run robot_sim_bringup run_case --case weld_2d_lateral_correction_dry_run --output-dir robot_sim_runs --timeout 120
 ```
 
-校验 profile：
+The pre-weld case uses `/home/kyle/sany/data/3dcamera_2d_img` when available. If matching
+`.npz` point clouds exist, they are replayed with the real images. If only images exist,
+`robot_sim` generates a deterministic synthetic point cloud. If no dataset frame is
+available, it falls back to the packaged replay capture.
 
-```bash
-ros2 run robot_sim_bringup profile_lint --profile panda --mode full --require-moveit --require-receivers
-ros2 run robot_sim_bringup profile_lint --profile fanuc_m20id12l_industrial_cell --mode full --require-moveit --require-receivers
+## Configuration Model
+
+`robot_sim` uses `schema: 3` YAML contracts validated by JSON Schema:
+
+| Config kind | What it describes |
+| --- | --- |
+| `sim_profile` | Robot description, control, MoveIt, sensors, bridges, worlds, layouts, capabilities |
+| `scene` | A full workcell with regions, objects, workspaces, parameters, variants, and generators |
+| `world_preset` | Legacy/base world asset composition |
+| `validation_case` | Launch settings, scene, task family, planning scene, expectations, adapters, artifacts |
+
+External packages are discovered from:
+
+```text
+share/<pkg>/robot_sim/profiles/*.yaml
+share/<pkg>/robot_sim/validation_cases/*.yaml
+share/<pkg>/robot_sim/scenes/*.yaml
 ```
 
-生成新机器人接入模板：
+## Robot Scaffold
+
+Generate a reusable external robot package skeleton:
 
 ```bash
 ros2 run robot_sim_bringup scaffold_robot \
@@ -160,13 +154,18 @@ ros2 run robot_sim_bringup scaffold_robot \
   --with-gripper true
 ```
 
-迁移旧配置：
+## Debian Package
+
+Build and install the local Debian package:
 
 ```bash
-ros2 run robot_sim_bringup migrate_config --input old.yaml --output new.yaml
+source /opt/ros/humble/setup.bash
+export GZ_VERSION=harmonic
+bash packaging/build_deb.sh
+sudo apt install ./dist/robot-sim_0.1.0-1_amd64.deb
 ```
 
-Deb 安装后：
+Installed commands:
 
 ```bash
 robot-sim-check
@@ -175,48 +174,20 @@ robot-sim scaffold-robot --package my_robot_sim --robot-name my_robot --output /
 robot-sim sim_profile:=panda sim_mode:=light
 ```
 
-## 接入自己的机器人
+## Documentation
 
-推荐不要把所有机器人都塞进本仓库。外部 ROS package 使用标准路径即可被发现：
-
-```text
-share/<pkg>/robot_sim/profiles/*.yaml
-share/<pkg>/robot_sim/validation_cases/*.yaml
-share/<pkg>/robot_sim/scenes/*.yaml
-```
-
-运行外部配置：
-
-```bash
-ros2 run robot_sim_bringup run_case \
-  --profile-package my_robot_sim \
-  --profile my_robot \
-  --case-package my_robot_sim \
-  --case smoke_empty_motion
-```
-
-显式文件路径也支持：
-
-```bash
-ros2 run robot_sim_bringup run_case \
-  --profile-file /path/to/profile.yaml \
-  --case /path/to/case.yaml \
-  --scene /path/to/scene.yaml
-```
-
-## 文档
-
-- [快速上手](docs/guide/quick-start.md)
-- [环境依赖](docs/guide/prerequisites.md)
-- [仿真运行](docs/guide/simulation.md)
-- [外部模块接入](docs/guide/external-modules.md)
-- [测试验收](docs/workflow/testing.md)
-- [配置说明](docs/configuration/settings.md)
-- [日志与产物](docs/logging/data-storage.md)
-- [Deb 打包与 Release](docs/guide/package-install.md)
-- [产品路线图](docs/roadmap.md)
-- [故障排查](docs/faq/troubleshooting.md)
+- [Documentation home](docs/README.md)
+- [Quick start](docs/guide/quick-start.md)
+- [Simulation guide](docs/guide/simulation.md)
+- [External module integration](docs/guide/external-modules.md)
+- [Testing and validation](docs/workflow/testing.md)
+- [Configuration reference](docs/configuration/settings.md)
+- [Run artifacts and logs](docs/logging/data-storage.md)
+- [Packaging](docs/guide/package-install.md)
+- [Roadmap](docs/roadmap.md)
+- [Troubleshooting](docs/faq/troubleshooting.md)
 
 ## License
 
-本项目使用 [Apache License 2.0](LICENSE)。第三方资源说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+`robot_sim` is licensed under the [Apache License 2.0](LICENSE). See
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for third-party notices.

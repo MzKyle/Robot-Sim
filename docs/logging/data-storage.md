@@ -53,7 +53,7 @@ robot_sim_runs/<UTC timestamp>_<case>_<profile>/
 | `effective_case.yaml` | 应用 CLI 覆盖、scene variant 和 scene 参数后的最终 case |
 | `effective_profile.yaml` | 本次使用的最终 profile |
 | `robot.urdf` | 渲染后的机器人模型，便于排查 xacro 和 link/frame |
-| `metrics.json` | 步骤状态、controller、TF、sensor Hz、MoveIt、误差、clearance 和最终 pass/fail |
+| `metrics.json` | 步骤状态、controller、TF、sensor Hz、MoveIt、误差、clearance、外部模块数据源和最终 pass/fail |
 | `validation_metrics.json` | validation helper 输出的任务级指标 |
 | `report.md` | Markdown 报告，适合在 CI artifact 或 PR 评论中查看 |
 | `report.html` | HTML 报告，适合交付和人工浏览 |
@@ -79,6 +79,11 @@ robot_sim_runs/<UTC timestamp>_<case>_<profile>/
 | `max_controller_error_rad` | controller 跟踪误差 |
 | `min_tcp_clearance_m` | TCP clearance |
 | `moveit_error_code` | MoveIt 返回码 |
+| `adapter_health` | 外部模块 adapter 的启动状态和日志路径 |
+| `adapter_data_sources` | adapter 数据源摘要，例如 `/scan_3d` 图片路径、真实/合成点云、帧策略 |
+| `module_services` | 外部模块服务等待和服务调用结果 |
+| `module_topics` | 外部模块关键 topic 采样与断言结果 |
+| `module_failures` | 外部模块验收失败原因 |
 
 CI 中推荐上传整个 `robot_sim_runs/` 子目录，而不是只保存 `metrics.json`。
 

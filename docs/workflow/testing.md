@@ -143,7 +143,7 @@ ros2 run robot_sim_bringup run_case \
 | `panda_pick_place` | `panda` | `tabletop_pick_place` | `pick_place` | 规划验收，`execute: false` |
 | `sensor_calibration` | `panda` | `tabletop_pick_place` | `sensor_calibration` | 规划/传感器验收，`execute: false` |
 | `conveyor_sorting` | `panda` | `conveyor_sorting` | `conveyor_sorting` | 规划/业务事件验收，`execute: false` |
-| `weld_pre_positioning_scan_and_move` | `fanuc_m20id12l_industrial_cell` | `industrial_cell` | `module_validation` | 外部焊前 3D 定位 + replay scan |
+| `weld_pre_positioning_scan_and_move` | `fanuc_m20id12l_industrial_cell` | `industrial_cell` | `module_validation` | 外部焊前 3D 定位 + dataset `/scan_3d`，真实图片/点云优先，缺点云时合成 |
 | `weld_2d_lateral_correction_dry_run` | `fanuc_m20id12l_industrial_cell` | `industrial_cell` | `module_validation` | 外部 2D 纠偏干运行 |
 
 批量手动验证：
@@ -183,6 +183,7 @@ ros2 run robot_sim_bringup run_case --case weld_2d_lateral_correction_dry_run --
 | `moveit_error_code` | MoveIt 返回码 |
 | `business_actions` | task runner 声明的业务步骤 |
 | `adapter_health` | 外部模块 adapter 的启动状态和日志 |
+| `adapter_data_sources` | 外部模块 adapter 的数据源摘要，例如 `/scan_3d` 图片、点云来源和帧策略 |
 | `module_services` | 外部模块服务等待和调用结果 |
 | `module_topics` | 外部模块关键 topic 采样和断言结果 |
 | `module_failures` | 外部模块验收失败原因 |

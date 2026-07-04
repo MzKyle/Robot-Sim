@@ -79,7 +79,7 @@ expect:
 | --- | --- |
 | `tf_to_tcp_pos` | 读取 TF `parent_frame -> child_frame`，发布 `weld_interface/msg/TcpPos` 到 `/tool_pos` |
 | `moveit_pose_service` | 提供 `/any_mov_jog`，把 `weld_interface/srv/SpecialSpeedl` 请求转成 MoveIt pose goal |
-| `scan3d_service` | 提供 `/scan_3d`，第一版支持 replay JSON + PNG + NPZ 点云 |
+| `scan3d_service` | 提供 `/scan_3d`，支持 replay record，也支持 dataset 目录中的真实图片、同名 `.npz` 点云和合成点云 fallback |
 | `synthetic_weld_vision` | 发布 `/welding/vision_result`，用于 2D 纠偏干运行 |
 | `loop_motion_services` | 提供连续纠偏相关 no-op/低频接口：loop position、rate、enable、stop |
 
@@ -91,13 +91,62 @@ source /home/kyle/sany/ROS2_Motion_Planner/install/setup.bash
 
 缺少 `weld_interface`、服务类型或 action 类型时，preflight 会在报告中明确失败。
 
+## `/scan_3d` 数据源
+
+`scan3d_service` 返回 `weld_interface/srv/Scan3d`，包含 `sensor_msgs/Image`、
+`sensor_msgs/PointCloud2` 和 `weld_interface/msg/TcpPos scan_pose`。数据源有两类：
+
+```yaml
+adapters:
+  - name: dataset_scan3d
+    type: scan3d_service
+    service: /scan_3d
+    source:
+      type: dataset
+      dataset_dir: /home/kyle/sany/data/3dcamera_2d_img
+      image_glob: "*.png"
+      frame_policy: first
+      fallback_record_path: /path/to/scan3d_capture.json
+      x_span_m: 1.2
+      y_span_m: 0.9
+      z_m: 0.88
+      image_frame_id: camera_frame
+      point_cloud_frame_id: camera_frame
+      scan_pose:
+        x: 0.82
+        y: -0.12
+        z: 1.05
+        rx: 3.14159
+        ry: 0.0
+        rz: 0.0
+```
+
+dataset 模式按以下优先级取数据：
+
+1. `dataset_dir` 中可用的 capture JSON 记录，记录需能解析出图片和 `.npz` 点云。
+2. `dataset_dir` 中匹配 `image_glob` 的图片和同名 `.npz` 点云，例如 `1.png` + `1.npz`。
+3. 只有图片时，按 `x_span_m`、`y_span_m`、`z_m` 生成规则平面点云。
+4. 目录没有可用图片或记录时，使用 `fallback_record_path`。
+
+点云 `.npz` 必须包含 `points` 字段，shape 为 `(H, W, 3)`；平铺 `(H*W, 3)` 也会按图片尺寸 reshape。灰度图片默认转换为 `bgr8`，避免外部视觉算法只按彩色图处理。
+
+`frame_policy` 控制多帧行为：
+
+| 策略 | 行为 |
+| --- | --- |
+| `first` | 默认策略，总是使用排序后的第一帧 |
+| `index` | 使用 `frame_index` 指定的单帧 |
+| `sequential` | `/scan_3d` 每被调用一次就返回下一帧，到末尾后循环 |
+
+报告和 `metrics.json` 会记录 `adapter_data_sources`，包括数据源类型、图片路径、点云路径或合成点云参数、帧策略和选中的帧。
+
 ## 参考接入：ROS2_Motion_Planner
 
 当前内置两个参考用例：
 
 | Case | 验收内容 |
 | --- | --- |
-| `weld_pre_positioning_scan_and_move` | 启动 Fanuc 工业场景和焊前定位模块，`/scan_3d` 使用 replay 数据，调用 `/scan_and_detect_welding_seam` 与 `/move_to_detected_welding_seam` |
+| `weld_pre_positioning_scan_and_move` | 启动 Fanuc 工业场景和焊前定位模块，`/scan_3d` 优先使用 `/home/kyle/sany/data/3dcamera_2d_img` 的真实图片/点云，缺点云时合成，缺数据时回退 replay；调用 `/scan_and_detect_welding_seam` 与 `/move_to_detected_welding_seam` |
 | `weld_2d_lateral_correction_dry_run` | 启动 `welding_executor_node` 干运行，合成 `/welding/vision_result`，验证 state、lateral error 和 target TCP |
 
 运行前准备：
@@ -135,6 +184,7 @@ ros2 run robot_sim_bringup run_case \
 | `module_topics` | 关键 topic 的采样次数、最后一条消息和断言结果 |
 | `module_events` | 外部 launch/command 启动、服务等待等事件 |
 | `module_failures` | 外部模块验收失败原因 |
+| `adapter_data_sources` | adapter 数据源摘要，例如 `/scan_3d` 使用的图片、点云来源和帧策略 |
 
 ## 写自己的模块用例
 

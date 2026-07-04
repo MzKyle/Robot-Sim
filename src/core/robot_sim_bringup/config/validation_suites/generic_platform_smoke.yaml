@@ -1,0 +1,11 @@
+schema: 4
+kind: validation_suite
+name: generic_platform_smoke
+description: Minimal suite proving platform runner and matrix execution without robot simulation.
+matrix:
+  parameters:
+    run_label: [alpha, beta]
+cases:
+  - generic_command_smoke
+execution:
+  continue_on_failure: true

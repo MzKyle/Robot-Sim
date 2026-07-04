@@ -1,7 +1,7 @@
 schema: 3
 kind: validation_case
 name: weld_pre_positioning_scan_and_move
-description: Validate an external pre-weld 3D localization module with replayed scan data and simulated Fanuc motion.
+description: Validate an external pre-weld 3D localization module with dataset-backed scan data and simulated Fanuc motion.
 
 launch:
   profile: fanuc_m20id12l_industrial_cell

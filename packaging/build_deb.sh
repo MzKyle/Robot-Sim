@@ -81,6 +81,10 @@ if [[ "${1:-}" == "run-case" ]]; then
   shift
   exec ros2 run robot_sim_bringup run_case "$@"
 fi
+if [[ "${1:-}" == "run-suite" ]]; then
+  shift
+  exec ros2 run robot_sim_bringup run_suite "$@"
+fi
 if [[ "${1:-}" == "migrate-config" ]]; then
   shift
   exec ros2 run robot_sim_bringup migrate_config "$@"

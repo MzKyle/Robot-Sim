@@ -8,21 +8,22 @@ SCHEMA_VERSION = 3
 
 def validate_config_schema(raw: Mapping[str, Any], schema_name: str, kind: str, path: Path | str) -> None:
     path = Path(path)
-    if raw.get("schema") != SCHEMA_VERSION:
+    schema = _load_schema(schema_name)
+    expected_schema_version = _schema_const(schema, "schema") or SCHEMA_VERSION
+    if raw.get("schema") != expected_schema_version:
         detected = raw.get("schema")
         migrate_hint = (
             "Run: ros2 run robot_sim_bringup migrate_config --input "
-            f"{path} --output <schema3.yaml>"
+            f"{path} --output <schema{expected_schema_version}.yaml>"
         )
         raise RuntimeError(
-            f"{kind} schema must be {SCHEMA_VERSION}: {path}. "
-            f"Detected schema: {detected!r}. schema v1/v2 is no longer supported. "
+            f"{kind} schema must be {expected_schema_version}: {path}. "
+            f"Detected schema: {detected!r}. "
             + migrate_hint
         )
     if raw.get("kind") != kind:
         raise RuntimeError(f"{kind} YAML must define kind: {kind}: {path}")
 
-    schema = _load_schema(schema_name)
     try:
         from jsonschema import Draft202012Validator
     except ImportError:
@@ -50,6 +51,13 @@ def _schema_dir() -> Path:
     from ament_index_python.packages import get_package_share_directory
 
     return Path(get_package_share_directory("robot_sim_bringup")) / "schemas"
+
+
+def _schema_const(schema: Mapping[str, Any], field: str) -> Any:
+    value = schema.get("properties", {}).get(field, {})
+    if isinstance(value, Mapping):
+        return value.get("const")
+    return None
 
 
 def _fallback_validate(value: Any, schema: Mapping[str, Any], path: Path, location: str = "<root>") -> None:

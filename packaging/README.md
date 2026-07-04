@@ -28,6 +28,7 @@ PACKAGE_VERSION=0.2.0 PACKAGE_REVISION=1 bash packaging/build_deb.sh
 sudo apt install ./dist/robot-sim_0.1.0-1_amd64.deb
 robot-sim-check
 robot-sim run-case --case industrial_fixture_to_pallet
+robot-sim run-suite --suite generic_platform_smoke
 robot-sim migrate-config --input old.yaml --output new.yaml
 robot-sim scaffold-robot --package my_robot_sim --robot-name my_robot --output /tmp --joint-names joint_1 joint_2 joint_3 joint_4 joint_5 joint_6
 robot-sim sim_profile:=panda sim_mode:=light

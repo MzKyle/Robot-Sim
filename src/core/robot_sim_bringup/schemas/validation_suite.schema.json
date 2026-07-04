@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://robot-sim.local/schemas/validation_suite.schema.json",
+  "title": "robot_sim validation suite",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "kind", "name", "description", "cases"],
+  "properties": {
+    "schema": { "const": 4 },
+    "kind": { "const": "validation_suite" },
+    "name": { "type": "string", "minLength": 1 },
+    "description": { "type": "string" },
+    "matrix": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "parameters": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array"
+          }
+        },
+        "data_sources": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "cases": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          { "type": "string", "minLength": 1 },
+          {
+            "type": "object",
+            "required": ["case"],
+            "properties": {
+              "case": { "type": "string", "minLength": 1 },
+              "case_package": { "type": "string" },
+              "parameters": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            "additionalProperties": true
+          }
+        ]
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "continue_on_failure": { "type": "boolean" },
+        "timeout_sec": { "type": "number" }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}

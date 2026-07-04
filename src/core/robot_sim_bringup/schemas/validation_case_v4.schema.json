@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://robot-sim.local/schemas/validation_case_v4.schema.json",
+  "title": "robot_sim validation case v4",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "kind", "name", "description", "system", "artifacts"],
+  "properties": {
+    "schema": { "const": 4 },
+    "kind": { "const": "validation_case" },
+    "name": { "type": "string", "minLength": 1 },
+    "description": { "type": "string" },
+    "system": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "profile": { "type": "string" },
+        "profile_package": { "type": "string" },
+        "profile_file": { "type": "string" },
+        "type": { "type": "string" },
+        "env": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "startup_delay_sec": { "type": "number" },
+        "processes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/process" }
+        }
+      }
+    },
+    "inputs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/adapter" }
+    },
+    "adapters": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/adapter" }
+    },
+    "actions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/action" }
+    },
+    "assertions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/assertion" }
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["rosbag", "reports"],
+      "properties": {
+        "rosbag": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "topics": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "duration_sec": { "type": "number" },
+            "compression": { "type": "boolean" }
+          }
+        },
+        "reports": {
+          "type": "array",
+          "items": { "enum": ["md", "html", "json"] }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "process": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["name", "command"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "command": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        },
+        "background": { "type": "boolean" },
+        "timeout_sec": { "type": "number" },
+        "required": { "type": "boolean" },
+        "env": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "adapter": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["type"],
+      "properties": {
+        "name": { "type": "string" },
+        "type": {
+          "enum": [
+            "process_supervisor",
+            "topic_replay",
+            "image_camera_replay",
+            "service_stub",
+            "service_proxy",
+            "action_stub",
+            "tf_static_publisher",
+            "joint_state_replay",
+            "message_sequence_publisher",
+            "rosbag_replay"
+          ]
+        }
+      }
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["name", "type"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "type": {
+          "enum": ["command", "service_call", "wait_topic", "wait_service", "sleep"]
+        }
+      }
+    },
+    "assertion": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["name", "type"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "type": {
+          "enum": [
+            "action_result",
+            "process_exit",
+            "topic",
+            "service",
+            "tf",
+            "state_sequence",
+            "ground_truth_error"
+          ]
+        }
+      }
+    }
+  }
+}
