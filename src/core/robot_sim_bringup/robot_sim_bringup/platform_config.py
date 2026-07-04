@@ -7,6 +7,7 @@ from typing import Any, Mapping
 import yaml
 
 from robot_sim_bringup.registry import (
+    resolve_data_source_path,
     resolve_system_profile_path,
     resolve_validation_case_path,
     resolve_validation_suite_path,
@@ -39,6 +40,7 @@ def load_platform_validation_case(
         profile_raw = load_system_profile(resolved)["raw"]
 
     merged_system = _merge_system(profile_raw.get("system", {}), system_spec)
+    inputs, data_sources = _normalize_inputs(raw.get("inputs", []) or [], path.parent, parameters)
     return {
         "schema": 4,
         "kind": "validation_case",
@@ -48,7 +50,8 @@ def load_platform_validation_case(
         "system_profile": profile_name,
         "system_profile_path": profile_path,
         "system": merged_system,
-        "inputs": [_normalize_adapter(item) for item in raw.get("inputs", []) or []],
+        "inputs": inputs,
+        "data_sources": data_sources,
         "adapters": [_normalize_adapter(item) for item in raw.get("adapters", []) or []],
         "actions": [dict(item) for item in raw.get("actions", []) or []],
         "assertions": [dict(item) for item in raw.get("assertions", []) or []],
@@ -71,6 +74,30 @@ def load_system_profile(name_or_path: str | Path, profile_package: str = "") -> 
         "system": _merge_system({}, raw.get("system", {})),
         "raw": raw,
     }
+
+
+def load_data_source(
+    name_or_path: str | Path | Mapping[str, Any],
+    data_source_package: str = "",
+    parameters: Mapping[str, Any] | None = None,
+    base_dir: Path | None = None,
+) -> dict[str, Any]:
+    parameters = dict(parameters or {})
+    if isinstance(name_or_path, Mapping) and name_or_path.get("schema") == 4:
+        path = base_dir or Path.cwd()
+        raw = dict(name_or_path)
+        source_path = ""
+    else:
+        source_name = _data_source_name(name_or_path)
+        source_package = data_source_package or _data_source_package(name_or_path)
+        resolved = resolve_data_source_path(source_name, source_package)
+        raw = _load_yaml_mapping(resolved, "data_source")
+        source_path = str(resolved)
+        path = resolved.parent
+    validate_config_schema(raw, "data_source.schema.json", "data_source", source_path or path)
+    raw = _apply_parameters(raw, parameters)
+    normalized = _normalize_data_source(raw, Path(path), source_path)
+    return normalized
 
 
 def load_validation_suite(name_or_path: str | Path, suite_package: str = "") -> dict[str, Any]:
@@ -116,6 +143,26 @@ def expand_suite_cases(suite: Mapping[str, Any]) -> list[dict[str, Any]]:
                 "id_suffix": _parameter_suffix(merged),
             })
     return cases
+
+
+def _normalize_inputs(
+    raw_inputs: list[Any],
+    case_dir: Path,
+    parameters: Mapping[str, Any],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    inputs: list[dict[str, Any]] = []
+    data_sources: list[dict[str, Any]] = []
+    for item in raw_inputs:
+        if isinstance(item, Mapping) and str(item.get("type", "")) == "data_source":
+            source_spec = item.get("source", item.get("name", ""))
+            package = str(item.get("package", ""))
+            source = load_data_source(source_spec, package, parameters, case_dir)
+            adapter = _data_source_to_adapter(source, item)
+            inputs.append(_normalize_adapter(adapter))
+            data_sources.append(_data_source_summary(source, adapter))
+        else:
+            inputs.append(_normalize_adapter(item))
+    return inputs, data_sources
 
 
 def _matrix_parameters(raw: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -172,6 +219,120 @@ def _normalize_adapter(item: Mapping[str, Any]) -> dict[str, Any]:
     result["name"] = str(result.get("name") or result.get("type", "adapter"))
     result["type"] = str(result.get("type", ""))
     return result
+
+
+def _normalize_data_source(raw: Mapping[str, Any], base_dir: Path, source_path: str) -> dict[str, Any]:
+    result = dict(raw)
+    result["name"] = str(result.get("name", "data_source"))
+    result["type"] = str(result.get("type", ""))
+    result["source_path"] = source_path
+    for key in ("path", "bag", "video", "image"):
+        if result.get(key):
+            result[key] = str(_resolve_relative_path(str(result[key]), base_dir))
+    if result.get("images"):
+        result["images"] = [
+            str(_resolve_relative_path(str(path), base_dir))
+            for path in result.get("images", []) or []
+        ]
+    if result.get("glob") and result.get("path"):
+        root = Path(str(result["path"]))
+        result["images"] = [
+            str(path)
+            for path in sorted(root.glob(str(result["glob"])))
+            if path.is_file()
+        ]
+    return result
+
+
+def _data_source_to_adapter(source: Mapping[str, Any], input_spec: Mapping[str, Any]) -> dict[str, Any]:
+    source_type = str(source.get("type", ""))
+    adapter = {
+        "name": str(input_spec.get("name") or source.get("name")),
+        "required": bool(input_spec.get("required", True)),
+    }
+    if source_type in ("message_sequence", "json", "csv"):
+        message_type = str(input_spec.get("message_type") or source.get("message_type", ""))
+        topic = str(input_spec.get("topic") or source.get("topic", ""))
+        adapter.update({
+            "type": "joint_state_replay" if message_type == "sensor_msgs/msg/JointState" or topic == "/joint_states" else "topic_replay",
+            "topic": topic,
+            "message_type": message_type,
+            "rate_hz": float(input_spec.get("rate_hz", source.get("rate_hz", 10.0))),
+            "repeat": bool(input_spec.get("repeat", source.get("loop", source.get("repeat", False)))),
+            "messages": [dict(item) for item in source.get("messages", []) or []],
+            "path": source.get("path", ""),
+            "records_key": source.get("records_key", ""),
+            "field_map": dict(source.get("field_map", {}) or {}),
+        })
+        return {key: value for key, value in adapter.items() if value not in ("", [], {})}
+    if source_type == "image_sequence":
+        adapter.update({
+            "type": "image_camera_replay",
+            "image_topic": str(input_spec.get("image_topic") or source.get("image_topic", source.get("topic", "/image_raw"))),
+            "camera_info_topic": str(input_spec.get("camera_info_topic") or source.get("camera_info_topic", "/camera_info")),
+            "frame_id": str(input_spec.get("frame_id") or source.get("frame_id", "camera_optical_frame")),
+            "rate_hz": float(input_spec.get("rate_hz", source.get("rate_hz", 10.0))),
+            "repeat": bool(input_spec.get("repeat", source.get("loop", source.get("repeat", True)))),
+            "images": [str(path) for path in source.get("images", []) or []],
+            "camera_info": dict(source.get("camera_info", {}) or {}),
+            "encoding": str(source.get("encoding", "bgr8")),
+        })
+        return adapter
+    if source_type == "video":
+        adapter.update({
+            "type": "image_camera_replay",
+            "image_topic": str(input_spec.get("image_topic") or source.get("image_topic", source.get("topic", "/image_raw"))),
+            "camera_info_topic": str(input_spec.get("camera_info_topic") or source.get("camera_info_topic", "/camera_info")),
+            "frame_id": str(input_spec.get("frame_id") or source.get("frame_id", "camera_optical_frame")),
+            "rate_hz": float(input_spec.get("rate_hz", source.get("fps", source.get("rate_hz", 10.0)))),
+            "repeat": bool(input_spec.get("repeat", source.get("loop", source.get("repeat", True)))),
+            "video": str(source.get("path", "")),
+            "camera_info": dict(source.get("camera_info", {}) or {}),
+            "start_sec": float(source.get("start_sec", 0.0) or 0.0),
+            "duration_sec": float(source.get("duration_sec", 0.0) or 0.0),
+        })
+        return adapter
+    if source_type == "rosbag":
+        adapter.update({
+            "type": "rosbag_replay",
+            "bag": str(source.get("path", "")),
+            "topics": [str(topic) for topic in source.get("topics", []) or []],
+            "clock": bool(source.get("clock", False)),
+            "remap": dict(source.get("remap", {}) or {}),
+        })
+        return adapter
+    raise RuntimeError(f"unsupported data_source type: {source_type}")
+
+
+def _data_source_summary(source: Mapping[str, Any], adapter: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "name": str(source.get("name", "")),
+        "type": str(source.get("type", "")),
+        "source_path": str(source.get("source_path", "")),
+        "path": str(source.get("path", "")),
+        "topic": str(adapter.get("topic") or adapter.get("image_topic", "")),
+        "message_type": str(adapter.get("message_type", "")),
+        "rate_hz": adapter.get("rate_hz"),
+        "records": len(source.get("messages", []) or source.get("images", []) or []),
+        "adapter": str(adapter.get("type", "")),
+    }
+
+
+def _data_source_name(spec: str | Path | Mapping[str, Any]) -> str:
+    if isinstance(spec, Mapping):
+        return str(spec.get("name") or spec.get("path") or "")
+    return str(spec)
+
+
+def _data_source_package(spec: str | Path | Mapping[str, Any]) -> str:
+    return str(spec.get("package", "")) if isinstance(spec, Mapping) else ""
+
+
+def _resolve_relative_path(path_text: str, base_dir: Path) -> Path:
+    path = Path(path_text).expanduser()
+    if not path.is_absolute():
+        path = base_dir / path
+    return path.resolve()
 
 
 def _normalize_artifacts(raw: Mapping[str, Any]) -> dict[str, Any]:

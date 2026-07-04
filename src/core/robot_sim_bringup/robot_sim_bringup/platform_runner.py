@@ -57,6 +57,7 @@ def run_platform_case(
         "steps": [],
         "system_processes": [],
         "adapter_health": [],
+        "data_sources": list(case.get("data_sources", [])),
         "actions": [],
         "assertions": [],
         "artifacts": {
@@ -212,7 +213,7 @@ def _start_adapter(runner: Any, adapter: Mapping[str, Any], adapter_dir: Path, l
         "--adapter-file",
         str(adapter_file),
     ]
-    process = runner.popen(command, log_path)
+    process = runner.popen(command, log_path, env=_merged_env(adapter.get("env", {})))
     time.sleep(0.5)
     status = "STARTED" if process.poll() is None else "EXITED"
     if process.poll() is not None and adapter.get("required", True):
@@ -422,6 +423,7 @@ def _initial_manifest(case: Mapping[str, Any], run_dir: Path, args: Any) -> dict
             "name": case.get("system_profile", ""),
             "path": case.get("system_profile_path", ""),
         },
+        "data_sources": list(case.get("data_sources", [])),
         "command": [sys.argv[0], *(sys.argv[1:] if args else [])],
         "started_at": _utc_now(),
         "finished_at": None,
@@ -465,6 +467,13 @@ def _render_markdown_report(manifest: Mapping[str, Any], metrics: Mapping[str, A
     lines.extend(["", "## Adapters", "", "| Adapter | Type | Status | Log |", "| --- | --- | --- | --- |"])
     for adapter in metrics.get("adapter_health", []):
         lines.append(f"| {adapter.get('name', '')} | {adapter.get('type', '')} | {adapter.get('status', '')} | `{adapter.get('log', '')}` |")
+    if metrics.get("data_sources"):
+        lines.extend(["", "## Data Sources", "", "| Name | Type | Topic | Message Type | Records | Path |", "| --- | --- | --- | --- | ---: | --- |"])
+        for source in metrics.get("data_sources", []):
+            lines.append(
+                f"| {source.get('name', '')} | {source.get('type', '')} | `{source.get('topic', '')}` | "
+                f"`{source.get('message_type', '')}` | {source.get('records', '')} | `{source.get('path') or source.get('source_path', '')}` |"
+            )
     lines.extend(["", "## Artifacts", "", f"- Metrics: `{manifest['artifacts'].get('metrics', '')}`", f"- Manifest: `{manifest['artifacts'].get('manifest', '')}`", ""])
     return "\n".join(lines)
 
@@ -508,6 +517,16 @@ def _record_manual_step(metrics: dict[str, Any], name: str, passed: bool, messag
 
 def _merged_env(extra: Mapping[str, Any]) -> dict[str, str]:
     env = os.environ.copy()
+    source_roots = [
+        Path(__file__).resolve().parents[1],
+        Path(__file__).resolve().parents[2] / "robot_sim_scenarios",
+    ]
+    existing = [item for item in env.get("PYTHONPATH", "").split(os.pathsep) if item]
+    source_entries = [str(source_root) for source_root in source_roots if source_root.exists()]
+    existing = [item for item in existing if item not in source_entries]
+    existing = [*source_entries, *existing]
+    if existing:
+        env["PYTHONPATH"] = os.pathsep.join(existing)
     env.update({str(key): str(value) for key, value in dict(extra or {}).items()})
     return env
 

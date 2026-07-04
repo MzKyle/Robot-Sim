@@ -7,5 +7,6 @@ matrix:
     run_label: [alpha, beta]
 cases:
   - generic_command_smoke
+  - generic_data_source_replay
 execution:
   continue_on_failure: true

@@ -14,8 +14,50 @@
       "enum": ["image_sequence", "video", "rosbag", "csv", "json", "message_sequence"]
     },
     "path": { "type": "string" },
+    "package": { "type": "string" },
     "message_type": { "type": "string" },
     "topic": { "type": "string" },
-    "rate_hz": { "type": "number" }
+    "rate_hz": { "type": "number" },
+    "loop": { "type": "boolean" },
+    "repeat": { "type": "boolean" },
+    "qos_depth": { "type": "integer" },
+    "messages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "records_key": { "type": "string" },
+    "field_map": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "glob": { "type": "string" },
+    "images": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "image": { "type": "string" },
+    "image_topic": { "type": "string" },
+    "camera_info_topic": { "type": "string" },
+    "frame_id": { "type": "string" },
+    "encoding": { "type": "string" },
+    "camera_info": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "fps": { "type": "number" },
+    "start_sec": { "type": "number" },
+    "duration_sec": { "type": "number" },
+    "topics": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "remap": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "clock": { "type": "boolean" }
   }
 }

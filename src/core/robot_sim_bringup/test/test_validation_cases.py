@@ -25,6 +25,7 @@ from robot_sim_bringup.module_runner import _matches_expectation
 from robot_sim_bringup.platform_assertions import matches_expectation
 from robot_sim_bringup.platform_config import (
     expand_suite_cases,
+    load_data_source,
     load_platform_validation_case,
     load_system_profile,
     load_validation_suite,
@@ -313,11 +314,52 @@ def test_platform_v4_loads_system_profile_and_case():
     assert case["actions"][0]["command"][-1].endswith("unit')")
 
 
+def test_data_source_loader_and_case_input_expansion():
+    source = load_data_source("example_message_sequence")
+    case = load_platform_validation_case("generic_data_source_replay")
+
+    assert source["name"] == "example_message_sequence"
+    assert source["type"] == "message_sequence"
+    assert source["messages"][0]["data"] == "READY"
+    assert case["inputs"][0]["type"] == "topic_replay"
+    assert case["inputs"][0]["topic"] == "/example/status"
+    assert case["data_sources"][0]["adapter"] == "topic_replay"
+    assert case["data_sources"][0]["records"] == 3
+
+
+def test_external_data_source_package_discovery(tmp_path, monkeypatch):
+    package = tmp_path / "mock_data_pkg"
+    data_dir = package / "robot_sim" / "data_sources"
+    data_dir.mkdir(parents=True)
+    (data_dir / "status.yaml").write_text(
+        yaml.safe_dump({
+            "schema": 4,
+            "kind": "data_source",
+            "name": "status",
+            "type": "message_sequence",
+            "topic": "/status",
+            "message_type": "std_msgs/msg/String",
+            "messages": [{"data": "OK"}],
+        }),
+        encoding="utf-8",
+    )
+    (package / "package.xml").write_text("<package format='3'><name>mock_data_pkg</name></package>", encoding="utf-8")
+    monkeypatch.setattr(
+        "robot_sim_bringup.registry.package_share_directory",
+        lambda name: package if name == "mock_data_pkg" else PACKAGE_ROOT,
+    )
+
+    source = load_data_source("status", data_source_package="mock_data_pkg")
+
+    assert source["topic"] == "/status"
+    assert source["messages"][0]["data"] == "OK"
+
+
 def test_validation_suite_expands_matrix():
     suite = load_validation_suite("generic_platform_smoke")
     cases = expand_suite_cases(suite)
 
-    assert [case["parameters"]["run_label"] for case in cases] == ["alpha", "beta"]
+    assert [case["parameters"]["run_label"] for case in cases] == ["alpha", "beta", "alpha", "beta"]
     assert cases[0]["case"] == "generic_command_smoke"
 
 
@@ -356,6 +398,34 @@ def test_run_case_executes_platform_v4_case(tmp_path):
     assert (run_dir / "report.html").exists()
 
 
+def test_run_case_executes_data_source_replay(tmp_path):
+    args = type("Args", (), {
+        "case": "generic_data_source_replay",
+        "output_dir": str(tmp_path),
+        "case_package": "",
+        "profile": "",
+        "profile_file": "",
+        "profile_package": "",
+        "scene": "",
+        "scene_package": "",
+        "scene_variant": "",
+        "scene_param": [],
+        "mode": None,
+        "sensor_overrides": None,
+        "timeout": None,
+        "rosbag_duration": 0.0,
+        "no_rosbag": True,
+        "keep_sim": False,
+    })()
+
+    assert run_case(args, CommandRunner()) == 0
+    run_dir = next(tmp_path.iterdir())
+    metrics = yaml.safe_load((run_dir / "metrics.json").read_text(encoding="utf-8"))
+    assert metrics["passed"] is True
+    assert metrics["data_sources"][0]["name"] == "example_message_sequence"
+    assert metrics["assertions"][0]["ok"] is True
+
+
 def test_run_suite_executes_matrix_and_writes_junit(tmp_path):
     args = type("Args", (), {
         "suite": "generic_platform_smoke",
@@ -369,7 +439,7 @@ def test_run_suite_executes_matrix_and_writes_junit(tmp_path):
     assert run_suite(args, CommandRunner()) == 0
     suite_dir = next(tmp_path.iterdir())
     metrics = yaml.safe_load((suite_dir / "suite_metrics.json").read_text(encoding="utf-8"))
-    assert metrics["case_count"] == 2
+    assert metrics["case_count"] == 4
     assert metrics["passed"] is True
     assert (suite_dir / "junit.xml").exists()
 

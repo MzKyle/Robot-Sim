@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 from pathlib import Path
 from typing import Any, Mapping
@@ -200,9 +201,14 @@ def _run_image_camera_replay(config: Mapping[str, Any]) -> None:
     image_paths = [str(path) for path in config.get("images", []) or []]
     if config.get("image"):
         image_paths.append(str(config["image"]))
+    video_path = str(config.get("video", ""))
     width = int(config.get("width", 640))
     height = int(config.get("height", 480))
     repeat = bool(config.get("repeat", True))
+    encoding = str(config.get("encoding", "bgr8"))
+    capture = cv2.VideoCapture(video_path) if video_path and cv2 is not None else None
+    if capture is not None and config.get("start_sec"):
+        capture.set(cv2.CAP_PROP_POS_MSEC, float(config.get("start_sec", 0.0)) * 1000.0)
 
     rclpy.init(args=None)
     node = rclpy.create_node(str(config.get("node_name", "robot_sim_image_camera_replay")))
@@ -211,7 +217,14 @@ def _run_image_camera_replay(config: Mapping[str, Any]) -> None:
     state = {"index": 0}
 
     def publish() -> None:
-        if image_paths:
+        if capture is not None:
+            ok, image = capture.read()
+            if not ok and repeat:
+                capture.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                ok, image = capture.read()
+            if not ok:
+                image = None
+        elif image_paths:
             if state["index"] >= len(image_paths):
                 if not repeat:
                     return
@@ -228,7 +241,7 @@ def _run_image_camera_replay(config: Mapping[str, Any]) -> None:
         msg.header.frame_id = frame_id
         msg.height = int(image.shape[0])
         msg.width = int(image.shape[1])
-        msg.encoding = "bgr8"
+        msg.encoding = encoding
         msg.is_bigendian = 0
         msg.step = int(image.shape[1] * 3)
         msg.data = image.reshape(-1).tolist()
@@ -246,6 +259,8 @@ def _run_image_camera_replay(config: Mapping[str, Any]) -> None:
     try:
         rclpy.spin(node)
     finally:
+        if capture is not None:
+            capture.release()
         node.destroy_node()
         rclpy.shutdown()
 
@@ -300,17 +315,83 @@ def _load_messages(config: Mapping[str, Any]) -> list[dict[str, Any]]:
         path = Path(str(config["path"])).expanduser()
         if path.suffix == ".json":
             data = json.loads(path.read_text(encoding="utf-8"))
+            records_key = str(config.get("records_key", ""))
+            if records_key:
+                data = _nested_value(data, records_key)
             if isinstance(data, list):
-                return [dict(item) for item in data]
+                return [_map_record(dict(item), config.get("field_map", {})) for item in data]
             if isinstance(data, dict) and isinstance(data.get("messages"), list):
-                return [dict(item) for item in data["messages"]]
+                return [_map_record(dict(item), config.get("field_map", {})) for item in data["messages"]]
         if path.suffix in (".yaml", ".yml"):
             data = yaml.safe_load(path.read_text(encoding="utf-8"))
+            records_key = str(config.get("records_key", ""))
+            if records_key:
+                data = _nested_value(data, records_key)
             if isinstance(data, list):
-                return [dict(item) for item in data]
+                return [_map_record(dict(item), config.get("field_map", {})) for item in data]
             if isinstance(data, dict) and isinstance(data.get("messages"), list):
-                return [dict(item) for item in data["messages"]]
+                return [_map_record(dict(item), config.get("field_map", {})) for item in data["messages"]]
+        if path.suffix == ".csv":
+            with path.open("r", encoding="utf-8", newline="") as handle:
+                return [
+                    _map_record(row, config.get("field_map", {}))
+                    for row in csv.DictReader(handle)
+                ]
     return []
+
+
+def _map_record(record: Mapping[str, Any], field_map: Mapping[str, Any]) -> dict[str, Any]:
+    typed = {str(key): _typed_value(value) for key, value in record.items()}
+    if not field_map:
+        return typed
+    result: dict[str, Any] = {}
+    for target, source in dict(field_map).items():
+        if isinstance(source, str):
+            value = typed.get(source, source)
+        elif isinstance(source, list):
+            value = [
+                typed.get(str(item), item)
+                for item in source
+            ]
+        else:
+            value = source
+        _assign_nested(result, str(target), value)
+    return result
+
+
+def _assign_nested(target: dict[str, Any], path: str, value: Any) -> None:
+    parts = path.split(".")
+    current = target
+    for part in parts[:-1]:
+        current = current.setdefault(part, {})
+    current[parts[-1]] = value
+
+
+def _nested_value(value: Any, path: str) -> Any:
+    current = value
+    for part in path.split("."):
+        if isinstance(current, Mapping):
+            current = current.get(part)
+        elif isinstance(current, list) and part.isdigit():
+            index = int(part)
+            current = current[index] if index < len(current) else None
+        else:
+            return None
+    return current
+
+
+def _typed_value(value: Any) -> Any:
+    if not isinstance(value, str):
+        return value
+    lowered = value.lower()
+    if lowered in ("true", "false"):
+        return lowered == "true"
+    try:
+        if "." in value:
+            return float(value)
+        return int(value)
+    except ValueError:
+        return value
 
 
 def _load_mapping(path: Path) -> dict[str, Any]:
