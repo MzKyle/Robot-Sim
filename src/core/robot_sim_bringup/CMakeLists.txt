@@ -26,12 +26,7 @@ install(PROGRAMS
   scripts/migrate_config
   scripts/profile_lint
   scripts/run_case
-  scripts/run_suite
-  scripts/scaffold_adapter
-  scripts/scaffold_case
   scripts/scaffold_robot
-  scripts/scaffold_suite
-  scripts/scaffold_system
   DESTINATION lib/${PROJECT_NAME}
 )
 

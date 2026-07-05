@@ -21,7 +21,7 @@ def build_parser():
     parser.add_argument("--kind", default="auto", choices=("auto", "sim_profile", "scene", "world_preset", "validation_case"))
     parser.add_argument("--in-place", action="store_true", help="Allow output path to match input path.")
     parser.add_argument("--from", dest="from_version", default="", choices=("", "v2", "v3"), help="Optional source schema version.")
-    parser.add_argument("--to", dest="to_version", default="v3", choices=("v3", "v4"), help="Target schema version.")
+    parser.add_argument("--to", dest="to_version", default="v3", choices=("v3",), help="Target schema version.")
     return parser
 
 
@@ -50,9 +50,7 @@ def migrate_file(
         raw = yaml.safe_load(handle)
     if not isinstance(raw, dict):
         raise RuntimeError(f"YAML must be a mapping: {input_path}")
-    if to_version == "v4":
-        migrated = migrate_mapping_to_v4(raw, kind, input_path)
-    elif raw.get("schema") == 3:
+    if raw.get("schema") == 3:
         migrated = raw
     elif raw.get("schema") == 2:
         migrated = migrate_mapping(raw, kind)
@@ -82,54 +80,6 @@ def migrate_mapping(raw: dict, kind: str = "auto") -> dict:
     else:
         raise RuntimeError(f"unsupported kind: {kind}")
     return result
-
-
-def migrate_mapping_to_v4(raw: dict, kind: str = "auto", source_path: Path | None = None) -> dict:
-    detected_kind = raw.get("kind")
-    if kind == "auto":
-        kind = detected_kind
-    if kind != detected_kind:
-        raise RuntimeError(f"kind mismatch: requested {kind}, YAML has {detected_kind}")
-    if kind != "validation_case":
-        raise RuntimeError("v4 migration currently supports validation_case only")
-    if raw.get("schema") == 2:
-        raw = migrate_mapping(raw, kind)
-    if raw.get("schema") != 3:
-        raise RuntimeError(f"only schema v3 validation_case can be migrated to v4; got {raw.get('schema')!r}")
-    launch = raw.get("launch", {}) or {}
-    artifacts = raw.get("artifacts", {}) or {}
-    rosbag = artifacts.get("rosbag", {}) or {}
-    return {
-        "schema": 4,
-        "kind": "validation_case",
-        "name": str(raw.get("name", source_path.stem if source_path else "validation_case")),
-        "description": str(raw.get("description", "")),
-        "system": {
-            "type": "robot_simulation",
-            "legacy_schema": 3,
-            "legacy_case_path": str(source_path or ""),
-            "profile": str(launch.get("profile", "")),
-            "profile_package": str(launch.get("profile_package", "")),
-            "profile_file": str(launch.get("profile_file", "")),
-            "mode": str(launch.get("mode", "")),
-            "layout": str(launch.get("layout", "")),
-            "timeout_sec": float(launch.get("timeout_sec", 120.0)),
-            "legacy_adapters": [dict(adapter) for adapter in raw.get("adapters", []) or [] if isinstance(adapter, dict)],
-        },
-        "inputs": [],
-        "adapters": [],
-        "actions": [],
-        "assertions": [],
-        "artifacts": {
-            "rosbag": {
-                "enabled": bool(rosbag.get("enabled", True)),
-                "topics": [str(topic) for topic in rosbag.get("extra_topics", []) or []],
-                "duration_sec": 8.0,
-                "compression": bool(rosbag.get("compression", False)),
-            },
-            "reports": [str(report) for report in artifacts.get("reports", ["md", "html"])],
-        },
-    }
 
 
 def _migrate_sim_profile(raw: dict) -> None:

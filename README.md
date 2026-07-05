@@ -11,18 +11,14 @@
 
 ![robot_sim](docs/assets/cover.svg)
 
-`robot_sim` is a ROS 2 simulation and interface validation platform. It keeps the
-industrial robot/Gazebo/MoveIt/ros2_control acceptance chain as the `robot` domain, and
-adds a schema v4 platform runner for generic ROS2 topic/service/TF/process contract
-checks with system profiles, data sources, adapters, assertions, and suites.
+`robot_sim` is now focused on the `schema: 3` robot simulation and acceptance chain:
+Gazebo, MoveIt, ros2_control, robot profiles, scenes, validation cases, sensors, and
+legacy welding/FANUC integrations.
 
-[Read the documentation](docs/README.md)
+Generic `schema: 4` ROS2 pipeline validation has moved to the sibling project
+`../robot_validation`.
 
 ## Quick Start
-
-1. Install Ubuntu 22.04, ROS 2 Humble, Gazebo Harmonic, MoveIt2, `colcon`, and `rosdep`.
-   See [Prerequisites](docs/guide/prerequisites.md) for the full dependency list.
-2. Clone and build the workspace:
 
 ```bash
 git clone https://github.com/MzKyle/robot_sim.git robot_sim
@@ -43,7 +39,7 @@ colcon build --symlink-install \
 source install/setup.bash
 ```
 
-3. Run the first validation case:
+Run a v3 validation case:
 
 ```bash
 ros2 run robot_sim_bringup run_case \
@@ -52,30 +48,12 @@ ros2 run robot_sim_bringup run_case \
   --timeout 120
 ```
 
-4. Open the generated report:
+Run an interactive simulation:
 
 ```bash
-latest_run="$(ls -td robot_sim_runs/*_empty_motion_panda | head -1)"
-xdg-open "${latest_run}/report.html"
+ros2 launch robot_sim_bringup sim.launch.py sim_profile:=panda sim_mode:=light
+ros2 launch robot_sim_bringup sim.launch.py sim_profile:=fanuc_m20id12l_industrial_cell sim_mode:=full
 ```
-
-Each run creates a standalone artifact directory with `manifest.json`, effective YAML
-configs, `robot.urdf`, logs, rosbag, `metrics.json`, `report.md`, and `report.html`.
-
-## What You Can Do
-
-- Start Panda or Fanuc M-20iD/12L simulations in `mock`, `light`, or `full` mode.
-- Validate controller state, joint states, TF completeness, sensor topic frequency,
-  MoveIt planning/execution, goal error, controller error, and TCP clearance.
-- Run reusable validation cases for empty motion, obstacle clearance, fixture-to-pallet,
-  pick-place, sensor calibration, conveyor sorting, and external module validation.
-- Use scene variants and parameters to create deterministic industrial test conditions.
-- Replay or stub generic ROS2 topics/services with schema v4 data sources and adapters.
-- Keep legacy welding/FANUC integrations available without making them the core platform model.
-- Generate run artifacts that can be reviewed manually, archived for delivery, or checked
-  by CI.
-- Scaffold an external robot simulation package instead of putting every robot in this
-  repository.
 
 ## Built-in Validation Cases
 
@@ -88,66 +66,32 @@ configs, `robot.urdf`, logs, rosbag, `metrics.json`, `report.md`, and `report.ht
 | `panda_pick_place` | `panda` | `tabletop_pick_place` | Pick-place planning validation, execution disabled by default |
 | `sensor_calibration` | `panda` | `tabletop_pick_place` | Multi-view sensor calibration workflow validation |
 | `conveyor_sorting` | `panda` | `conveyor_sorting` | Conveyor sorting workflow validation |
-| `weld_pre_positioning_scan_and_move` | `fanuc_m20id12l_industrial_cell` | `industrial_cell` | External pre-weld 3D localization with dataset `/scan_3d` and MoveIt jog |
-| `weld_2d_lateral_correction_dry_run` | `fanuc_m20id12l_industrial_cell` | `industrial_cell` | External 2D weld correction dry run with synthetic vision |
-
-## Simulation and Validation Workflow
-
-- `sim.launch.py` starts an interactive simulation:
-
-```bash
-ros2 launch robot_sim_bringup sim.launch.py sim_profile:=panda sim_mode:=light
-ros2 launch robot_sim_bringup sim.launch.py sim_profile:=fanuc_m20id12l_industrial_cell sim_mode:=full
-```
-
-- `run_case` starts the full acceptance workflow:
-
-```bash
-ros2 run robot_sim_bringup run_case --case industrial_fixture_to_pallet --output-dir robot_sim_runs --timeout 120
-ros2 run robot_sim_bringup run_case --case industrial_obstacle_clearance --output-dir robot_sim_runs --timeout 120
-```
-
-- External module validation requires sourcing the external workspace first:
-
-```bash
-source /home/kyle/sany/ROS2_Motion_Planner/install/setup.bash
-ros2 run robot_sim_bringup run_case --case weld_pre_positioning_scan_and_move --output-dir robot_sim_runs --timeout 180
-```
-
-The pre-weld case uses `/home/kyle/sany/data/3dcamera_2d_img` when available. If matching
-`.npz` point clouds exist, they are replayed with the real images. If only images exist,
-`robot_sim` generates a deterministic synthetic point cloud. If no dataset frame is
-available, it falls back to the packaged replay capture.
+| `weld_pre_positioning_scan_and_move` | `fanuc_m20id12l_industrial_cell` | `industrial_cell` | External pre-weld 3D localization with MoveIt jog |
+| `weld_2d_lateral_correction_dry_run` | `fanuc_m20id12l_industrial_cell` | `industrial_cell` | External 2D weld correction dry run |
 
 ## Configuration Model
 
-`robot_sim` supports two YAML contract families validated by JSON Schema:
+`robot_sim` validates these v3 YAML contracts:
 
 | Config kind | What it describes |
 | --- | --- |
-| `schema: 3 sim_profile` | Robot description, control, MoveIt, sensors, bridges, worlds, layouts, capabilities |
-| `scene` | A full workcell with regions, objects, workspaces, parameters, variants, and generators |
+| `sim_profile` | Robot description, control, MoveIt, sensors, bridges, worlds, layouts, capabilities |
+| `scene` | A workcell with regions, objects, workspaces, parameters, variants, and generators |
 | `world_preset` | Legacy/base world asset composition |
-| `schema: 3 validation_case` | Launch settings, scene, task family, planning scene, expectations, adapters, artifacts |
-| `schema: 4 system/data_source/adapter/suite` | Generic ROS2 pipeline validation assets |
+| `validation_case` | Launch settings, scene, task family, planning scene, expectations, adapters, artifacts |
 
-External packages are discovered from:
+External robot packages are discovered from:
 
 ```text
 share/<pkg>/robot_sim/profiles/*.yaml
 share/<pkg>/robot_sim/validation_cases/*.yaml
-share/<pkg>/robot_sim/suites/*.yaml
-share/<pkg>/robot_sim/data_sources/*.yaml
-share/<pkg>/robot_sim/adapters/*.yaml
+share/<pkg>/robot_sim/scenes/*.yaml
 ```
 
-The legacy `robot_sim/validation_suites` path is still accepted. Built-in
-robot examples live under `examples/robot_arm`; welding assets live under
-`integrations/welding`; RM vision interface examples live under `examples/rm_vision`.
+If a `schema: 4` validation case is passed to `robot_sim_bringup run_case`, the command
+fails with a migration hint to run it with `robot_validation`.
 
 ## Robot Scaffold
-
-Generate a reusable external robot package skeleton:
 
 ```bash
 ros2 run robot_sim_bringup scaffold_robot \
@@ -163,8 +107,6 @@ ros2 run robot_sim_bringup scaffold_robot \
 
 ## Debian Package
 
-Build and install the local Debian package:
-
 ```bash
 source /opt/ros/humble/setup.bash
 export GZ_VERSION=harmonic
@@ -177,30 +119,12 @@ Installed commands:
 ```bash
 robot-sim-check
 robot-sim run-case --case industrial_fixture_to_pallet
+robot-sim migrate-config --input old.yaml --output new.yaml
 robot-sim scaffold-robot --package my_robot_sim --robot-name my_robot --output /tmp --joint-names joint_1 joint_2 joint_3 joint_4 joint_5 joint_6
-robot-sim scaffold-system --package my_robot_sim --name minimal_system --output /tmp
-robot-sim scaffold-case --package my_robot_sim --name smoke_case --system minimal_system --output /tmp
-robot-sim scaffold-suite --package my_robot_sim --name smoke_suite --case smoke_case --output /tmp
-robot-sim scaffold-adapter --package my_robot_sim --name smoke_adapter --output /tmp
 robot-sim sim_profile:=panda sim_mode:=light
+robot-sim sim_profile:=fanuc_m20id12l sim_mode:=full
 ```
-
-## Documentation
-
-- [Documentation home](docs/README.md)
-- [Quick start](docs/guide/quick-start.md)
-- [Simulation guide](docs/guide/simulation.md)
-- [External module integration](docs/guide/external-modules.md)
-- [External project assets](docs/guide/external-projects.md)
-- [Maintainer code map](docs/architecture/maintainer-code-map.md)
-- [Testing and validation](docs/workflow/testing.md)
-- [Configuration reference](docs/configuration/settings.md)
-- [Run artifacts and logs](docs/logging/data-storage.md)
-- [Packaging](docs/guide/package-install.md)
-- [Roadmap](docs/roadmap.md)
-- [Troubleshooting](docs/faq/troubleshooting.md)
 
 ## License
 
-`robot_sim` is licensed under the [Apache License 2.0](LICENSE). See
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for third-party notices.
+`robot_sim` is licensed under the [Apache License 2.0](LICENSE).

@@ -81,10 +81,6 @@ if [[ "${1:-}" == "run-case" ]]; then
   shift
   exec ros2 run robot_sim_bringup run_case "$@"
 fi
-if [[ "${1:-}" == "run-suite" ]]; then
-  shift
-  exec ros2 run robot_sim_bringup run_suite "$@"
-fi
 if [[ "${1:-}" == "migrate-config" ]]; then
   shift
   exec ros2 run robot_sim_bringup migrate_config "$@"
@@ -92,22 +88,6 @@ fi
 if [[ "${1:-}" == "scaffold-robot" ]]; then
   shift
   exec ros2 run robot_sim_bringup scaffold_robot "$@"
-fi
-if [[ "${1:-}" == "scaffold-system" ]]; then
-  shift
-  exec ros2 run robot_sim_bringup scaffold_system "$@"
-fi
-if [[ "${1:-}" == "scaffold-case" ]]; then
-  shift
-  exec ros2 run robot_sim_bringup scaffold_case "$@"
-fi
-if [[ "${1:-}" == "scaffold-suite" ]]; then
-  shift
-  exec ros2 run robot_sim_bringup scaffold_suite "$@"
-fi
-if [[ "${1:-}" == "scaffold-adapter" ]]; then
-  shift
-  exec ros2 run robot_sim_bringup scaffold_adapter "$@"
 fi
 
 exec ros2 launch robot_sim_bringup sim.launch.py "$@"
@@ -177,10 +157,6 @@ Useful commands:
   robot-sim run-case --case industrial_fixture_to_pallet
   robot-sim migrate-config --input old.yaml --output new.yaml
   robot-sim scaffold-robot --package my_robot_sim --robot-name my_robot --output /tmp --joint-names joint_1 joint_2 joint_3 joint_4 joint_5 joint_6
-  robot-sim scaffold-system --package my_robot_sim --name minimal_system --output /tmp
-  robot-sim scaffold-case --package my_robot_sim --name smoke_case --system minimal_system --output /tmp
-  robot-sim scaffold-suite --package my_robot_sim --name smoke_suite --case smoke_case --output /tmp
-  robot-sim scaffold-adapter --package my_robot_sim --name smoke_adapter --output /tmp
   robot-sim sim_profile:=panda sim_mode:=light
   robot-sim sim_profile:=fanuc_m20id12l sim_mode:=full
 MSG

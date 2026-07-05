@@ -6,11 +6,6 @@ from typing import Iterable
 
 PROFILE_DIR = "robot_sim/profiles"
 VALIDATION_CASE_DIR = "robot_sim/validation_cases"
-VALIDATION_SUITE_DIR = "robot_sim/suites"
-LEGACY_VALIDATION_SUITE_DIR = "robot_sim/validation_suites"
-SYSTEM_PROFILE_DIR = "robot_sim/system_profiles"
-DATA_SOURCE_DIR = "robot_sim/data_sources"
-ADAPTER_DIR = "robot_sim/adapters"
 SCENE_DIR = "robot_sim/scenes"
 
 
@@ -57,95 +52,6 @@ def resolve_validation_case_path(
         [(VALIDATION_CASE_DIR,)],
         "validation_case",
         ("config/validation_cases",),
-    )
-
-
-def resolve_validation_suite_path(
-    suite_name: str | Path,
-    suite_package: str = "",
-) -> Path:
-    candidate = Path(suite_name).expanduser()
-    if candidate.exists():
-        return candidate.resolve()
-    if candidate.suffix in (".yaml", ".yml") or candidate.parent != Path("."):
-        raise RuntimeError(f"validation suite file does not exist: {candidate}")
-    if suite_package:
-        return _package_config_path(
-            suite_package,
-            (VALIDATION_SUITE_DIR, LEGACY_VALIDATION_SUITE_DIR),
-            str(suite_name),
-            "validation_suite",
-        )
-    return _builtin_config_path(
-        str(suite_name),
-        [(VALIDATION_SUITE_DIR, LEGACY_VALIDATION_SUITE_DIR)],
-        "validation_suite",
-        ("config/validation_suites",),
-    )
-
-
-def resolve_system_profile_path(
-    profile_name: str | Path,
-    profile_package: str = "",
-    profile_file: str = "",
-) -> Path:
-    if profile_file:
-        return _existing_path(profile_file, "system_profile")
-    candidate = Path(profile_name).expanduser()
-    if candidate.exists():
-        return candidate.resolve()
-    if candidate.suffix in (".yaml", ".yml") or candidate.parent != Path("."):
-        raise RuntimeError(f"system profile file does not exist: {candidate}")
-    if profile_package:
-        return _package_config_path(
-            profile_package,
-            (PROFILE_DIR, SYSTEM_PROFILE_DIR),
-            str(profile_name),
-            "system_profile",
-        )
-    return _builtin_config_path(
-        str(profile_name),
-        [(PROFILE_DIR, SYSTEM_PROFILE_DIR)],
-        "system_profile",
-        ("config/system_profiles",),
-    )
-
-
-def resolve_data_source_path(
-    data_source_name: str | Path,
-    data_source_package: str = "",
-) -> Path:
-    candidate = Path(data_source_name).expanduser()
-    if candidate.exists():
-        return candidate.resolve()
-    if candidate.suffix in (".yaml", ".yml") or candidate.parent != Path("."):
-        raise RuntimeError(f"data source file does not exist: {candidate}")
-    if data_source_package:
-        return _package_config_path(data_source_package, DATA_SOURCE_DIR, str(data_source_name), "data_source")
-    return _builtin_config_path(
-        str(data_source_name),
-        [(DATA_SOURCE_DIR,)],
-        "data_source",
-        ("config/data_sources",),
-    )
-
-
-def resolve_adapter_path(
-    adapter_name: str | Path,
-    adapter_package: str = "",
-) -> Path:
-    candidate = Path(adapter_name).expanduser()
-    if candidate.exists():
-        return candidate.resolve()
-    if candidate.suffix in (".yaml", ".yml") or candidate.parent != Path("."):
-        raise RuntimeError(f"adapter file does not exist: {candidate}")
-    if adapter_package:
-        return _package_config_path(adapter_package, ADAPTER_DIR, str(adapter_name), "adapter")
-    return _builtin_config_path(
-        str(adapter_name),
-        [(ADAPTER_DIR,)],
-        "adapter",
-        ("config/adapters",),
     )
 
 
@@ -258,7 +164,6 @@ def _builtin_roots() -> list[Path]:
     if repo_root is not None:
         roots.extend([
             repo_root / "examples" / "robot_arm",
-            repo_root / "examples" / "rm_vision",
             repo_root / "integrations" / "welding",
             repo_root / "integrations" / "auto_cover",
         ])
@@ -266,7 +171,6 @@ def _builtin_roots() -> list[Path]:
     share = package_share_directory("robot_sim_bringup")
     roots.extend([
         share / "examples" / "robot_arm",
-        share / "examples" / "rm_vision",
         share / "integrations" / "welding",
         share / "integrations" / "auto_cover",
     ])

@@ -14,7 +14,6 @@ import time
 import yaml
 
 from robot_sim_bringup.common.registry import resolve_profile_path, resolve_validation_case_path
-from robot_sim_bringup.platform.runner import is_platform_case, run_platform_case
 from robot_sim_bringup.robot_domain.task_runners import get_task_runner
 from robot_sim_bringup.robot_domain.validation_cases import load_validation_case
 
@@ -90,8 +89,13 @@ def main(argv=None):
 
 def run_case(args, runner):
     case_path = resolve_validation_case_path(args.case, case_package=args.case_package)
-    if is_platform_case(case_path):
-        return run_platform_case(args, runner)
+    if _is_schema4_case(case_path):
+        print(
+            "ERROR: schema 4 generic validation has moved to the robot_validation project. "
+            "Run this case with: ros2 run robot_validation run_case --case <case>",
+            file=sys.stderr,
+        )
+        return FAILURE
 
     scene_parameters = _parse_scene_params(args.scene_param)
     case = load_validation_case(
@@ -898,6 +902,15 @@ def _step_status(passed):
 
 def _safe_id(value):
     return re.sub(r"[^A-Za-z0-9_.-]+", "_", str(value)).strip("_")
+
+
+def _is_schema4_case(path):
+    try:
+        with Path(path).open("r", encoding="utf-8") as handle:
+            raw = yaml.safe_load(handle)
+    except Exception:
+        return False
+    return isinstance(raw, dict) and raw.get("schema") == 4 and raw.get("kind") == "validation_case"
 
 
 if __name__ == "__main__":

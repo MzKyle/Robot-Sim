@@ -64,19 +64,6 @@ def scaffold_robot(args) -> Path:
             _validation_case(package_name, robot_name, args.planning_group, args.tool_link),
             sort_keys=False,
         ),
-        "robot_sim/suites/smoke_suite.yaml": yaml.safe_dump(
-            {
-                "schema": 4,
-                "kind": "validation_suite",
-                "name": "smoke_suite",
-                "description": "Scaffold robot smoke suite.",
-                "cases": [{"case": "smoke_empty_motion", "case_package": package_name}],
-                "execution": {"continue_on_failure": True},
-            },
-            sort_keys=False,
-        ),
-        "robot_sim/data_sources/.gitkeep": "",
-        "robot_sim/adapters/.gitkeep": "",
     }
 
     for relative_path, content in files.items():
