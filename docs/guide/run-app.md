@@ -3,15 +3,12 @@
 ## 拉取源码
 
 ```bash
-git clone --recursive https://github.com/MzKyle/robot_sim.git robot_sim
+git clone https://github.com/MzKyle/robot_sim.git robot_sim
 cd robot_sim
 ```
 
-如果已经 clone 但没有 submodule：
-
-```bash
-git submodule update --init --recursive
-```
+当前仓库没有 Git submodule；Gazebo Harmonic 的 `gz_ros2_control` 适配代码放在
+`src/vendor/gz_ros2_control/`，随仓库一起构建。
 
 ## 构建
 

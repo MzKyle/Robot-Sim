@@ -11,12 +11,30 @@
 
 ![robot_sim](docs/assets/cover.svg)
 
-`robot_sim` is now focused on the `schema: 3` robot simulation and acceptance chain:
-Gazebo, MoveIt, ros2_control, robot profiles, scenes, validation cases, sensors, and
-legacy welding/FANUC integrations.
+`robot_sim` is a ROS 2 robot simulation and acceptance toolkit for checking whether a robot model, controller, MoveIt setup, sensors, scenes, and task workflow can run together reliably.
 
-Generic `schema: 4` ROS2 pipeline validation has moved to the sibling project
-`../robot_validation`.
+It is built for users who need a repeatable simulation environment, not just a one-off Gazebo demo. You can run an interactive simulation, execute a validation case, collect run artifacts, or scaffold a new robot simulation package.
+
+Generic `schema: 4` ROS 2 pipeline validation has moved to the sibling project `robot_validation`. This repository now focuses on the `schema: 3` robot simulation domain.
+
+## What You Can Do
+
+| Goal | Use |
+| --- | --- |
+| Start a robot simulation | Launch Panda or Fanuc profiles in Gazebo with optional MoveIt and sensors |
+| Run acceptance checks | Execute validation cases and get logs, metrics, reports, and optional rosbag output |
+| Validate an industrial cell | Check obstacle clearance, fixture-to-pallet motion, planning goals, and welding integration dry runs |
+| Test sensor workflows | Run camera, depth, lidar, IMU, calibration, and conveyor sorting scenarios |
+| Bring your own robot | Generate an external robot package scaffold and add profiles, scenes, and validation cases |
+
+## Requirements
+
+- Ubuntu with ROS 2 Humble sourced from `/opt/ros/humble`
+- Gazebo Harmonic / `gz sim 8`
+- MoveIt 2 and ros2_control packages for Humble
+- `colcon`, `rosdep`, and standard ROS 2 build tooling
+
+See [docs/guide/prerequisites.md](docs/guide/prerequisites.md) for the complete setup checklist.
 
 ## Quick Start
 
@@ -39,59 +57,59 @@ colcon build --symlink-install \
 source install/setup.bash
 ```
 
-Run a v3 validation case:
+Run a fast validation case without Gazebo:
 
 ```bash
 ros2 run robot_sim_bringup run_case \
   --case empty_motion \
+  --mode mock \
+  --no-rosbag \
   --output-dir robot_sim_runs \
   --timeout 120
 ```
 
-Run an interactive simulation:
+The run writes a timestamped directory under `robot_sim_runs/` with the effective config, logs, metrics, and reports.
+
+Start an interactive simulation when you need Gazebo:
 
 ```bash
 ros2 launch robot_sim_bringup sim.launch.py sim_profile:=panda sim_mode:=light
 ros2 launch robot_sim_bringup sim.launch.py sim_profile:=fanuc_m20id12l_industrial_cell sim_mode:=full
 ```
 
-## Built-in Validation Cases
+Simulation modes:
 
-| Case | Profile | Scene | Purpose |
-| --- | --- | --- | --- |
-| `empty_motion` | `panda` | `debug_empty` | Minimal MoveIt plan and execute validation |
-| `industrial_obstacle_clearance` | `fanuc_m20id12l_industrial_cell` | `industrial_cell` | Fanuc obstacle avoidance with planning-scene objects |
-| `industrial_fixture_to_pallet` | `fanuc_m20id12l_industrial_cell` | `industrial_cell` | Fixture-to-pallet industrial motion validation |
-| `industrial_planning_goal` | `fanuc_m20id12l_industrial_cell` | `industrial_cell` | Industrial planning target smoke validation |
-| `panda_pick_place` | `panda` | `tabletop_pick_place` | Pick-place planning validation, execution disabled by default |
-| `sensor_calibration` | `panda` | `tabletop_pick_place` | Multi-view sensor calibration workflow validation |
-| `conveyor_sorting` | `panda` | `conveyor_sorting` | Conveyor sorting workflow validation |
-| `weld_pre_positioning_scan_and_move` | `fanuc_m20id12l_industrial_cell` | `industrial_cell` | External pre-weld 3D localization with MoveIt jog |
-| `weld_2d_lateral_correction_dry_run` | `fanuc_m20id12l_industrial_cell` | `industrial_cell` | External 2D weld correction dry run |
-
-## Configuration Model
-
-`robot_sim` validates these v3 YAML contracts:
-
-| Config kind | What it describes |
+| Mode | Purpose |
 | --- | --- |
-| `sim_profile` | Robot description, control, MoveIt, sensors, bridges, worlds, layouts, capabilities |
-| `scene` | A workcell with regions, objects, workspaces, parameters, variants, and generators |
-| `world_preset` | Legacy/base world asset composition |
-| `validation_case` | Launch settings, scene, task family, planning scene, expectations, adapters, artifacts |
+| `mock` | Fast runtime and artifact checks without Gazebo |
+| `light` | Headless Gazebo and ros2_control, sensors off by default |
+| `full` | Gazebo, MoveIt/RViz, bridges, and sensors enabled by default |
 
-External robot packages are discovered from:
+## Built-In Examples
 
-```text
-share/<pkg>/robot_sim/profiles/*.yaml
-share/<pkg>/robot_sim/validation_cases/*.yaml
-share/<pkg>/robot_sim/scenes/*.yaml
-```
+Robot profiles:
 
-If a `schema: 4` validation case is passed to `robot_sim_bringup run_case`, the command
-fails with a migration hint to run it with `robot_validation`.
+- `panda`
+- `fanuc_m20id12l`
+- `fanuc_m20id12l_industrial_cell`
 
-## Robot Scaffold
+Validation cases:
+
+| Case | What it checks |
+| --- | --- |
+| `empty_motion` | Minimal MoveIt plan and execute flow |
+| `industrial_obstacle_clearance` | Fanuc industrial obstacle avoidance |
+| `industrial_fixture_to_pallet` | Fixture-to-pallet industrial motion |
+| `industrial_planning_goal` | Industrial planning target smoke check |
+| `panda_pick_place` | Panda tabletop pick-place planning |
+| `sensor_calibration` | Multi-view sensor calibration workflow |
+| `conveyor_sorting` | Conveyor sorting workflow |
+| `weld_pre_positioning_scan_and_move` | Pre-weld 3D localization plus MoveIt jog |
+| `weld_2d_lateral_correction_dry_run` | 2D weld correction dry run |
+
+## Bring Your Own Robot
+
+Use the scaffold command to create an external ROS package with the expected `robot_sim/` layout:
 
 ```bash
 ros2 run robot_sim_bringup scaffold_robot \
@@ -105,6 +123,22 @@ ros2 run robot_sim_bringup scaffold_robot \
   --with-gripper true
 ```
 
+External packages are discovered from:
+
+```text
+share/<pkg>/robot_sim/profiles/*.yaml
+share/<pkg>/robot_sim/validation_cases/*.yaml
+share/<pkg>/robot_sim/scenes/*.yaml
+```
+
+## Documentation
+
+- User setup and run guides: [docs/guide/quick-start.md](docs/guide/quick-start.md)
+- Developer system overview: [docs/README.md](docs/README.md)
+- Configuration reference: [docs/configuration/settings.md](docs/configuration/settings.md)
+- Architecture notes: [docs/architecture/README.md](docs/architecture/README.md)
+- Troubleshooting: [docs/faq/troubleshooting.md](docs/faq/troubleshooting.md)
+
 ## Debian Package
 
 ```bash
@@ -114,7 +148,7 @@ bash packaging/build_deb.sh
 sudo apt install ./dist/robot-sim_0.1.0-1_amd64.deb
 ```
 
-Installed commands:
+Installed command examples:
 
 ```bash
 robot-sim-check
@@ -122,7 +156,6 @@ robot-sim run-case --case industrial_fixture_to_pallet
 robot-sim migrate-config --input old.yaml --output new.yaml
 robot-sim scaffold-robot --package my_robot_sim --robot-name my_robot --output /tmp --joint-names joint_1 joint_2 joint_3 joint_4 joint_5 joint_6
 robot-sim sim_profile:=panda sim_mode:=light
-robot-sim sim_profile:=fanuc_m20id12l sim_mode:=full
 ```
 
 ## License

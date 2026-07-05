@@ -3,7 +3,7 @@
 这一页描述的是 `schema: 3` 的 legacy welding/FANUC integration compatibility。它保留现有焊前定位、2D 纠偏、`weld_interface` 和 MoveIt jog 能力，但不作为新项目的默认扩展模型。
 
 新项目如果只需要 topic/service/TF/process 契约验证，优先使用同级 `robot_validation`
-项目中的 `schema: 4` system/data_source/adapter/suite。
+项目中的 `schema: 4` system、data_source、adapter、assertion、evaluator、dataset 和 suite。
 
 legacy 模型可以把外部 ROS2 模块放进同一次机器人仿真验收。典型场景是：机器人、Gazebo、MoveIt 和传感器由 `robot_sim` 启动，业务模块由 `validation_case.module` 启动，缺失的现场接口由 `adapters` 模拟，最后统一输出 `manifest.json`、`metrics.json`、rosbag 和报告。
 

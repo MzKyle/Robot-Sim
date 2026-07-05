@@ -9,7 +9,6 @@ share/<pkg>/robot_sim/
   profiles/
   validation_cases/
   scenes/
-  world_presets/
 ```
 
 ## 推荐模型
@@ -17,7 +16,7 @@ share/<pkg>/robot_sim/
 - `profiles/`：放 `schema: 3`、`kind: sim_profile`，描述机器人、控制、MoveIt、传感器和 bridge。
 - `validation_cases/`：放 `schema: 3`、`kind: validation_case`，描述一次机器人仿真验收。
 - `scenes/`：放工况 scene。
-- `world_presets/`：仅在复用 legacy/base world 资产时使用。
+- `world_presets/`：可选目录，仅在 profile 显式以 `package/path` 引用 legacy/base world 资产时使用。
 
 通用 ROS2 pipeline 验证、topic/service replay、dataset manifest 和 evaluator 已迁移到同级项目
 `robot_validation`。

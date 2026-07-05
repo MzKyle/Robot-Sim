@@ -15,7 +15,7 @@ colcon test-result --verbose
 ros2 run robot_sim_bringup profile_lint --profile panda --mode full --require-moveit --require-receivers
 ros2 run robot_sim_bringup profile_lint --profile fanuc_m20id12l_industrial_cell --mode full --require-moveit --require-receivers
 
-ros2 run robot_sim_bringup run_case --case empty_motion --output-dir robot_sim_runs --timeout 120
+ros2 run robot_sim_bringup run_case --case empty_motion --mode mock --no-rosbag --output-dir robot_sim_runs --timeout 120
 ```
 
 ## 单元测试
@@ -25,16 +25,18 @@ colcon test --packages-select robot_sim_bringup robot_sim_scenarios
 colcon test-result --verbose
 ```
 
-覆盖内容包括：
+当前单元测试覆盖内容包括：
 
-- 内置 `sim_profile`、`scene`、`world_preset`、`validation_case` 的 schema v3 校验。
-- v1/v2 配置拒绝加载，并给出 `migrate_config` 迁移提示。
-- scene 参数、variant、generator 在固定 seed 下可复现。
-- 外部 package registry 能发现 profile/case/scene。
-- scaffold 生成的 package 文件能通过 schema 和 profile lint。
-- task runner registry 能按 `task.type` 分发标准任务族和 `module_validation`。
-- module adapter registry、动态类型依赖和 topic 断言规则。
-- runner 失败时仍生成 artifact、manifest、metrics 和报告。
+- 内置 v3 `sim_profile` 和 `validation_case` schema 校验，包括 robot arm 与 welding legacy case。
+- `robot_sim_scenarios` 的 scene/world preset schema、scene 参数、variant、generator 和 world 构建。
+- v3 profile/case 加载，以及 registry 对内置 robot arm 和 welding 资产的解析。
+- `schema: 4` case 被 `robot_sim_bringup run_case` 拒绝，并提示迁移到 `robot_validation`。
+- `scaffold_robot` 生成的外部机器人 package 文件通过 v3 schema 校验，且不再生成 v4 目录。
+- v2 -> v3 `migrate_config`，以及 v2 配置加载时的迁移提示。
+- legacy module adapter 动态 ROS 类型依赖和 topic 断言谓词。
+
+不会在单元测试中启动完整 Gazebo；完整仿真由 `scripts/sim_smoke_test.sh` 和
+`simulation-smoke.yml` 覆盖。
 
 ## Profile Lint
 
@@ -149,7 +151,7 @@ ros2 run robot_sim_bringup run_case \
 批量手动验证：
 
 ```bash
-ros2 run robot_sim_bringup run_case --case empty_motion --output-dir robot_sim_runs --timeout 120
+ros2 run robot_sim_bringup run_case --case empty_motion --mode mock --no-rosbag --output-dir robot_sim_runs --timeout 120
 ros2 run robot_sim_bringup run_case --case industrial_obstacle_clearance --output-dir robot_sim_runs --timeout 120
 ros2 run robot_sim_bringup run_case --case industrial_fixture_to_pallet --output-dir robot_sim_runs --timeout 120
 ros2 run robot_sim_bringup run_case --case panda_pick_place --output-dir robot_sim_runs --timeout 120

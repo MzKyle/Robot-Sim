@@ -39,5 +39,5 @@ flowchart LR
 
 - 当前仓库不再运行 v4 case；遇到 `schema: 4` 会提示使用 `robot_validation`。
 - 机器人差异集中在 profile、URDF/xacro、controller 和 MoveIt 配置中。
-- Gazebo Harmonic 通过仓库内 `gz_ros2_control` submodule overlay 接入。
+- Gazebo Harmonic 通过仓库内 `src/vendor/gz_ros2_control` overlay 接入。
 - CI 使用 mock smoke 保持快速反馈，full smoke 由手动/定时 workflow 覆盖。

@@ -59,6 +59,12 @@ ros2 launch robot_sim_bringup sim.launch.py sim_profile:=fanuc_m20id12l sim_mode
 scripts/sim_smoke_test.sh --profile fanuc_m20id12l --mode full --with-moveit --timeout 120
 ```
 
+如果只想快速验证控制链和 MoveIt，可先用 mock：
+
+```bash
+ros2 run robot_sim_bringup run_case --case empty_motion --mode mock --no-rosbag --output-dir robot_sim_runs
+```
+
 ## 场景
 
 场景由 `robot_sim_scenarios` 生成：

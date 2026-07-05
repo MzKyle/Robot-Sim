@@ -41,16 +41,18 @@ source install/setup.bash
 
 ## 3. 跑第一个验收
 
-先跑最小完整闭环：
+先跑不依赖 Gazebo 的最小闭环，适合确认本机 ROS、MoveIt、ros2_control 和本项目入口都正常：
 
 ```bash
 ros2 run robot_sim_bringup run_case \
   --case empty_motion \
+  --mode mock \
+  --no-rosbag \
   --output-dir robot_sim_runs \
   --timeout 120
 ```
 
-这个用例会启动 Panda full 仿真，检查 controller、joint state、传感器 topic、TF 和 MoveIt，并执行两个空场目标点。
+这个用例会启动 Panda mock 控制链和 MoveIt，检查 controller、joint state、TF 和 MoveIt，并执行两个空场目标点。确认通过后，再按第 7 节启动 `light/full` Gazebo 仿真。
 
 打开报告：
 
@@ -90,9 +92,9 @@ robot_sim_runs/<UTC timestamp>_<case>_<profile>/
 | `report.html` | 给人看的验收报告，包含通过/失败摘要、步骤表、指标表和日志路径 |
 | `metrics.json` | 给脚本和 CI 用的结构化指标 |
 | `manifest.json` | 本次运行的 case、profile、scene、命令、git commit、开始/结束时间和产物路径 |
-| `logs/sim.launch.log` | Gazebo、controller、MoveIt、bridge 等启动日志 |
+| `logs/sim.launch.log` | mock/Gazebo、controller、MoveIt、bridge 等启动日志 |
 | `effective_case.yaml` | 应用 CLI 覆盖和 scene 参数后的最终 case |
-| `rosbag/metadata.yaml` | rosbag 元数据，默认开启录制 |
+| `rosbag/metadata.yaml` | rosbag 元数据；传入 `--no-rosbag` 时不会生成 |
 
 ## 5. 跑工业用例
 

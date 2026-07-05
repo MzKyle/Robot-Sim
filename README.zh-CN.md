@@ -11,10 +11,30 @@
 
 ![robot_sim](docs/assets/cover.svg)
 
-`robot_sim` 现在专注 `schema: 3` 机器人仿真与验收链路：Gazebo、MoveIt、
-ros2_control、机器人 profile、scene、validation case、传感器和 legacy 焊接/FANUC 集成。
+`robot_sim` 是一个面向 ROS 2 机器人的仿真与验收工具集，用来检查机器人模型、控制器、MoveIt 配置、传感器、场景和任务流程能否稳定协同运行。
 
-通用 `schema: 4` ROS2 pipeline 验证已经拆到同级项目 `../robot_validation`。
+它不是只打开一次 Gazebo 的 demo，而是面向可重复的仿真验证。你可以启动交互式仿真、运行验收用例、收集运行产物，也可以为自己的机器人生成外部仿真包模板。
+
+通用 `schema: 4` ROS 2 pipeline 验证已经拆到同级项目 `robot_validation`。当前仓库专注维护 `schema: 3` 机器人仿真域。
+
+## 你可以用它做什么
+
+| 目标 | 用法 |
+| --- | --- |
+| 启动机器人仿真 | 用 Panda 或 Fanuc profile 启动 Gazebo，可按需开启 MoveIt 和传感器 |
+| 执行验收检查 | 运行 validation case，生成日志、指标、报告和可选 rosbag |
+| 验证工业单元 | 检查障碍避让、fixture-to-pallet、规划目标和焊接集成干运行 |
+| 测试传感器流程 | 运行相机、深度、激光雷达、IMU、标定和传送带分拣场景 |
+| 接入自己的机器人 | 生成外部机器人包模板，补充 profile、scene 和 validation case |
+
+## 环境要求
+
+- Ubuntu，并已 source `/opt/ros/humble`
+- Gazebo Harmonic / `gz sim 8`
+- ROS 2 Humble 对应的 MoveIt 2 与 ros2_control
+- `colcon`、`rosdep` 和常规 ROS 2 构建工具
+
+完整环境检查见 [docs/guide/prerequisites.md](docs/guide/prerequisites.md)。
 
 ## 快速上手
 
@@ -37,59 +57,59 @@ colcon build --symlink-install \
 source install/setup.bash
 ```
 
-运行 v3 验收用例：
+先运行一个不依赖 Gazebo 的快速验收用例：
 
 ```bash
 ros2 run robot_sim_bringup run_case \
   --case empty_motion \
+  --mode mock \
+  --no-rosbag \
   --output-dir robot_sim_runs \
   --timeout 120
 ```
 
-启动交互式仿真：
+运行结果会写入 `robot_sim_runs/` 下的时间戳目录，包含生效配置、日志、指标和报告。
+
+需要 Gazebo 时启动交互式仿真：
 
 ```bash
 ros2 launch robot_sim_bringup sim.launch.py sim_profile:=panda sim_mode:=light
 ros2 launch robot_sim_bringup sim.launch.py sim_profile:=fanuc_m20id12l_industrial_cell sim_mode:=full
 ```
 
-## 内置验收用例
+仿真模式：
 
-| Case | Profile | Scene | 用途 |
-| --- | --- | --- | --- |
-| `empty_motion` | `panda` | `debug_empty` | 最小 MoveIt 规划与执行验收 |
-| `industrial_obstacle_clearance` | `fanuc_m20id12l_industrial_cell` | `industrial_cell` | Fanuc 工业障碍避让 |
-| `industrial_fixture_to_pallet` | `fanuc_m20id12l_industrial_cell` | `industrial_cell` | fixture-to-pallet 工业运动验收 |
-| `industrial_planning_goal` | `fanuc_m20id12l_industrial_cell` | `industrial_cell` | 工业目标点规划 smoke |
-| `panda_pick_place` | `panda` | `tabletop_pick_place` | pick-place 规划验收 |
-| `sensor_calibration` | `panda` | `tabletop_pick_place` | 多视角传感器标定流程 |
-| `conveyor_sorting` | `panda` | `conveyor_sorting` | 传送带分拣流程 |
-| `weld_pre_positioning_scan_and_move` | `fanuc_m20id12l_industrial_cell` | `industrial_cell` | 外部焊前 3D 定位 + MoveIt jog |
-| `weld_2d_lateral_correction_dry_run` | `fanuc_m20id12l_industrial_cell` | `industrial_cell` | 外部 2D 焊缝纠偏干运行 |
-
-## 配置模型
-
-`robot_sim` 校验以下 v3 YAML 契约：
-
-| 配置类型 | 描述内容 |
+| 模式 | 用途 |
 | --- | --- |
-| `sim_profile` | 机器人描述、控制、MoveIt、传感器、bridge、world、layout 和 capability |
-| `scene` | 工况区域、对象、workspace、参数、variant 和 generator |
-| `world_preset` | legacy/base world 资产组合 |
-| `validation_case` | 启动参数、场景、任务族、planning scene、期望指标、adapter 和产物 |
+| `mock` | 不启动 Gazebo，用于快速检查运行链路和产物生成 |
+| `light` | 启动 headless Gazebo 和 ros2_control，默认关闭传感器 |
+| `full` | 默认开启 Gazebo、MoveIt/RViz、bridge 和传感器 |
 
-外部机器人包路径：
+## 内置示例
 
-```text
-share/<pkg>/robot_sim/profiles/*.yaml
-share/<pkg>/robot_sim/validation_cases/*.yaml
-share/<pkg>/robot_sim/scenes/*.yaml
-```
+机器人 profile：
 
-如果把 `schema: 4` case 传给 `robot_sim_bringup run_case`，命令会失败并提示改用
-`robot_validation`。
+- `panda`
+- `fanuc_m20id12l`
+- `fanuc_m20id12l_industrial_cell`
 
-## 机器人接入模板
+验收用例：
+
+| Case | 检查内容 |
+| --- | --- |
+| `empty_motion` | 最小 MoveIt 规划与执行链路 |
+| `industrial_obstacle_clearance` | Fanuc 工业障碍避让 |
+| `industrial_fixture_to_pallet` | fixture-to-pallet 工业运动 |
+| `industrial_planning_goal` | 工业目标点规划 smoke |
+| `panda_pick_place` | Panda 桌面 pick-place 规划 |
+| `sensor_calibration` | 多视角传感器标定流程 |
+| `conveyor_sorting` | 传送带分拣流程 |
+| `weld_pre_positioning_scan_and_move` | 焊前 3D 定位与 MoveIt jog |
+| `weld_2d_lateral_correction_dry_run` | 2D 焊缝纠偏干运行 |
+
+## 接入自己的机器人
+
+使用 scaffold 命令生成符合 `robot_sim/` 目录约定的外部 ROS 包：
 
 ```bash
 ros2 run robot_sim_bringup scaffold_robot \
@@ -102,6 +122,22 @@ ros2 run robot_sim_bringup scaffold_robot \
   --sensor-set camera,depth,lidar,imu \
   --with-gripper true
 ```
+
+外部包会按以下路径被发现：
+
+```text
+share/<pkg>/robot_sim/profiles/*.yaml
+share/<pkg>/robot_sim/validation_cases/*.yaml
+share/<pkg>/robot_sim/scenes/*.yaml
+```
+
+## 文档
+
+- 用户安装与运行指南：[docs/guide/quick-start.md](docs/guide/quick-start.md)
+- 开发者系统总览：[docs/README.md](docs/README.md)
+- 配置参考：[docs/configuration/settings.md](docs/configuration/settings.md)
+- 架构说明：[docs/architecture/README.md](docs/architecture/README.md)
+- 常见问题：[docs/faq/troubleshooting.md](docs/faq/troubleshooting.md)
 
 ## Debian 安装包
 
@@ -120,7 +156,6 @@ robot-sim run-case --case industrial_fixture_to_pallet
 robot-sim migrate-config --input old.yaml --output new.yaml
 robot-sim scaffold-robot --package my_robot_sim --robot-name my_robot --output /tmp --joint-names joint_1 joint_2 joint_3 joint_4 joint_5 joint_6
 robot-sim sim_profile:=panda sim_mode:=light
-robot-sim sim_profile:=fanuc_m20id12l sim_mode:=full
 ```
 
 ## 许可证

@@ -144,8 +144,10 @@ module_validation
 share/<pkg>/robot_sim/profiles/*.yaml
 share/<pkg>/robot_sim/validation_cases/*.yaml
 share/<pkg>/robot_sim/scenes/*.yaml
-share/<pkg>/robot_sim/world_presets/*.yaml
 ```
+
+`world_presets/` 仍是 `robot_sim_scenarios` 支持的 legacy world source。外部 package
+需要使用时，在 profile 的 `worlds.<name>.world_preset` 中用 `package/path` 显式引用。
 
 运行：
 
