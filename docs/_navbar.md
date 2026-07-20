@@ -4,4 +4,4 @@
 - [测试](workflow/testing.md)
 - [配置](configuration/settings.md)
 - [CI/CD](workflow/ci-cd.md)
-- [GitHub](https://github.com/MzKyle/robot_sim)
+- [GitHub](https://github.com/MzKyle/Robot-Sim)

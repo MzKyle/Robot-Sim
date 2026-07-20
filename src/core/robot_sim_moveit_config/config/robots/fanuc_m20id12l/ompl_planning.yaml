@@ -33,4 +33,7 @@ manipulator:
     - PRM
     - PRMstar
   projection_evaluator: joints(joint_1,joint_2)
-  longest_valid_segment_fraction: 0.05
+  # Keep collision interpolation fine enough for the fixture clamps and the
+  # narrow planning columns in industrial_cell.  A value of 0.05 can let
+  # RRTConnect bridge over them and only fail MoveIt's final path validation.
+  longest_valid_segment_fraction: 0.01

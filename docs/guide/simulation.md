@@ -10,6 +10,9 @@
 | `light` | 是 | `gz_ros2_control/GazeboSimSystem` | 默认关闭 | 默认关闭 | 日常控制链调试 |
 | `full` | 是 | `gz_ros2_control/GazeboSimSystem` | 默认开启 | 默认开启 | 传感器、规划和演示 |
 
+表中的“传感器”指 Gazebo sensor 与 ROS bridge topic。健康诊断 receiver 是独立进程，
+`sim.launch.py` 不会自动启动；需要时运行 `sensor_receivers.launch.py`。
+
 ## Profile
 
 内置 profile：

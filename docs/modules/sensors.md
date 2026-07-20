@@ -11,6 +11,10 @@
 
 receiver 会统计消息数、Hz、最后时间戳和 frame，并发布 `/diagnostics`。
 
+receiver 是可选观测层。`sim.launch.py` 和 `run_case` 会启动 Gazebo sensor 与 bridge，
+并直接检查 bridge topic，但不会自动启动这些 receiver；因此只有显式运行下列 launch
+后才应期待 `/diagnostics` 中出现 receiver 状态。
+
 启动：
 
 ```bash

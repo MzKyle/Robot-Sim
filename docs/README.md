@@ -30,7 +30,8 @@
   description + control + moveit_config + scenarios + sensors + integrations
 
 运行层
-  run_case / sim.launch.py -> sim_launch_builder -> Gazebo / ros2_control / MoveIt / bridge / receivers
+  run_case / sim.launch.py -> sim_launch_builder -> Gazebo / ros2_control / MoveIt / bridge
+                                                -> optional standalone receivers
 
 验收层
   profile_lint -> smoke_helper waits -> task_runners -> module_runner/adapters -> metrics/report/artifacts
@@ -49,6 +50,16 @@ validation_case
   -> collect logs, metrics, rosbag, report.md, report.html
 ```
 
+开发时以 schema、loader 和 CLI `--help` 为契约真相源：
+
+| 契约 | 真相源 |
+| --- | --- |
+| profile/case 字段 | `src/core/robot_sim_bringup/schemas/` 与对应 loader |
+| scene/world 字段 | `src/core/robot_sim_scenarios/schemas/` 与 `schema_validation.py` |
+| 命令参数 | 各命令的 `--help` 与 `launch/` 中的 `DeclareLaunchArgument` |
+| 内置资产 | `examples/robot_arm/robot_sim/`、`integrations/welding/robot_sim/` |
+| CI 实际覆盖 | `.github/workflows/ci.yml` 与 `.github/workflows/simulation-smoke.yml` |
+
 ## 核心模块
 
 | 路径 | 职责 |
@@ -58,10 +69,10 @@ validation_case
 | `src/core/robot_sim_control/` | ros2_control controller 配置 |
 | `src/core/robot_sim_moveit_config/` | SRDF、kinematics、OMPL、MoveIt controller、RViz 和 MoveIt launch |
 | `src/core/robot_sim_scenarios/` | scene/world preset schema、场景库、SDF/world 生成、场景参数化 |
-| `src/sensors/` | camera、depth、lidar、IMU receiver 与健康诊断 |
-| `src/interfaces/` | simulation 和 task 相关 ROS message/service 接口 |
+| `src/sensors/` | 可独立启动的 camera、depth、lidar、IMU receiver 与健康诊断；主仿真不会自动启动 receiver |
+| `src/interfaces/` | simulation 和 task 相关 ROS message/service 类型声明；当前主运行链不提供对应 server |
 | `examples/robot_arm/` | 内置 Panda/Fanuc profile 和 validation case |
-| `integrations/` | welding、auto_cover 等外部项目集成资产 |
+| `integrations/` | welding legacy 集成资产；`auto_cover` 当前只有预留目录，没有可运行 case |
 | `src/vendor/gz_ros2_control/` | Gazebo Harmonic 使用的 ros2_control overlay |
 | `packaging/` | Debian 打包脚本和安装后命令 wrapper |
 
@@ -107,7 +118,7 @@ share/<pkg>/robot_sim/scenes/*.yaml
 | --- | --- |
 | `mock` | 不启动 Gazebo，关闭 sim time、MoveIt、RViz 和传感器，适合快速 CI |
 | `light` | 启动 headless Gazebo 与 ros2_control，默认关闭 MoveIt/RViz/传感器 |
-| `full` | 启动 Gazebo、MoveIt/RViz、bridge 和传感器，适合人工调试与完整验收 |
+| `full` | 启动 Gazebo、MoveIt/RViz、bridge 和传感器，适合人工调试与完整验收；receiver 仍需单独启动 |
 
 ## `run_case` 执行链路
 
@@ -121,7 +132,7 @@ run_case
   -> 按 mode 启动 mock/light/full 运行时
   -> 等待 Gazebo spawn、joint state、controller、trajectory action、sensor topic、TF
   -> 根据 task.type 调用 task_runners
-  -> 可选启动 legacy module_runner 和 adapter
+  -> module_validation 任务改由 legacy module_runner 启动外部模块和 adapter
   -> 可选录制 rosbag
   -> 输出 metrics.json、validation_metrics.json、report.md、report.html
   -> 清理进程；失败时保留产物用于复盘
@@ -142,6 +153,8 @@ run_case
 | 新配置字段 | 同步更新 schema、loader、lint、文档和测试 |
 | 新外部模块集成 | 使用 `legacy_integrations/module_runner.py` 与 `module_adapter.py` 的 adapter 模式 |
 | 新发布形态 | 修改 `packaging/` 和 CI workflow，保持 CLI wrapper 与 ROS entrypoint 一致 |
+
+新增或修改公开行为时，同一变更应同时包含实现、schema/loader、测试和本目录文档；不要只更新 YAML 示例。
 
 ## 测试与维护
 

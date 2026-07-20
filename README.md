@@ -39,7 +39,7 @@ See [docs/guide/prerequisites.md](docs/guide/prerequisites.md) for the complete 
 ## Quick Start
 
 ```bash
-git clone https://github.com/MzKyle/robot_sim.git robot_sim
+git clone https://github.com/MzKyle/Robot-Sim.git robot_sim
 cd robot_sim
 
 source /opt/ros/humble/setup.bash
@@ -106,6 +106,10 @@ Validation cases:
 | `conveyor_sorting` | Conveyor sorting workflow |
 | `weld_pre_positioning_scan_and_move` | Pre-weld 3D localization plus MoveIt jog |
 | `weld_2d_lateral_correction_dry_run` | 2D weld correction dry run |
+
+The two welding cases are legacy integration assets and require the external
+`ROS2_Motion_Planner` workspace plus project-local paths documented in the
+[developer integration guide](docs/guide/external-modules.md).
 
 ## Bring Your Own Robot
 

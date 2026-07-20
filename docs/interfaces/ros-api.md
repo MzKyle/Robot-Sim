@@ -19,6 +19,11 @@
 | `sensor_overrides` | `camera=true,lidar=false` | 传感器覆盖 |
 | `rviz` | `true` / `false` / `auto` | RViz 开关 |
 | `use_moveit` | `true` / `false` / `auto` | MoveIt 开关 |
+| `headless` | `true` / `false` / `auto` | Gazebo GUI 开关 |
+| `use_gripper` | `true` / `false` | 是否启动带 `enabled_by: use_gripper` 的 controller |
+
+`distributed_local.launch.py` 另提供 `rqt_graph`；`sensor_receivers.launch.py` 使用
+`layout` 参数而不是 `sim_mode`。精确参数以 `ros2 launch <pkg> <file> --show-args` 为准。
 
 ## Topics
 
@@ -33,7 +38,7 @@
 | `/scan` | `sensor_msgs/msg/LaserScan` | 2D lidar |
 | `/lidar/points` | `sensor_msgs/msg/PointCloud2` | 3D lidar 点云 |
 | `/imu/data` | `sensor_msgs/msg/Imu` | IMU |
-| `/diagnostics` | `diagnostic_msgs/msg/DiagnosticArray` | receiver 健康状态 |
+| `/diagnostics` | `diagnostic_msgs/msg/DiagnosticArray` | receiver 健康状态；仅在单独启动 receiver 后出现 |
 
 ## Actions
 
@@ -44,5 +49,7 @@
 
 ## Interfaces
 
-- `robot_task_interfaces`：任务上下文消息和服务。
-- `simulation_interfaces`：仿真场景消息和服务。
+- `robot_task_interfaces`：任务上下文消息和服务类型声明。
+- `simulation_interfaces`：仿真场景消息和服务类型声明。
+
+当前仓库没有为这些 service 类型安装 server；它们不是 `run_case` 的控制 API。

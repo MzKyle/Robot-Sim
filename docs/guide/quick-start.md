@@ -22,7 +22,7 @@ export GZ_VERSION=harmonic
 ## 2. 构建
 
 ```bash
-git clone https://github.com/MzKyle/robot_sim.git robot_sim
+git clone https://github.com/MzKyle/Robot-Sim.git robot_sim
 cd robot_sim
 
 colcon build --symlink-install \
@@ -203,7 +203,7 @@ robot-sim sim_profile:=panda sim_mode:=light
 | `render_urdf` / `validate_urdf` | xacro 参数、mesh 路径、ros2_control 标签 |
 | `simulation_start` | `logs/sim.launch.log`、Gazebo resource path、插件是否存在 |
 | `controllers_active` | controller yaml、controller manager namespace、joint 名称 |
-| `sensor_hz` | bridge topic、sensor xacro 开关、receiver 是否启用 |
+| `sensor_hz` | bridge topic、sensor xacro 开关；Gazebo 消息按 header 的仿真时间计算频率 |
 | `tf_tree` | robot_state_publisher、URDF link、fixed joint、frame 名 |
 | `moveit_plan_execute` | SRDF、planning group、IK、场景碰撞对象、目标点可达性 |
 

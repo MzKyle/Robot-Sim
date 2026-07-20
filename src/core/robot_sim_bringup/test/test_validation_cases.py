@@ -1,5 +1,6 @@
 from pathlib import Path
 import sys
+from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -19,6 +20,11 @@ from robot_sim_bringup.run_case import CommandRunner, FAILURE, run_case
 from robot_sim_bringup.scaffold_robot import scaffold_robot
 from robot_sim_bringup.schema_validation import validate_config_schema
 from robot_sim_bringup.sim_config_loader import load_sim_profile
+from robot_sim_bringup.sim_launch_builder import _spawner_arguments, _spawner_nodes
+from robot_sim_bringup.sim_smoke_helper import (
+    _frequency_from_stamps,
+    _message_stamp_seconds,
+)
 from robot_sim_bringup.validation_cases import load_validation_case
 
 
@@ -144,3 +150,35 @@ def test_module_topic_expectation_predicates():
     assert _matches_expectation("RUNNING", {"contains": "RUN"})[0] is True
     assert _matches_expectation(0.012, {"abs_max": 0.02})[0] is True
     assert _matches_expectation(None, {"exists": True})[0] is False
+
+
+def test_controller_spawners_share_one_group_activation_process():
+    profile = load_sim_profile(profile_name="panda")
+
+    nodes = _spawner_nodes(
+        profile,
+        "/controller_manager",
+        profile["control"]["controllers_file"],
+        {"use_gripper": False},
+    )
+
+    assert len(nodes) == 1
+    arguments = _spawner_arguments(
+        profile["control"]["spawners"][:2],
+        "/controller_manager",
+        profile["control"]["controllers_file"],
+    )
+    assert arguments[:2] == ["joint_state_broadcaster", "arm_controller"]
+    assert "--activate-as-group" in arguments
+    assert arguments[arguments.index("--switch-timeout") + 1] == "90.0"
+    assert "-t" not in arguments
+
+
+def test_sensor_frequency_prefers_simulation_message_stamps():
+    msg = SimpleNamespace(
+        header=SimpleNamespace(stamp=SimpleNamespace(sec=12, nanosec=250_000_000))
+    )
+
+    assert _message_stamp_seconds(msg) == pytest.approx(12.25)
+    assert _frequency_from_stamps([1.0, 1.1, 1.2]) == pytest.approx(10.0)
+    assert _frequency_from_stamps([1.0, 1.0]) is None

@@ -154,6 +154,12 @@ dataset 模式按以下优先级取数据：
 | `weld_pre_positioning_scan_and_move` | 启动 Fanuc 工业场景和焊前定位模块，`/scan_3d` 优先使用 `/home/kyle/sany/data/3dcamera_2d_img` 的真实图片/点云，缺点云时合成，缺数据时回退 replay；调用 `/scan_and_detect_welding_seam` 与 `/move_to_detected_welding_seam` |
 | `weld_2d_lateral_correction_dry_run` | 启动 `welding_executor_node` 干运行，合成 `/welding/vision_result`，验证 state、lateral error 和 target TCP |
 
+这两个 YAML 是项目内 legacy 兼容资产，当前包含
+`/home/kyle/sany/ROS2_Motion_Planner` 与数据集的绝对路径。它们只有在对应内部工作区和
+数据存在时才能原样运行。其他开发者应复制 case 到自己的 package，替换 module
+launch 参数和 adapter 数据源路径，再通过 `--case-package` 运行；不要把这些路径当成
+公开安装契约。
+
 运行前准备：
 
 ```bash
