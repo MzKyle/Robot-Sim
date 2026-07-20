@@ -39,7 +39,7 @@
 ## 快速上手
 
 ```bash
-git clone https://github.com/MzKyle/robot_sim.git robot_sim
+git clone https://github.com/MzKyle/Robot-Sim.git robot_sim
 cd robot_sim
 
 source /opt/ros/humble/setup.bash
@@ -106,6 +106,9 @@ ros2 launch robot_sim_bringup sim.launch.py sim_profile:=fanuc_m20id12l_industri
 | `conveyor_sorting` | 传送带分拣流程 |
 | `weld_pre_positioning_scan_and_move` | 焊前 3D 定位与 MoveIt jog |
 | `weld_2d_lateral_correction_dry_run` | 2D 焊缝纠偏干运行 |
+
+两个 welding case 是 legacy 集成资产，需要额外的 `ROS2_Motion_Planner` 工作区和项目内
+路径；具体边界见[开发者接入说明](docs/guide/external-modules.md)。
 
 ## 接入自己的机器人
 

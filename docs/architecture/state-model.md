@@ -7,7 +7,7 @@ smoke test 和 validation case 将仿真验收拆成稳定的阶段：
 3. 启动仿真：根据 profile 与 mode 运行 `sim.launch.py`，`mock` 使用 mock control，不启动 Gazebo。
 4. Gazebo spawn：`light/full` 确认模型出现在 Gazebo，`mock` 跳过。
 5. 控制链：检查 `/joint_states`、controller active 和 trajectory action。
-6. 传感器：检查启用的 bridge topic Hz。
+6. 传感器：检查启用的 bridge topic Hz；优先按消息 header 的仿真时间统计。
 7. TF：确认 URDF link 和传感器 frame 在同一棵树中。
 8. MoveIt：执行 plan/execute 或 validation case 的区域目标。
 9. 指标：采集 goal error、controller error、sensor Hz、TCP clearance 和 MoveIt 结果。

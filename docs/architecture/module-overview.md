@@ -10,9 +10,9 @@
 | `robot_sim_control` | controller manager 与各机器人 controller 配置 |
 | `robot_sim_moveit_config` | SRDF、kinematics、joint limits、OMPL、MoveIt controller 和 RViz |
 | `robot_sim_scenarios` | scene library、base world、assets、world presets |
-| `robot_sim_sensor_*` | 仿真传感器 receiver 与 diagnostics |
-| `robot_task_interfaces` | 通用任务上下文接口 |
-| `simulation_interfaces` | 通用仿真 scenario 接口 |
+| `robot_sim_sensor_*` | 可选的仿真传感器 receiver 与 diagnostics，不由主 launch 自动启动 |
+| `robot_task_interfaces` | 通用任务上下文类型声明 |
+| `simulation_interfaces` | 通用仿真 scenario 类型声明 |
 | `gz_ros2_control` | Gazebo Harmonic 与 ros2_control 的 system plugin |
 
 顶层目录按职责分组：
@@ -26,5 +26,6 @@ src/interfaces/
 src/vendor/
 ```
 
-`examples/robot_arm` 是内置机器人示例；`integrations/welding` 和 `integrations/auto_cover`
-是项目集成层。通用 v4 验证模块已拆到同级项目 `robot_validation`。
+`examples/robot_arm` 是内置机器人示例；`integrations/welding` 提供 legacy case，
+`integrations/auto_cover` 当前仅保留目录骨架。通用 v4 验证模块已拆到同级项目
+`robot_validation`。

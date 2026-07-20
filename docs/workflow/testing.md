@@ -34,6 +34,8 @@ colcon test-result --verbose
 - `scaffold_robot` 生成的外部机器人 package 文件通过 v3 schema 校验，且不再生成 v4 目录。
 - v2 -> v3 `migrate_config`，以及 v2 配置加载时的迁移提示。
 - legacy module adapter 动态 ROS 类型依赖和 topic 断言谓词。
+- controller 使用单 spawner 成组激活，并显式继承 profile timeout。
+- 传感器频率优先使用消息 header 的仿真时间，时间戳无效时回退墙钟。
 
 不会在单元测试中启动完整 Gazebo；完整仿真由 `scripts/sim_smoke_test.sh` 和
 `simulation-smoke.yml` 覆盖。
@@ -175,7 +177,7 @@ ros2 run robot_sim_bringup run_case --case weld_2d_lateral_correction_dry_run --
 | --- | --- |
 | `passed` | 本次最终通过/失败 |
 | `steps[]` | 每个阶段的状态、耗时、日志路径和返回码 |
-| `sensor_hz` | 每个期望 topic 的频率、样本数和是否达标 |
+| `sensor_hz` | 每个启用 sensor topic 的仿真频率、样本数和是否达标；header 无效时为墙钟频率 |
 | `tf_ok` | TF 树完整性检查结果 |
 | `plan_success_rate` | MoveIt 多阶段目标规划成功率 |
 | `planning_time_sec` / `execution_time_sec` | 规划和执行耗时 |

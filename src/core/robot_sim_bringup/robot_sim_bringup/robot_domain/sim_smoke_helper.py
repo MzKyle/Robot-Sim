@@ -521,10 +521,14 @@ def _measure_topic_hz(node, topic, type_name, timeout, min_samples):
     from rosidl_runtime_py.utilities import get_message
 
     msg_type = get_message(type_name)
-    stamps = []
+    wall_stamps = []
+    message_stamps = []
 
-    def callback(_msg):
-        stamps.append(time.monotonic())
+    def callback(msg):
+        wall_stamps.append(time.monotonic())
+        stamp = _message_stamp_seconds(msg)
+        if stamp is not None:
+            message_stamps.append(stamp)
 
     subscription = node.create_subscription(
         msg_type,
@@ -533,16 +537,38 @@ def _measure_topic_hz(node, topic, type_name, timeout, min_samples):
         _sensor_qos(),
     )
     try:
-        _spin_until(node, timeout, lambda: len(stamps) >= min_samples)
+        _spin_until(node, timeout, lambda: len(wall_stamps) >= min_samples)
     finally:
         node.destroy_subscription(subscription)
 
+    # Gazebo sensor update rates are expressed in simulation time.  Measuring
+    # only wall time makes a healthy sensor fail whenever a headless CI runner
+    # runs below real time.  Prefer the message header clock and retain wall time
+    # for headerless messages or invalid/non-increasing stamps.
+    hz = _frequency_from_stamps(message_stamps)
+    if hz is None:
+        hz = _frequency_from_stamps(wall_stamps)
+    return (0.0 if hz is None else hz), len(wall_stamps)
+
+
+def _message_stamp_seconds(msg):
+    header = getattr(msg, "header", None)
+    stamp = getattr(header, "stamp", None)
+    if stamp is None:
+        return None
+    try:
+        return float(stamp.sec) + float(stamp.nanosec) / 1_000_000_000.0
+    except (AttributeError, TypeError, ValueError):
+        return None
+
+
+def _frequency_from_stamps(stamps):
     if len(stamps) < 2:
-        return 0.0, len(stamps)
-    elapsed = stamps[-1] - stamps[0]
-    if elapsed <= 0:
-        return float("inf"), len(stamps)
-    return (len(stamps) - 1) / elapsed, len(stamps)
+        return None
+    elapsed = float(stamps[-1]) - float(stamps[0])
+    if elapsed <= 0.0:
+        return None
+    return (len(stamps) - 1) / elapsed
 
 
 def command_check_sensors(args):

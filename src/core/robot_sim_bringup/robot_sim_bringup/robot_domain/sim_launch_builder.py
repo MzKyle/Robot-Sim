@@ -420,36 +420,54 @@ def _controller_manager_path(profile, namespace):
 
 
 def _spawner_nodes(profile, controller_manager_name, controllers_yaml, features):
-    nodes = []
+    spawners = []
     for spawner in profile["control"]["spawners"]:
         enabled_by = spawner.get("enabled_by")
         if enabled_by and enabled_by not in features:
             raise RuntimeError(f"Unsupported controller spawner gate: {enabled_by}")
         if enabled_by and not features[enabled_by]:
             continue
+        spawners.append(spawner)
 
-        arguments = [
-            spawner["name"],
-            "-c",
-            controller_manager_name,
-            "-p",
-            controllers_yaml,
-        ]
-        if spawner.get("type"):
-            arguments.extend(["-t", spawner["type"]])
-        arguments.extend([
-            "--controller-manager-timeout",
-            str(spawner.get("timeout", 90)),
-        ])
-        nodes.append(
-            Node(
-                package="controller_manager",
-                executable="spawner",
-                output="screen",
-                arguments=arguments,
-            )
+    if not spawners:
+        return []
+
+    arguments = _spawner_arguments(
+        spawners,
+        controller_manager_name,
+        controllers_yaml,
+    )
+    return [
+        Node(
+            package="controller_manager",
+            executable="spawner",
+            output="screen",
+            arguments=arguments,
         )
-    return nodes
+    ]
+
+
+def _spawner_arguments(spawners, controller_manager_name, controllers_yaml):
+    # A single spawner configures the controllers serially and activates them in
+    # one switch request.  Starting one process per controller can issue
+    # overlapping switch requests; on a loaded CI runner the default five-second
+    # switch timeout can then leave one controller configured but inactive.
+    timeout = max(float(spawner.get("timeout", 90)) for spawner in spawners)
+    arguments = [spawner["name"] for spawner in spawners]
+    arguments.extend([
+        "-c",
+        controller_manager_name,
+        "-p",
+        controllers_yaml,
+        "--controller-manager-timeout",
+        str(timeout),
+        "--switch-timeout",
+        str(timeout),
+        "--service-call-timeout",
+        str(timeout),
+        "--activate-as-group",
+    ])
+    return arguments
 
 
 def _spawn_arguments(profile, robot_description_topic):

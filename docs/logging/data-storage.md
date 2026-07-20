@@ -71,7 +71,7 @@ robot_sim_runs/<UTC timestamp>_<case>_<profile>/
 | `passed` | 本次验收是否通过 |
 | `steps[]` | 每个阶段的状态、耗时、返回码和日志路径 |
 | `business_actions[]` | task runner 生成的业务步骤 |
-| `sensor_hz` | 每个期望 topic 的频率和样本数 |
+| `sensor_hz` | 每个启用 sensor topic 的频率和样本数；优先使用消息 header 的仿真时间，header 无效时回退墙钟 |
 | `tf_ok` | TF 检查结果 |
 | `plan_success_rate` | MoveIt 目标规划成功率 |
 | `planning_time_sec` / `execution_time_sec` | 规划和执行耗时 |

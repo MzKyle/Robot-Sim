@@ -1,8 +1,8 @@
-# 产品路线图
+# 工程状态与路线图
 
 `robot_sim` 的产品定位是工业机器人仿真验收与回归测试平台，而不是单纯的仿真 demo。
 
-## 第一阶段：可验收
+## 已实现：可验收
 
 目标是让一个机器人应用能够被配置化启动、执行、度量和归档。
 
@@ -27,7 +27,7 @@ ros2 run robot_sim_bringup run_case \
 robot-sim run-case --case industrial_obstacle_clearance
 ```
 
-## 第二阶段：可复用
+## 已实现：可复用
 
 目标是让新机器人、新场景和新验收任务可以在外部 ROS package 中复用，而不是都塞进本仓库。
 
@@ -56,7 +56,9 @@ ros2 run robot_sim_bringup run_case \
   --case smoke_empty_motion
 ```
 
-## 第三阶段：工程化
+## 尚未实现：工程化
+
+以下条目是规划，不应作为当前 API 或交付能力引用：
 
 - 增加批量矩阵执行：profile × scene × validation case。
 - 输出 JUnit 或等价 CI 报告，方便接入交付流水线。

@@ -32,7 +32,7 @@ capabilities:
   sensors: [camera, depth, lidar, imu]
 end_effector:
   planning_group: panda_arm
-  tool_link: panda_hand_tcp
+  tool_link: panda_link8
 ```
 
 主要字段：
@@ -51,6 +51,11 @@ end_effector:
 | `bridges` / `bridge_groups` | ros_gz_bridge topic 声明 |
 | `sensors` | 传感器能力、xacro 开关和 receiver 配置 |
 | `smoke` | controller、sensor Hz、TF 和轨迹验收规则 |
+
+`control.spawners` 的每项必须在 controller YAML 的 controller manager 参数中声明
+`type`。启动器会把当前 feature gate 启用的 controller 交给同一个 spawner，先逐个加载、
+配置，再成组激活，避免并发 `switch_controller`。各项 `timeout` 的最大值同时用于等待
+controller manager、service response 和 controller switch。
 
 校验：
 
@@ -135,6 +140,10 @@ module_validation
 
 `module_validation` 用于接入外部 ROS2 模块，可选字段包括 `module`、`adapters`
 和 `expect.module`。详见 [外部模块接入指南](../guide/external-modules.md)。
+
+`expect.required_sensor_min_hz` 和 `expect.topics[].min_hz` 校验 Gazebo 消息 header
+时间对应的仿真频率；没有合法 header 时间戳的消息才回退到墙钟频率。这样 CI 的
+real-time factor 低于 1 时不会把正常的仿真传感器误判为降频。
 
 ## 外部 Package 发现
 

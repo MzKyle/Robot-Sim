@@ -3,7 +3,7 @@
 ## 拉取源码
 
 ```bash
-git clone https://github.com/MzKyle/robot_sim.git robot_sim
+git clone https://github.com/MzKyle/Robot-Sim.git robot_sim
 cd robot_sim
 ```
 
@@ -52,6 +52,13 @@ mock 控制链：
 
 ```bash
 ros2 launch robot_sim_bringup sim.launch.py sim_mode:=mock
+```
+
+`sim.launch.py` 会启动传感器插件和 `ros_gz_bridge`，但不会启动
+`robot_sim_sensor_*` receiver。需要 `/diagnostics` 时另开终端运行：
+
+```bash
+ros2 launch robot_sim_bringup sensor_receivers.launch.py sim_profile:=panda
 ```
 
 ## 常用检查
